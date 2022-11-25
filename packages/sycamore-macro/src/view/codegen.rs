@@ -394,7 +394,7 @@ impl Codegen {
                         tokens.extend(
                             syn::Error::new(
                                 prop.span(),
-                                &format!("property `{}` is not supported with `bind:`", prop),
+                                format!("property `{}` is not supported with `bind:`", prop),
                             )
                             .to_compile_error(),
                         );
