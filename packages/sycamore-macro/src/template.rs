@@ -5,17 +5,40 @@ use syn::{Expr, ExprLit, Lit};
 
 use crate::view::{is_bool_attr, is_component, is_void_element};
 
-pub struct ViewToString {}
+pub struct ViewToString {
+    current_id: u32,
+    next_id: u32,
+}
+
+impl Default for ViewToString {
+    fn default() -> Self {
+        Self {
+            current_id: 0,
+            next_id: 1,
+        }
+    }
+}
 
 impl ViewToString {
-    pub fn element(&self, node: &TagNode) -> String {
+    /// Increments the next element id and sets the current id to the new id.
+    fn inc_id(&mut self) -> u32 {
+        let id = self.next_id;
+        self.next_id += 1;
+        self.current_id = id;
+        id
+    }
+}
+
+impl ViewToString {
+    pub fn element(&mut self, node: &TagNode) -> String {
         assert!(
             !is_component(&node.ident),
             "components should not appear in HTML template"
         );
         let tag = tagident_to_string(&node.ident);
-        let static_attributes = self.static_attributes(node);
+        let static_attributes = self.attributes(&node.props);
         if is_void_element(&tag) {
+            assert!(node.children.0.is_empty());
             format!("<{tag}{static_attributes}/>")
         } else {
             let children = self.children(&node.children);
@@ -23,10 +46,9 @@ impl ViewToString {
         }
     }
 
-    /// Generates the static attributes of the tag.
-    pub fn static_attributes(&self, node: &TagNode) -> String {
+    pub fn attributes(&mut self, attrs: &[Prop]) -> String {
         let mut buf = String::new();
-        for attr in &node.props {
+        for attr in attrs {
             if let Some(name) = attr_is_static(attr) {
                 if is_bool_attr(&name) {
                     match &attr.value {
@@ -54,15 +76,18 @@ impl ViewToString {
                         _ => unreachable!("static non-bool attribute must be a string literal"),
                     };
                 }
+            } else {
+                // Dynamic attribute.
             }
         }
         buf
     }
 
     /// Generates the children of the tag.
-    pub fn children(&self, root: &Root) -> String {
+    pub fn children(&mut self, root: &Root) -> String {
         let mut buf = String::new();
-        for node in &root.0 {
+        let mut children = root.0.iter().peekable();
+        while let Some(node) = children.next() {
             match node {
                 Node::Tag(node) => {
                     buf.push_str(&self.element(node));
@@ -71,7 +96,11 @@ impl ViewToString {
                     html_escape::encode_text_to_string(node.value.value(), &mut buf);
                 }
                 Node::Dyn(node) => {
-                    todo!("dynamic marker")
+                    if let Some(Node::Dyn(_)) = children.peek() {
+                        buf.push_str("<?>"); // Comment to separate dynamic nodes.
+                    } else {
+                        // Set the next node as the marker for this dynamic node.
+                    }
                 }
             }
         }
@@ -124,7 +153,7 @@ mod tests {
     use super::*;
 
     fn expect(input: TagNode, expected: &str) {
-        let actual = ViewToString {}.element(&input);
+        let actual = ViewToString::default().element(&input);
         assert_eq!(actual, expected);
     }
 
