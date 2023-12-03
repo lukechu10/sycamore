@@ -4,17 +4,20 @@
 #![warn(missing_docs)]
 
 use proc_macro::TokenStream;
+use proc_macro_error::proc_macro_error;
 use quote::quote;
 use syn::{parse_macro_input, DeriveInput};
 
 mod component;
 mod props;
+mod template;
 mod view;
 
 /// A macro for ergonomically creating complex UI complex layouts.
 ///
 /// To learn more about the view syntax, see [the chapter on views](https://sycamore-rs.netlify.app/docs/basics/view)
 /// in the Sycamore Book.
+#[proc_macro_error]
 #[proc_macro]
 pub fn view(input: TokenStream) -> TokenStream {
     let root = parse_macro_input!(input as sycamore_view_parser::ir::Root);
@@ -28,6 +31,7 @@ pub fn view(input: TokenStream) -> TokenStream {
 ///
 /// To learn more about components, see the chapter on
 /// [components](https://sycamore-rs.netlify.app/docs/basics/components) in the Sycamore Book.
+#[proc_macro_error]
 #[proc_macro_attribute]
 pub fn component(args: TokenStream, item: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as component::ComponentArgs);

@@ -626,7 +626,19 @@ pub fn is_bool_attr(name: &str) -> bool {
     BOOLEAN_ATTRIBUTES_SET.contains(name)
 }
 
-fn is_component(ident: &TagIdent) -> bool {
+pub fn is_void_element(name: &str) -> bool {
+    static VOID_ELEMENTS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+        vec![
+            "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param",
+            "source", "track", "wbr", "command", "keygen", "menuitem",
+        ]
+        .into_iter()
+        .collect()
+    });
+    VOID_ELEMENTS.contains(name)
+}
+
+pub fn is_component(ident: &TagIdent) -> bool {
     match ident {
         TagIdent::Path(path) => {
             path.get_ident().is_none()
@@ -641,5 +653,26 @@ fn is_component(ident: &TagIdent) -> bool {
         }
         // A hyphenated tag is always a custom-element and therefore never a component.
         TagIdent::Hyphenated(_) => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_component() {
+        assert!(!is_component(&TagIdent::Path(syn::parse_quote! { div })));
+        assert!(!is_component(&TagIdent::Path(syn::parse_quote! { a })));
+        assert!(!is_component(&TagIdent::Hyphenated(
+            "custom-element".to_string()
+        )));
+
+        assert!(is_component(&TagIdent::Path(
+            syn::parse_quote! { MyComponent }
+        )));
+        assert!(is_component(&TagIdent::Path(
+            syn::parse_quote! { not_elements::div }
+        )));
     }
 }
