@@ -20,8 +20,8 @@ use crate::*;
 ///
 ///  _Credits: Based on TypeScript implementation in <https://github.com/solidjs/solid>_
 pub fn map_keyed<T, K, U: 'static>(
-    list: impl Accessor<Vec<T>> + Clone + 'static,
-    map_fn: impl Fn(T) -> U + 'static,
+    list: impl Accessor<Vec<T>> + 'static,
+    mut map_fn: impl FnMut(T) -> U + 'static,
     key_fn: impl Fn(&T) -> K + 'static,
 ) -> ReadSignal<Vec<U>>
 where
@@ -53,7 +53,7 @@ where
             disposers.reserve(new_items.len());
 
             for new_item in new_items.iter().cloned() {
-                let map_fn = &map_fn;
+                let map_fn = &mut map_fn;
                 let mapped = &mut mapped;
                 let new_disposer = create_child_scope(move || mapped.push(map_fn(new_item)));
                 disposers.push(Some(new_disposer));
@@ -97,7 +97,7 @@ where
                     "end and new_end are the last indexes where items[end - 1] != new_items[new_end - 1]"
                 );
 
-            // 0) Prepare a map of indices in newItems. Scan backwards so we encounter them in
+            // 0) Prepare a map of indices in new_items. Scan backwards so we encounter them in
             // natural order.
             let mut new_indices = HashMap::with_capacity(new_end - start);
 
@@ -106,20 +106,22 @@ where
             let mut new_indices_next = vec![None; new_end - start];
             for j in (start..new_end).rev() {
                 let item = &new_items[j];
-                let i = new_indices.get(&key_fn(item));
+                let key = key_fn(item);
+                let i = new_indices.get(&key);
                 new_indices_next[j - start] = i.copied();
-                new_indices.insert(key_fn(item), j);
+                new_indices.insert(key, j);
             }
 
             // 1) Step through old items and see if they can be found in new set; if so, mark
             // them as moved.
             for i in start..end {
                 let item = &items[i];
-                if let Some(j) = new_indices.get(&key_fn(item)).copied() {
+                let key = key_fn(item);
+                if let Some(j) = new_indices.get(&key).copied() {
                     // Moved. j is index of item in new_items.
                     mapped_tmp[j] = Some(mapped[i].clone());
                     disposers_tmp[j] = disposers[i].take();
-                    new_indices_next[j - start].and_then(|j| new_indices.insert(key_fn(item), j));
+                    new_indices_next[j - start].and_then(|j| new_indices.insert(key, j));
                 } else {
                     // Create new.
                     disposers[i].take().unwrap().dispose();
@@ -185,8 +187,8 @@ where
 ///   and therefore reactive.
 /// * `map_fn` - A closure that maps from the input type to the output type.
 pub fn map_indexed<T, U: 'static>(
-    list: impl Accessor<Vec<T>> + Clone + 'static,
-    map_fn: impl Fn(T) -> U + 'static,
+    list: impl Accessor<Vec<T>> + 'static,
+    mut map_fn: impl FnMut(T) -> U + 'static,
 ) -> ReadSignal<Vec<U>>
 where
     T: PartialEq + Clone + 'static,
