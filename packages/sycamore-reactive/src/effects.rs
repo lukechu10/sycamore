@@ -222,6 +222,29 @@ mod tests {
         });
     }
 
+    /// Regression test for https://github.com/sycamore-rs/sycamore/issues/794
+    #[test]
+    fn nested_effects_rerun_inner() {
+        let _ = create_root(|| {
+            let state = create_signal(1);
+            let double = create_memo(move || state.get() * 2);
+            let is_even = create_memo(move || state.get() % 2 == 0);
+
+            let last_updated = create_signal(double.get());
+            create_effect(move || {
+                if is_even.get() {
+                    create_effect(move || {
+                        last_updated.set(double.get());
+                    });
+                }
+            });
+
+            assert_eq!(last_updated.get(), 2); // initial run
+            state.set(2);
+            assert_eq!(last_updated.get(), 4); // inner effect should rerun
+        });
+    }
+
     #[test]
     fn destroy_effects_on_scope_dispose() {
         let _ = create_root(|| {
