@@ -1,5 +1,6 @@
 use expect_test::{expect, Expect};
 use sycamore::web::tags::*;
+use sycamore::web::Portal2;
 
 use super::*;
 
@@ -265,6 +266,38 @@ mod indexed_list {
             // Reactivity should work normally.
             state.set(vec![2, 1, 0]);
             assert_text_content!(query("ul"), "210");
+        });
+    }
+}
+
+mod portal {
+    use super::*;
+    fn v(state: ReadSignal<bool>) -> View {
+        view! {
+            div(id="target")
+            Portal2(selector="#target") {
+                (if state.get() {
+                    view! { "Hello from the other side!" }
+                } else {
+                    view! { }
+                })
+            }
+        }
+    }
+    static EXPECT: Expect = expect![[r#"<div id="target" data-hk="0.0"></div>"#]];
+    #[test]
+    fn ssr() {
+        check(|| v(*create_signal(true)), &EXPECT);
+    }
+    #[wasm_bindgen_test]
+    fn test() {
+        let c = test_container();
+        c.set_inner_html(EXPECT.data());
+
+        let _ = create_root(|| {
+            let state = create_signal(true);
+
+            sycamore::hydrate_in_scope(|| v(*state), &c);
         });
     }
 }
