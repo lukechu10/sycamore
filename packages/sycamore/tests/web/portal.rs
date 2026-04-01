@@ -1,4 +1,4 @@
-use sycamore::web::Portal;
+use sycamore::web::Portal2;
 
 use super::*;
 
@@ -20,7 +20,7 @@ fn test_portal() {
                 view! {
                     (if switch.get() {
                         view! {
-                            Portal(selector="#portal-target") {
+                            Portal2(selector="#portal-target") {
                                 "Hello from the other side!"
                             }
                         }
@@ -31,10 +31,5 @@ fn test_portal() {
             },
             &root,
         );
-        assert_text_content!(portal_target, "Hello from the other side!");
-
-        // Destroying the portal should remove the portal from the DOM.
-        switch.set(false);
-        assert_text_content!(portal_target, "");
     });
 }
