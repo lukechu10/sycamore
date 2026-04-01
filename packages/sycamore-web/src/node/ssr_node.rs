@@ -329,7 +329,9 @@ mod tests {
                     }
                 }
             },
-            expect![[r#"<ul data-hk="0.0"><li data-hk="0.1">1</li><li data-hk="0.2">2</li></ul>"#]],
+            expect![[
+                r#"<ul data-hk="0.0"><!--/--><li data-hk="0.1">1</li><li data-hk="0.2">2</li><!--/--></ul>"#
+            ]],
         );
     }
 
