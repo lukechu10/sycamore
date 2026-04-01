@@ -208,7 +208,7 @@ following command and follow the instructions in the console.
 
 ```bash
 cd packages/sycamore
-wasm-pack test --chrome
+wasm-pack test --chrome --all-features
 ```
 
 If you want to run the tests in a headless instead, just pass the `--headless`
