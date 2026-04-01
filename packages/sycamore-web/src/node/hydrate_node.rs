@@ -63,7 +63,6 @@ impl ViewNode for HydrateNode {
                     // Noop for hydration since node is already in right place.
                 }
                 NodeState::TextDynamic(node) => {
-                    console_warn!("text dynamic");
                     // Search self for an empty comment node. Once found, the next node should be
                     // the text node. Hydrate the text node and remove the comment node.
                     let mut next = self.as_web_sys().first_child();
