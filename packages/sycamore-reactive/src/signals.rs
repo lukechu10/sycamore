@@ -298,7 +298,13 @@ impl<T> ReadSignal<T> {
     /// Get a value from the signal without tracking it.
     #[cfg_attr(debug_assertions, track_caller)]
     pub fn with_untracked<U>(self, f: impl FnOnce(&T) -> U) -> U {
+        self.root.ensure_node_is_clean(self.id);
+
         let node = self.get_ref();
+        debug_assert!(
+            node.state == NodeState::Clean,
+            "state should always be latest value"
+        );
         let value = node
             .value
             .as_ref()

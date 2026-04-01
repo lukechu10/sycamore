@@ -1,4 +1,7 @@
-//! [`Root`] and [`Scope`].
+//! Definition of [`Root`] and related functions.
+//!
+//! In particular, this file includes the implementation of the reactive graph and the update
+//! propagation algorithm.
 
 use std::cell::{Cell, RefCell};
 
@@ -105,6 +108,25 @@ impl Root {
         let prev = self.tracker.replace(Some(DependencyTracker::default()));
         let ret = f();
         (ret, self.tracker.replace(prev).unwrap())
+    }
+
+    /// Ensure that the node is clean. If it is dirty, then we need to update the node first before
+    /// we can safely access its value.
+    ///
+    /// This is used in [`ReadSignal::get`] to ensure that the value is up-to-date before returning
+    /// it. This will also recursively ensure that all the dependencies of the node are clean as
+    /// well.
+    ///
+    /// If node is already destroyed, this does nothing.
+    pub fn ensure_node_is_clean(&'static self, node: NodeId) {
+        let is_clean = self
+            .nodes
+            .borrow()
+            .get(node)
+            .is_none_or(|node| node.state == NodeState::Clean);
+        if !is_clean {
+            self.run_node_update(node);
+        }
     }
 
     /// Run the update callback of the signal, also recreating any dependencies found by
@@ -455,6 +477,23 @@ pub fn use_global_scope() -> NodeHandle {
 #[cfg(test)]
 mod tests {
     use crate::*;
+
+    #[test]
+    fn test_lazy_vs_eager_updates() {
+        let _ = create_root(|| {
+            let counter = create_signal(0);
+            let trigger = create_signal(0);
+            create_effect(move || {
+                let _ = trigger.get();
+                counter.set(counter.get_untracked() + 1);
+            });
+            assert_eq!(counter.get(), 1); // initial run
+            trigger.set(1);
+            // If updates are lazy, this will fail (counter will still be 1)
+            // If updates are eager, this will pass (counter will be 2)
+            assert_eq!(counter.get(), 2);
+        });
+    }
 
     #[test]
     fn cleanup() {
