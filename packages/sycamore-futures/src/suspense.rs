@@ -114,7 +114,13 @@ impl Default for SuspenseTaskGuard {
 impl Drop for SuspenseTaskGuard {
     fn drop(&mut self) {
         if let Some(mut scope) = self.scope {
-            scope.tasks_remaining -= 1;
+            // It's possible that the scope has already been destroyed, in the case where the
+            // suspense task is still running after the suspense scope is destroyed. In this case,
+            // we need to be careful not to access any values in the scope since that will cause a
+            // panic.
+            if scope.tasks_remaining.is_alive() {
+                scope.tasks_remaining -= 1;
+            }
         }
     }
 }
@@ -294,6 +300,43 @@ mod tests {
 
         root.run_in(|| {
             assert!(!use_is_loading_global());
+        });
+    }
+
+    /// Create a suspense task that never completes, and then destroy the suspense scope. This
+    /// should not cause any panics or memory leaks.
+    #[test]
+    fn suspense_task_completing_after_suspense_scope_destroyed() {
+        // HACK: Currently, Tokio will swallow panics in spawned tasks unless the handle is
+        // awaited. Since we do not await the handle of the task created by `create_suspense_task`,
+        // we set a custom panic hook that will abort the test if any task panics.
+        std::panic::set_hook(Box::new(|info| {
+            eprintln!("Task panicked: {info}");
+            panic!("aborting test due to panic in task");
+        }));
+
+        let (_tx, rx) = oneshot::channel::<()>();
+
+        let local = tokio::task::LocalSet::new();
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        local.block_on(&rt, async {
+            let _root = create_root(|| {
+                let trigger = create_signal(());
+                let rx = create_signal(Some(rx));
+                create_effect(move || {
+                    trigger.track();
+                    let _ = create_suspense_scope(move || {
+                        create_suspense_task(async move {
+                            if let Some(rx) = rx.take() {
+                                rx.await.unwrap();
+                            }
+                        });
+                    });
+                });
+                trigger.set(());
+            });
         });
     }
 }
