@@ -63,7 +63,6 @@ impl ViewNode for HydrateNode {
                     // Noop for hydration since node is already in right place.
                 }
                 NodeState::TextDynamic(node) => {
-                    console_warn!("text dynamic");
                     // Search self for an empty comment node. Once found, the next node should be
                     // the text node. Hydrate the text node and remove the comment node.
                     let mut next = self.as_web_sys().first_child();
@@ -142,7 +141,9 @@ impl ViewHtmlNode for HydrateNode {
             let key = reg.next_key();
             let node = HYDRATE_NODES
                 .with(|nodes| nodes.borrow_mut().remove(&key))
-                .unwrap_or_else(|| panic!("node with hk `{key}` not found"));
+                .unwrap_or_else(|| {
+                    panic!("node with hk `{key}` not found, expected a <{tag}> element")
+                });
             check_node(node.as_web_sys(), &tag, key);
             node
         } else {
