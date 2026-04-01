@@ -8,7 +8,7 @@ keywords = ["wasm", "gui", "reactive"]
 license = "MIT"
 readme = "../../README.md"
 repository = "https://github.com/sycamore-rs/sycamore"
-rust-version = "1.81"
+rust-version = "1.94"
 version.workspace = true
 
 [dependencies]

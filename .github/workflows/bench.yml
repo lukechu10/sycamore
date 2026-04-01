@@ -9,10 +9,7 @@ jobs:
 
     steps:
       - name: Setup Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
+        run: rustup default stable
 
       - name: Checkout repository base
         uses: actions/checkout@v4

@@ -18,10 +18,9 @@ jobs:
     steps:
       # Install necessary tooling
       - name: Setup Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          target: wasm32-unknown-unknown
+        run: |
+          rustup default stable
+          rustup target add wasm32-unknown-unknown
 
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh

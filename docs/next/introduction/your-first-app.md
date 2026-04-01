@@ -24,7 +24,7 @@ needed to compile Rust to WebAssembly.
 rustup target add wasm32-unknown-unknown
 ```
 
-The minimum supported Rust toolchain is `v1.81.0`. Sycamore is not guaranteed to
+The minimum supported Rust toolchain is `v1.94`. Sycamore is not guaranteed to
 (and probably won't) compile on older versions of Rust.
 
 Sycamore also only works on Rust edition 2021 or later (which should be the

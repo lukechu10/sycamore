@@ -286,9 +286,7 @@ fn is_dyn_macro(m: &syn::Macro) -> bool {
     // Bodies of nested inner view! macros will be checked for dynamic
     // parts when their own codegen is run.
 
-    // TODO(MSRV >= 1.82): use `is_none_or` and remove the `allow(clippy::nonminimal_bool)`
-    #[allow(clippy::nonminimal_bool)]
-    !m.path.get_ident().is_some_and(|ident| ident == "view")
+    m.path.get_ident().is_none_or(|ident| ident != "view")
 }
 
 fn is_dyn_block(block: &syn::Block) -> bool {

@@ -24,6 +24,22 @@ error[E0425]: cannot find value `UnknownComponent` in this scope
 38 |         let _: View = view! { UnknownComponent {} };
    |                               ^^^^^^^^^^^^^^^^ not found in this scope
 
+error[E0282]: type annotations needed
+  --> tests/view/component-fail.rs:37:23
+   |
+37 |         let _: View = view! { UnknownComponent() };
+   |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ cannot infer type
+   |
+   = note: this error originates in the macro `view` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0282]: type annotations needed
+  --> tests/view/component-fail.rs:38:23
+   |
+38 |         let _: View = view! { UnknownComponent {} };
+   |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ cannot infer type
+   |
+   = note: this error originates in the macro `view` (in Nightly builds, run with -Z macro-backtrace for more info)
+
 error[E0599]: no method named `not_a_prop` found for struct `UnitBuilder` in the current scope
   --> tests/view/component-fail.rs:41:41
    |
@@ -48,13 +64,9 @@ error[E0061]: this method takes 1 argument but 0 arguments were supplied
 note: method defined here
   --> tests/view/component-fail.rs:3:10
    |
-3  | #[derive(Props)]
+ 3 | #[derive(Props)]
    |          ^^^^^
    = note: this error originates in the macro `view` which comes from the expansion of the derive macro `Props` (in Nightly builds, run with -Z macro-backtrace for more info)
-help: provide the argument
-   |
-43 |         let _: View = view! { PropsComponent() }(/* PropsBuilder_Error_Missing_required_field_prop */);
-   |                                                 ++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 warning: use of deprecated method `PropsBuilder::<((),)>::build`: Missing required field prop
   --> tests/view/component-fail.rs:44:23
@@ -73,13 +85,9 @@ error[E0061]: this method takes 1 argument but 0 arguments were supplied
 note: method defined here
   --> tests/view/component-fail.rs:3:10
    |
-3  | #[derive(Props)]
+ 3 | #[derive(Props)]
    |          ^^^^^
    = note: this error originates in the macro `view` which comes from the expansion of the derive macro `Props` (in Nightly builds, run with -Z macro-backtrace for more info)
-help: provide the argument
-   |
-44 |         let _: View = view! { PropsComponent {} }(/* PropsBuilder_Error_Missing_required_field_prop */);
-   |                                                  ++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 error[E0308]: mismatched types
   --> tests/view/component-fail.rs:45:51
@@ -92,14 +100,14 @@ error[E0308]: mismatched types
 note: method defined here
   --> tests/view/component-fail.rs:5:5
    |
-5  |     prop: &'static str,
+ 5 |     prop: &'static str,
    |     ^^^^--------------
 
 error[E0277]: the trait bound `{integer}: Into<MaybeDyn<Option<Cow<'static, str>>>>` is not satisfied
   --> tests/view/component-fail.rs:48:57
    |
 48 |         let _: View = view! { AttributesComponent(class=123) }; // Wrong type
-   |                                                   ----- ^^^ the trait `Fn()` is not implemented for `{integer}`, which is required by `{integer}: Into<MaybeDyn<Option<Cow<'static, str>>>>`
+   |                                                   ----- ^^^ the trait `Fn()` is not implemented for `{integer}`
    |                                                   |
    |                                                   required by a bound introduced by this call
    |

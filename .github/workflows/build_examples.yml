@@ -13,11 +13,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          target: wasm32-unknown-unknown
-          default: true
+        run: |
+          rustup default nightly
+          rustup target add wasm32-unknown-unknown
 
       - name: Setup NodeJS
         uses: actions/setup-node@v3

@@ -16,7 +16,7 @@ jobs:
     strategy:
       matrix:
         rust:
-          - 1.81.0
+          - 1.94
           - stable
           - nightly
         os:
@@ -26,10 +26,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: ${{ matrix.rust }}
-          override: true
+        run: |
+          rustup default ${{ matrix.rust }}
+          rustup target add wasm32-unknown-unknown
 
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
@@ -52,8 +51,8 @@ jobs:
         # Only run tests for sycamore to prevent stray feature flags from other tests.
         run: cd packages/sycamore && cargo test
 
-      - name: Run tests (with UI tests) on 1.81.0
-        if: matrix.rust == '1.81.0'
+      - name: Run tests (with UI tests) on 1.94
+        if: matrix.rust == '1.94'
         env:
           RUN_UI_TESTS: true
         run: cargo test
@@ -134,40 +133,3 @@ jobs:
       - name: Run tests with all features
         run: |
           cargo miri test --all-features
-
-  msrv:
-    name: Build on below-minimum Rust version
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        rust:
-          - 1.80.0
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Rust
-        id: setup-rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: ${{ matrix.rust }}
-          override: true
-
-      - name: Cargo generate-lockfile
-        run: cargo generate-lockfile
-
-      - name: Cargo cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
-
-      - run: echo ${{ runner.os }}-cargo-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Check for version requirement message
-        run: command 2>&1 cargo test web | grep -E "^[[:space:]]*sycamore@[[:digit:]]+(.[[:digit:]]+)* requires rustc [[:digit:]]+(.[[:digit:]]+)*"

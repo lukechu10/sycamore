@@ -89,5 +89,5 @@ warning: unreachable call
    |                       |                           any code following this expression is unreachable
    |                       unreachable call
    |
-   = note: `#[warn(unreachable_code)]` on by default
+   = note: `#[warn(unreachable_code)]` (part of `#[warn(unused)]`) on by default
    = note: this warning originates in the macro `view` (in Nightly builds, run with -Z macro-backtrace for more info)
