@@ -195,3 +195,76 @@ mod top_level_dynamic_with_siblings {
         });
     }
 }
+
+mod keyed_list {
+    use super::*;
+    fn v(state: ReadSignal<Vec<i32>>) -> View {
+        view! {
+            ul {
+                Keyed(
+                    list=state,
+                    view=|i| view! { li { (i) } },
+                    key=|i| *i,
+                )
+            }
+        }
+    }
+    static EXPECT: Expect = expect![[
+        r#"<ul data-hk="0.0"><!--/--><li data-hk="0.1">0</li><li data-hk="0.2">1</li><li data-hk="0.3">2</li><!--/--></ul>"#
+    ]];
+    #[test]
+    fn ssr() {
+        check(|| v(*create_signal(vec![0, 1, 2])), &EXPECT);
+    }
+    #[wasm_bindgen_test]
+    fn test() {
+        let c = test_container();
+        c.set_inner_html(EXPECT.data());
+
+        let _ = create_root(|| {
+            let state = create_signal(vec![0, 1, 2]);
+
+            sycamore::hydrate_in_scope(|| v(*state), &c);
+
+            // Reactivity should work normally.
+            state.set(vec![2, 1, 0]);
+            assert_text_content!(query("ul"), "210");
+        });
+    }
+}
+
+mod indexed_list {
+    use super::*;
+    fn v(state: ReadSignal<Vec<i32>>) -> View {
+        view! {
+            ul {
+                Indexed(
+                    list=state,
+                    view=|i| view! { li { (i) } },
+                )
+            }
+        }
+    }
+    static EXPECT: Expect = expect![[
+        r#"<ul data-hk="0.0"><!--/--><li data-hk="0.1">0</li><li data-hk="0.2">1</li><li data-hk="0.3">2</li><!--/--></ul>"#
+    ]];
+    #[test]
+    fn ssr() {
+        check(|| v(*create_signal(vec![0, 1, 2])), &EXPECT);
+    }
+    #[wasm_bindgen_test]
+    fn test() {
+        let c = test_container();
+        c.set_inner_html(EXPECT.data());
+
+        let _ = create_root(|| {
+            let state = create_signal(vec![0, 1, 2]);
+
+            sycamore::hydrate_in_scope(|| v(*state), &c);
+
+            // Reactivity should work normally.
+            state.set(vec![2, 1, 0]);
+            assert_text_content!(query("ul"), "210");
+        });
+    }
+}
