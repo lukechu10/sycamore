@@ -142,7 +142,9 @@ impl ViewHtmlNode for HydrateNode {
             let key = reg.next_key();
             let node = HYDRATE_NODES
                 .with(|nodes| nodes.borrow_mut().remove(&key))
-                .unwrap_or_else(|| panic!("node with hk `{key}` not found"));
+                .unwrap_or_else(|| {
+                    panic!("node with hk `{key}` not found, expected a <{tag}> element")
+                });
             check_node(node.as_web_sys(), &tag, key);
             node
         } else {
