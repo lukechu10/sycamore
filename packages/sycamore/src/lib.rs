@@ -2,8 +2,8 @@
 //!
 //! Sycamore is a **reactive** library for creating web apps in **Rust** and **WebAssembly**.
 //!
-//! This is the API docs for sycamore. If you are looking for the usage docs, checkout the
-//! [Sycamore Book](https://sycamore-rs.netlify.app/docs/getting_started/installation).
+//! This is the API docs for sycamore. If you are looking for the usage docs, check out the
+//! [Sycamore Book](https://sycamore.dev/book/introduction).
 //!
 //! ## Feature Flags
 //!

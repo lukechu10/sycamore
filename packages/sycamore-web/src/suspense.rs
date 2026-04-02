@@ -27,11 +27,11 @@ pub struct SuspenseProps {
 /// `Suspense` lets you wait for `async` tasks to complete before rendering the UI. This is useful
 /// for asynchronous data-fetching or other asynchronous tasks.
 ///
-/// `Suspense` is deeply integrated with [async components](https://sycamore-rs.netlify.app/docs/basics/components).
-/// Async components that are nested under the `Suspense` component will not be rendered until they
-/// are resolved. Having multiple async components will have the effect that the final UI will only
-/// be rendered once all individual async components are rendered. This is useful for showing a
-/// loading indicator while the data is being loaded.
+/// `Suspense` is deeply integrated with async components. Async components that are nested under
+/// the `Suspense` component will not be rendered until they are resolved. Having multiple async
+/// components will have the effect that the final UI will only be rendered once all individual
+/// async components are rendered. This is useful for showing a loading indicator while the data is
+/// being loaded.
 ///
 /// # Example
 /// ```

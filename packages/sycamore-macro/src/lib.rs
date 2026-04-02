@@ -1,4 +1,4 @@
-//! Proc-macros used in [Sycamore](https://sycamore-rs.netlify.app).
+//! Proc-macros used in [Sycamore](https://docs.rs/sycamore).
 
 #![deny(missing_debug_implementations)]
 #![warn(missing_docs)]
@@ -13,8 +13,8 @@ mod props;
 
 /// A macro for ergonomically creating complex UI complex layouts.
 ///
-/// To learn more about the view syntax, see [the chapter on views](https://sycamore-rs.netlify.app/docs/basics/view)
-/// in the Sycamore Book.
+/// To learn more about the view syntax, see [the chapter on the view
+/// macro](https://sycamore.dev/book/guide/view-dsl) in the Sycamore Book.
 #[proc_macro]
 pub fn view(input: TokenStream) -> TokenStream {
     let root = parse_macro_input!(input as sycamore_view_parser::ir::Root);
@@ -27,7 +27,7 @@ pub fn view(input: TokenStream) -> TokenStream {
 /// Add this attribute to a `fn` to create a component from that function.
 ///
 /// To learn more about components, see the chapter on
-/// [components](https://sycamore-rs.netlify.app/docs/basics/components) in the Sycamore Book.
+/// [components](https://sycamore.dev/book/introduction/your-first-app#using-components) in the Sycamore Book.
 #[proc_macro_attribute]
 pub fn component(args: TokenStream, item: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as component::ComponentArgs);

@@ -1,10 +1,10 @@
 # Examples
 
-## Viewing on `sycamore-rs.netlify.app`
+## Live Demos
 
 All the examples are hosted under `examples.sycamore.dev/<example_name>` with
-`<example_name>` being the name of the example you want to view. For instance, the `todomvc` example
-is hosted on
+`<example_name>` replaced with the name of the example you want to view. For instance, the `todomvc` example
+can be viewed at
 [`examples.sycamore.dev/todomvc`](https://examples.sycamore.dev/todomvc).
 
 ## Building Locally
@@ -17,7 +17,7 @@ cd examples/todomvc
 trunk serve
 ```
 
-Now open up `localhost:8080` in your browser to see "Hello World!".
+Now open up `localhost:8080` in your browser to see the example running locally.
 
 ## Example List
 
