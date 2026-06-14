@@ -58,7 +58,7 @@ is hosted on
 
 ### Building Locally
 
-All the examples can also be built locally using [Trunk](https://trunkrs.dev). For instance, the
+All the examples can also be built locally using [Trunk](https://trunk-rs.github.io/trunk/). For instance, the
 following command builds and serves the `todomvc` example:
 
 ```bash
