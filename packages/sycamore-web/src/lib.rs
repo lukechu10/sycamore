@@ -87,7 +87,7 @@ pub mod rt {
 
     #[cfg(feature = "suspense")]
     pub use crate::WrapAsync;
-    pub use crate::{bind, custom_element, tags, View};
+    pub use crate::{View, bind, custom_element, tags};
 }
 
 /// Re-export of `js-sys` and `wasm-bindgen` for convenience.

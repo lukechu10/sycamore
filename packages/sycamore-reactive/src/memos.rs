@@ -2,7 +2,7 @@
 
 use std::cell::RefCell;
 
-use crate::{create_empty_signal, create_signal, ReadSignal, Root};
+use crate::{ReadSignal, Root, create_empty_signal, create_signal};
 
 /// Creates a memoized value from some signals.
 /// Unlike [`create_memo`], this function will not notify dependents of a
@@ -226,8 +226,8 @@ mod tests {
             assert_eq!(double.get(), 2);
             state.set(2);
             assert_eq!(double.get(), 2); // double value should still be true because state.get()
-                                         // was
-                                         // inside untracked
+            // was
+            // inside untracked
         });
     }
 

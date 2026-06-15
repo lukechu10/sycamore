@@ -8,11 +8,11 @@ mod suspense;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
+use futures::Future;
 use futures::future::abortable;
 use futures::stream::Abortable;
-use futures::Future;
 use pin_project::pin_project;
-use sycamore_reactive::{on_cleanup, use_current_scope, NodeHandle};
+use sycamore_reactive::{NodeHandle, on_cleanup, use_current_scope};
 
 pub use self::suspense::*;
 

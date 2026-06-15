@@ -1,10 +1,10 @@
 //! Context values.
 
-use std::any::{type_name, Any};
+use std::any::{Any, type_name};
 
 use slotmap::Key;
 
-use crate::{create_child_scope, NodeId, Root};
+use crate::{NodeId, Root, create_child_scope};
 
 /// Provide a context value in this scope.
 ///

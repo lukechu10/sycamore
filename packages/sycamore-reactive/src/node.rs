@@ -5,7 +5,7 @@ use std::any::Any;
 use slotmap::new_key_type;
 use smallvec::SmallVec;
 
-use crate::{untrack_in_scope, Root};
+use crate::{Root, untrack_in_scope};
 
 new_key_type! {
     pub(crate) struct NodeId;

@@ -64,7 +64,7 @@ pub fn parse_route(i: &str) -> Result<RoutePathAst> {
 
 #[cfg(test)]
 mod tests {
-    use expect_test::{expect, Expect};
+    use expect_test::{Expect, expect};
 
     use super::*;
 

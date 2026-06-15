@@ -3,8 +3,8 @@
 //! The [`Suspense`] component is used to "suspend" execution and wait until async tasks are
 //! finished before rendering.
 
-use futures::channel::oneshot;
 use futures::Future;
+use futures::channel::oneshot;
 use sycamore_reactive::*;
 
 use crate::*;

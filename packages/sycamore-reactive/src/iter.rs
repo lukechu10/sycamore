@@ -92,14 +92,14 @@ where
                 disposers_tmp[new_end] = disposers[end].take();
             }
             debug_assert!(
-                    if end != 0 && new_end != 0 {
-                        (end == items.len() && new_end == new_items.len())
-                            || (items[end - 1] != new_items[new_end - 1])
-                    } else {
-                        true
-                    },
-                    "end and new_end are the last indexes where items[end - 1] != new_items[new_end - 1]"
-                );
+                if end != 0 && new_end != 0 {
+                    (end == items.len() && new_end == new_items.len())
+                        || (items[end - 1] != new_items[new_end - 1])
+                } else {
+                    true
+                },
+                "end and new_end are the last indexes where items[end - 1] != new_items[new_end - 1]"
+            );
 
             // 0) Prepare a map of indices in new_items. Scan backwards so we encounter them in
             // natural order.
@@ -166,9 +166,11 @@ where
         disposers.truncate(new_items.len());
 
         // 4) Save a copy of the mapped items for the next update.
-        debug_assert!([mapped.len(), disposers.len()]
-            .iter()
-            .all(|l| *l == new_items.len()));
+        debug_assert!(
+            [mapped.len(), disposers.len()]
+                .iter()
+                .all(|l| *l == new_items.len())
+        );
         items = new_items;
 
         mapped.clone()
@@ -255,9 +257,11 @@ where
             mapped.truncate(new_items.len());
 
             // Save a copy of the mapped items for the next update.
-            debug_assert!([mapped.len(), disposers.len()]
-                .iter()
-                .all(|l| *l == new_items.len()));
+            debug_assert!(
+                [mapped.len(), disposers.len()]
+                    .iter()
+                    .all(|l| *l == new_items.len())
+            );
             items = new_items;
         }
 

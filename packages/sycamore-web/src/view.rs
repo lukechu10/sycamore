@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-use smallvec::{smallvec, SmallVec};
+use smallvec::{SmallVec, smallvec};
 use sycamore_core::Children;
 
 use crate::*;
@@ -132,7 +132,9 @@ macro_rules! impl_view_from_to_string {
 }
 
 impl_view_from!(&'static str, String, Cow<'static, str>);
-impl_view_from_to_string!(i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize, f32, f64);
+impl_view_from_to_string!(
+    i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize, f32, f64
+);
 
 impl<T: ViewNode, F: FnMut() -> U + 'static, U: Into<View<T>> + 'static> From<F> for View<T> {
     fn from(f: F) -> Self {

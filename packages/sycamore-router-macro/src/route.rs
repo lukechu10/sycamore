@@ -1,10 +1,10 @@
 use proc_macro2::TokenStream;
-use quote::{quote, quote_spanned, ToTokens};
+use quote::{ToTokens, quote, quote_spanned};
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::{DeriveInput, Fields, Ident, LitStr, Token, Variant};
 
-use crate::parser::{parse_route, RoutePathAst, SegmentAst};
+use crate::parser::{RoutePathAst, SegmentAst, parse_route};
 
 pub fn route_impl(input: DeriveInput) -> syn::Result<TokenStream> {
     let mut quoted = TokenStream::new();
@@ -120,8 +120,11 @@ fn impl_to(
     if expected_fields_len != variant.fields.len() {
         return Err(syn::Error::new(
             variant.fields.span(),
-            format!("mismatch between number of capture fields and variant fields (found {} capture field(s) and {} variant field(s))",
-            expected_fields_len, variant.fields.len()),
+            format!(
+                "mismatch between number of capture fields and variant fields (found {} capture field(s) and {} variant field(s))",
+                expected_fields_len,
+                variant.fields.len()
+            ),
         ));
     }
 

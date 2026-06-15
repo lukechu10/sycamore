@@ -1,5 +1,5 @@
 use sycamore::prelude::*;
-use sycamore_router::{use_search_query, HistoryIntegration, Route, Router};
+use sycamore_router::{HistoryIntegration, Route, Router, use_search_query};
 
 #[derive(Route, Clone)]
 enum AppRoutes {

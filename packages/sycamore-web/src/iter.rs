@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::ops::Deref;
 
-use sycamore_macro::{component, Props};
+use sycamore_macro::{Props, component};
 use wasm_bindgen::prelude::*;
 
 use crate::*;

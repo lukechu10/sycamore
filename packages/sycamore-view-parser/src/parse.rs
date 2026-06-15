@@ -3,7 +3,7 @@
 use syn::ext::IdentExt;
 use syn::parse::{Parse, ParseStream};
 use syn::token::{Brace, Paren};
-use syn::{braced, parenthesized, token, Ident, LitStr, Result, Token};
+use syn::{Ident, LitStr, Result, Token, braced, parenthesized, token};
 
 use crate::ir::*;
 
