@@ -56,15 +56,14 @@ impl Parse for ComponentFn {
                             ));
                         }
 
-                        if let FnArg::Typed(pat) = input {
-                            if let Type::Tuple(TypeTuple { elems, .. }) = &*pat.ty {
-                                if elems.is_empty() {
-                                    return Err(syn::Error::new(
-                                        pat.ty.span(),
-                                        "taking an unit tuple as props is useless",
-                                    ));
-                                }
-                            }
+                        if let FnArg::Typed(pat) = input
+                            && let Type::Tuple(TypeTuple { elems, .. }) = &*pat.ty
+                            && elems.is_empty()
+                        {
+                            return Err(syn::Error::new(
+                                pat.ty.span(),
+                                "taking an unit tuple as props is useless",
+                            ));
                         }
                     }
                     [..] => {

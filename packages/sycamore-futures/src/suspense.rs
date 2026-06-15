@@ -70,10 +70,10 @@ impl SuspenseScope {
         let (tx, rx) = oneshot::channel();
         let mut tx = Some(tx);
         create_effect(move || {
-            if !self._is_loading() {
-                if let Some(tx) = tx.take() {
-                    tx.send(()).unwrap();
-                }
+            if !self._is_loading()
+                && let Some(tx) = tx.take()
+            {
+                tx.send(()).unwrap();
             }
         });
 

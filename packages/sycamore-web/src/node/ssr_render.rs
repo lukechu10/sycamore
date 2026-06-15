@@ -125,11 +125,10 @@ pub async fn render_to_string_await_suspense(f: impl FnOnce() -> View) -> String
 
                     // Now we wait until all suspense has resolved.
                     create_effect(move || {
-                        if !use_is_loading_global() {
-                            if let Some(tx) = tx.take() {
+                        if !use_is_loading_global()
+                            && let Some(tx) = tx.take() {
                                 tx.send(()).ok().unwrap();
                             }
-                        }
                     });
                 });
             });

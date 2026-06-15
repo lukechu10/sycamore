@@ -309,8 +309,8 @@ impl<T> ReadSignal<T> {
             .value
             .as_ref()
             .expect("cannot read signal while updating");
-        let ret = f(value.downcast_ref().expect("wrong signal type"));
-        ret
+
+        f(value.downcast_ref().expect("wrong signal type"))
     }
 
     /// Get a value from the signal.

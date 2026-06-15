@@ -155,10 +155,10 @@ mod tests {
 
                 // Signal when the resource is loaded.
                 create_effect(move || {
-                    if !resource.unwrap().is_loading() {
-                        if let Some(tx) = tx.take() {
-                            tx.send(()).unwrap();
-                        }
+                    if !resource.unwrap().is_loading()
+                        && let Some(tx) = tx.take()
+                    {
+                        tx.send(()).unwrap();
                     }
                 })
             });
