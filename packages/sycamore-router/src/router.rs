@@ -510,8 +510,6 @@ fn meta_keys_pressed(kb_event: &KeyboardEvent) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use sycamore::prelude::*;
-
     use super::*;
 
     #[test]

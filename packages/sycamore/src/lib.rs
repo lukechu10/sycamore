@@ -93,9 +93,9 @@ pub mod prelude {
     pub use sycamore_web::tags::svg_attributes::*;
     #[cfg(feature = "web")]
     pub use sycamore_web::{
-        console_dbg, console_log, create_node_ref, document, is_not_ssr, is_ssr, on_mount, window,
         Attributes, Children, GlobalAttributes, GlobalProps, HtmlGlobalAttributes, Indexed, Keyed,
-        NodeRef, SvgGlobalAttributes, View,
+        NodeRef, SvgGlobalAttributes, View, console_dbg, console_log, create_node_ref, document,
+        is_not_ssr, is_ssr, on_mount, window,
     };
 
     pub use crate::reactive::*;
@@ -104,7 +104,7 @@ pub mod prelude {
 /// Re-exports for use by `sycamore-macro`. Not intended for use by end-users.
 #[doc(hidden)]
 pub mod rt {
-    pub use sycamore_core::{component_scope, element_like_component_builder, Component, Props};
+    pub use sycamore_core::{Component, Props, component_scope, element_like_component_builder};
     #[cfg(feature = "suspense")]
     pub use sycamore_futures::*;
     pub use sycamore_macro::*;

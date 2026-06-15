@@ -1,6 +1,6 @@
-use expect_test::{expect, Expect};
-use sycamore::web::tags::*;
+use expect_test::{Expect, expect};
 use sycamore::web::Portal2;
+use sycamore::web::tags::*;
 
 use super::*;
 

@@ -2,12 +2,12 @@
 name = "sycamore-web"
 categories = ["gui", "wasm", "web-programming"]
 description = "proc-macro crate for Sycamore"
-edition = "2021"
-homepage = "https://github.com/sycamore-rs/sycamore"
 keywords = ["wasm", "gui", "reactive"]
-license = "MIT"
-readme = "../../README.md"
-repository = "https://github.com/sycamore-rs/sycamore"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+readme.workspace = true
+repository.workspace = true
 version.workspace = true
 
 [dependencies]

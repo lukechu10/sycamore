@@ -106,11 +106,8 @@ impl RoutePath {
                     }
                 }
                 Segment::DynParam => {
-                    if let Some(p) = paths.next() {
-                        captures.push(Capture::DynParam(p));
-                    } else {
-                        return None;
-                    }
+                    let p = paths.next()?;
+                    captures.push(Capture::DynParam(p));
                 }
                 Segment::DynSegments => {
                     if let Some(next_segment) = segments.next() {

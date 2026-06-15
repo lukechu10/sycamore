@@ -1,13 +1,13 @@
 //! The `#[component]` attribute macro implementation.
 
 use proc_macro2::{Span, TokenStream};
-use quote::{format_ident, quote, ToTokens};
+use quote::{ToTokens, format_ident, quote};
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::{
-    parse_quote, AttrStyle, Attribute, Error, Expr, FnArg, Generics, Ident, Item, ItemFn, Meta,
-    Pat, PatIdent, Result, ReturnType, Signature, Token, Type, TypeTuple,
+    AttrStyle, Attribute, Error, Expr, FnArg, Generics, Ident, Item, ItemFn, Meta, Pat, PatIdent,
+    Result, ReturnType, Signature, Token, Type, TypeTuple, parse_quote,
 };
 
 pub struct ComponentFn {
@@ -56,15 +56,14 @@ impl Parse for ComponentFn {
                             ));
                         }
 
-                        if let FnArg::Typed(pat) = input {
-                            if let Type::Tuple(TypeTuple { elems, .. }) = &*pat.ty {
-                                if elems.is_empty() {
-                                    return Err(syn::Error::new(
-                                        pat.ty.span(),
-                                        "taking an unit tuple as props is useless",
-                                    ));
-                                }
-                            }
+                        if let FnArg::Typed(pat) = input
+                            && let Type::Tuple(TypeTuple { elems, .. }) = &*pat.ty
+                            && elems.is_empty()
+                        {
+                            return Err(syn::Error::new(
+                                pat.ty.span(),
+                                "taking an unit tuple as props is useless",
+                            ));
                         }
                     }
                     [..] => {
@@ -286,7 +285,7 @@ fn inline_props_impl(item: &mut ItemFn, attrs: Punctuated<Meta, Token![,]>) -> R
                 return Err(syn::Error::new(
                     receiver.span(),
                     "`self` cannot be a property",
-                ))
+                ));
             }
             FnArg::Typed(pat_type) => match *pat_type.pat {
                 Pat::Ident(ident_pat) => super::inline_props::push_field(
@@ -300,7 +299,7 @@ fn inline_props_impl(item: &mut ItemFn, attrs: Punctuated<Meta, Token![,]>) -> R
                     return Err(syn::Error::new(
                         pat_type.pat.span(),
                         "pattern must contain an identifier, properties cannot be unnamed",
-                    ))
+                    ));
                 }
             },
         }

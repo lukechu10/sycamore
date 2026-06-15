@@ -3,8 +3,8 @@
 //! The [`Suspense`] component is used to "suspend" execution and wait until async tasks are
 //! finished before rendering.
 
-use futures::channel::oneshot;
 use futures::Future;
+use futures::channel::oneshot;
 use sycamore_reactive::*;
 
 use crate::*;
@@ -70,10 +70,10 @@ impl SuspenseScope {
         let (tx, rx) = oneshot::channel();
         let mut tx = Some(tx);
         create_effect(move || {
-            if !self._is_loading() {
-                if let Some(tx) = tx.take() {
-                    tx.send(()).unwrap();
-                }
+            if !self._is_loading()
+                && let Some(tx) = tx.take()
+            {
+                tx.send(()).unwrap();
             }
         });
 

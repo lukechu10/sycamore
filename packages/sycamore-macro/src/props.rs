@@ -38,20 +38,20 @@ pub fn impl_derive_props(ast: &DeriveInput) -> Result<TokenStream> {
                 return Err(Error::new(
                     ast.span(),
                     "Props is not supported for tuple structs",
-                ))
+                ));
             }
             syn::Fields::Unit => {
                 return Err(Error::new(
                     ast.span(),
                     "Props is not supported for unit structs",
-                ))
+                ));
             }
         },
         syn::Data::Enum(_) => {
-            return Err(Error::new(ast.span(), "Props is not supported for enums"))
+            return Err(Error::new(ast.span(), "Props is not supported for enums"));
         }
         syn::Data::Union(_) => {
-            return Err(Error::new(ast.span(), "Props is not supported for unions"))
+            return Err(Error::new(ast.span(), "Props is not supported for unions"));
         }
     };
     Ok(data)
@@ -62,9 +62,9 @@ mod struct_info {
 
     use proc_macro2::TokenStream;
     use quote::quote;
+    use syn::Token;
     use syn::parse::Error;
     use syn::punctuated::Punctuated;
-    use syn::Token;
 
     use super::field_info::{AttributeBase, FieldBuilderAttr, FieldInfo};
     use super::util::{
@@ -156,9 +156,9 @@ mod struct_info {
 
         pub fn builder_creation_impl(&self) -> Result<TokenStream, Error> {
             let StructInfo {
-                ref vis,
-                ref name,
-                ref builder_name,
+                vis,
+                name,
+                builder_name,
                 ..
             } = self;
             let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
@@ -221,8 +221,8 @@ mod struct_info {
                     Some(ref doc) => quote!(#[doc = #doc]),
                     None => {
                         let doc = format!(
-                        "Builder for [`{name}`] instances.\n\nSee [`{name}::builder()`] for more info."
-                    );
+                            "Builder for [`{name}`] instances.\n\nSee [`{name}::builder()`] for more info."
+                        );
                         quote!(#[doc = #doc])
                     }
                 }
@@ -327,9 +327,7 @@ mod struct_info {
         }
 
         pub fn field_impl(&self, field: &FieldInfo) -> Result<TokenStream, Error> {
-            let StructInfo {
-                ref builder_name, ..
-            } = self;
+            let StructInfo { builder_name, .. } = self;
 
             let destructuring = self.included_fields().map(|f| {
                 if f.ordinal == field.ordinal {
@@ -342,8 +340,8 @@ mod struct_info {
             let reconstructing = self.included_fields().map(|f| f.name);
 
             let FieldInfo {
-                name: ref field_name,
-                ty: ref field_type,
+                name: field_name,
+                ty: field_type,
                 ..
             } = field;
             let mut ty_generics: Vec<syn::GenericArgument> = self
@@ -484,14 +482,11 @@ mod struct_info {
 
         pub fn required_field_impl(&self, field: &FieldInfo) -> Result<TokenStream, Error> {
             let StructInfo {
-                ref name,
-                ref builder_name,
-                ..
+                name, builder_name, ..
             } = self;
 
             let FieldInfo {
-                name: ref field_name,
-                ..
+                name: field_name, ..
             } = field;
             let mut builder_generics: Vec<syn::GenericArgument> = self
                 .generics
@@ -594,9 +589,9 @@ mod struct_info {
 
         pub fn build_method_impl(&self) -> TokenStream {
             let StructInfo {
-                ref name,
-                ref builder_name,
-                ref attributes,
+                name,
+                builder_name,
+                attributes,
                 ..
             } = self;
 
@@ -826,10 +821,10 @@ mod struct_info {
 mod field_info {
     use proc_macro2::{Span, TokenStream};
     use quote::quote;
+    use syn::Token;
     use syn::parse::Error;
     use syn::punctuated::Punctuated;
     use syn::spanned::Spanned;
-    use syn::Token;
 
     use super::util::{
         expr_to_single_string, ident_to_type, path_to_single_string, strip_raw_ident_prefix,

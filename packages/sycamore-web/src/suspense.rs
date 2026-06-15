@@ -6,7 +6,7 @@ use std::num::NonZeroU32;
 use sycamore_futures::{
     create_detached_suspense_scope, create_suspense_scope, create_suspense_task,
 };
-use sycamore_macro::{component, Props};
+use sycamore_macro::{Props, component};
 
 use crate::*;
 

@@ -3,7 +3,7 @@
 //!
 //! This works internally by using the context API to store the current value of the counter.
 
-use sycamore_reactive::{use_context_or_else, use_global_scope, Signal};
+use sycamore_reactive::{Signal, use_context_or_else, use_global_scope};
 
 #[derive(Debug, Default, Clone, Copy)]
 struct CounterValue {

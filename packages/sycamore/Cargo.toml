@@ -2,13 +2,12 @@
 name = "sycamore"
 categories = ["gui", "wasm", "web-programming"]
 description = "A library for building reactive web apps in Rust and WebAssembly"
-edition = "2021"
-homepage = "https://github.com/sycamore-rs/sycamore"
 keywords = ["wasm", "gui", "reactive"]
-license = "MIT"
-readme = "../../README.md"
-repository = "https://github.com/sycamore-rs/sycamore"
-rust-version = "1.94"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+readme.workspace = true
+repository.workspace = true
 version.workspace = true
 
 [dependencies]

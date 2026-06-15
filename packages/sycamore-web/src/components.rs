@@ -1,6 +1,6 @@
 //! Definition for the [`NoSsr`] and [`NoHydrate`] components.
 
-use sycamore_macro::{component, view, Props};
+use sycamore_macro::{Props, component, view};
 
 use crate::*;
 
