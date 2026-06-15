@@ -633,4 +633,18 @@ mod tests {
             assert_eq!(counter.get(), 2);
         });
     }
+
+    #[test]
+    fn issue_741_disposing_signal_inside_effect_should_not_panic() {
+        let _ = create_root(|| {
+            let a = create_signal(0);
+            let b = create_signal(0);
+            create_effect(move || {
+                a.track();
+                b.track();
+                a.dispose();
+            });
+            b.set(0);
+        });
+    }
 }
