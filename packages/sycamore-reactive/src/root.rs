@@ -146,9 +146,9 @@ impl Root {
         // Remove old dependency links.
         let dependencies = std::mem::take(&mut self.nodes.borrow_mut()[current].dependencies);
         for dependency in dependencies {
-            self.nodes.borrow_mut()[dependency]
-                .dependents
-                .retain(|&id| id != current);
+            if let Some(node) = self.nodes.borrow_mut().get_mut(dependency) {
+                node.dependents.retain(|&id| id != current);
+            }
         }
         // We take the callback out because that requires a mut ref and we cannot hold that while
         // running update itself.
@@ -325,7 +325,9 @@ impl DependencyTracker {
     /// `dependencies` of the `dependent`.
     pub fn create_dependency_link(self, root: &Root, dependent: NodeId) {
         for node in &self.dependencies {
-            root.nodes.borrow_mut()[*node].dependents.push(dependent);
+            if let Some(node) = root.nodes.borrow_mut().get_mut(*node) {
+                node.dependents.push(dependent)
+            }
         }
         // Set the signal dependencies so that it is updated automatically.
         root.nodes.borrow_mut()[dependent].dependencies = self.dependencies;
