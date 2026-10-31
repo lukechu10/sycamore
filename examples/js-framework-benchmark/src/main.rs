@@ -49,7 +49,7 @@ fn Button(id: &'static str, text: &'static str, callback: Box<dyn Fn()>) -> View
                 id=id,
                 class="btn btn-primary btn-block",
                 r#type="button",
-                on:click=move |_| callback(),
+                on_click=move |_| callback(),
             ) { (text) }
         }
     }
@@ -172,9 +172,9 @@ fn App() -> View {
                             view! {
                                 tr(class=if is_selected.get() { "danger" } else { "" }) {
                                     td(class="col-md-1") { (row.id) }
-                                    td(class="col-md-4") { a(on:click=handle_click) { (row.label) } }
+                                    td(class="col-md-4") { a(on_click=handle_click) { (row.label) } }
                                     td(class="col-md-1") {
-                                        a(on:click=move |_| remove(row.id)) {
+                                        a(on_click=move |_| remove(row.id)) {
                                             span(class="glyphicon glyphicon-remove", aria-hidden="true")
                                         }
                                     }

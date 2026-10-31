@@ -17,9 +17,9 @@ pub fn Controls() -> View {
     let reset = move |_| state.set(0);
 
     view! {
-        button(on:click=decrement) { "-" }
-        button(on:click=increment) { "+" }
-        button(on:click=reset) { "Reset" }
+        button(on_click=decrement) { "-" }
+        button(on_click=increment) { "+" }
+        button(on_click=reset) { "Reset" }
     }
 }
 

@@ -5,7 +5,7 @@ use crate::*;
 
 /// Description for a bind-able attribute/property.
 pub trait BindDescriptor {
-    /// The event which we listen to to update the value.
+    /// The event which we listen to update the value.
     type Event: EventDescriptor;
     /// The value of the signal that drives the attribute/property.
     type ValueTy: Into<JsValue> + Clone;

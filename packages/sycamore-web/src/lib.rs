@@ -58,6 +58,7 @@ pub(crate) mod view;
 pub use self::attributes::*;
 pub use self::components::*;
 pub use self::elements::*;
+pub use self::events2::*;
 pub use self::iter::*;
 pub use self::node::*;
 pub use self::noderef::*;

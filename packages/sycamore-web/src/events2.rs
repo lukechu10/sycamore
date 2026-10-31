@@ -1,4 +1,6 @@
-//! Definition for all the events that can be listened to.
+//! Event handlers for DOM events. This module provides a trait [`GlobalEvents`] that is implemented
+//! for all DOM elements. This trait provides methods for adding event handlers to elements, such as
+//! `on_click`, `on_input`, etc. The event handlers can be either synchronous or asynchronous.
 
 use wasm_bindgen::JsCast;
 pub use web_sys::{
@@ -12,9 +14,9 @@ pub use web_sys::{
 use crate::GlobalAttributes;
 
 /// A marker struct for synchronous event handlers.
-struct SyncHandler;
+pub struct SyncHandler;
 /// A marker struct for asynchronous event handlers.
-struct AsyncHandler;
+pub struct AsyncHandler;
 
 /// A wrapper around an event handler that can be either synchronous or asynchronous.
 /// This struct is intended to be used as an attribute type that can automatically converted from a

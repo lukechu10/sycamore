@@ -198,7 +198,7 @@ pub fn Header() -> View {
                 class="new-todo",
                 placeholder="What needs to be done?",
                 bind:value=input_value,
-                on:keyup=handle_keyup,
+                on_keyup=handle_keyup,
             )
         }
     }
@@ -272,11 +272,11 @@ pub fn Item(todo: Signal<Todo>) -> View {
                 input(
                     class="toggle",
                     r#type="checkbox",
-                    on:input=toggle_completed,
+                    on_input=toggle_completed,
                     bind:checked=checked,
                 )
-                label(on:dblclick=handle_dblclick) { (title) }
-                button(class="destroy", on:click=handle_destroy)
+                label(on_dblclick=handle_dblclick) { (title) }
+                button(class="destroy", on_click=handle_destroy)
             }
 
             if is_editing.get() {
@@ -284,8 +284,8 @@ pub fn Item(todo: Signal<Todo>) -> View {
                     r#ref=input_ref,
                     class="edit",
                     bind:value=input_value,
-                    on:blur=move |_| handle_blur(),
-                    on:keyup=handle_keyup,
+                    on_blur=move |_| handle_blur(),
+                    on_keyup=handle_keyup,
                 )
             }
         }
@@ -327,7 +327,7 @@ pub fn List() -> View {
                 r#type="checkbox",
                 readonly=true,
                 bind:checked=checked,
-                on:input=move |_| app_state.toggle_complete_all(),
+                on_input=move |_| app_state.toggle_complete_all(),
             )
             label(r#for="toggle-all")
 
@@ -355,7 +355,7 @@ pub fn TodoFilter(filter: Filter) -> View {
             a(
                 class=if selected() { "selected" } else { "" },
                 href=filter.url(),
-                on:click=move |_| set_filter(filter),
+                on_click=move |_| set_filter(filter),
             ) { (format!("{filter:?}")) }
         }
     }
@@ -388,7 +388,7 @@ pub fn Footer() -> View {
             }
 
             if has_completed_todos.get() {
-                button(class="clear-completed", on:click=handle_clear_completed) { "Clear completed" }
+                button(class="clear-completed", on_click=handle_clear_completed) { "Clear completed" }
             }
         }
     }

@@ -18,7 +18,7 @@ fn App() -> View {
                 "!"
             }
 
-            input(placeholder="What is your name?", on:input=handle_change)
+            input(placeholder="What is your name?", on_input=handle_change)
         }
     }
 }

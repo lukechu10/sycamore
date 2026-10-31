@@ -23,7 +23,7 @@ fn App() -> View {
             MyComponent(value=*state)
             MyComponent(value=*state)
 
-            button(on:click=increment) { "+" }
+            button(on_click=increment) { "+" }
         }
     }
 }
