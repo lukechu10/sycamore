@@ -35,6 +35,7 @@ use wasm_bindgen::prelude::*;
 
 pub mod bind;
 pub mod events;
+pub mod events2;
 #[doc(hidden)]
 pub mod utils;
 

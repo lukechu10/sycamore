@@ -1130,7 +1130,21 @@ pub trait GlobalAttributes: SetAttribute + Sized {
         self
     }
 
+    fn add_event_handler<T: AsRef<web_sys::Event> + JsCast>(
+        mut self,
+        name: &'static str,
+        mut handler: impl FnMut(T) + 'static,
+    ) -> Self {
+        let scope = use_current_scope(); // Run handler inside the current scope.
+        let handler = move |ev: web_sys::Event| scope.run_in(|| handler(ev.unchecked_into()));
+        self.set_event_handler(name, handler);
+        self
+    }
+
     /// Set an event handler with `name`.
+    #[deprecated(
+        note = "Use add_event_handler instead. Html events have designated methods, e.g. on:click -> on_click."
+    )]
     fn on<E: events::EventDescriptor, R>(
         mut self,
         _: E,
