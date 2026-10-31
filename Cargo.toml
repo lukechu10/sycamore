@@ -68,7 +68,7 @@ sycamore-core = { path = "packages/sycamore-core", version = "0.9.4" }
 sycamore-futures = { path = "packages/sycamore-futures", version = "0.9.4" }
 sycamore-macro = { path = "packages/sycamore-macro", version = "0.9.4" }
 sycamore-reactive = { path = "packages/sycamore-reactive", version = "0.9.4" }
-sycamore-router = { path = "packages/sycamore-router", version = "0.9.4" }
+# sycamore-router = { path = "packages/sycamore-router", version = "0.9.4" }
 sycamore-router-macro = { path = "packages/sycamore-router-macro", version = "0.9.4" }
 sycamore-view-parser = { path = "packages/sycamore-view-parser", version = "0.9.4" }
 sycamore-web = { path = "packages/sycamore-web", version = "0.9.4" }

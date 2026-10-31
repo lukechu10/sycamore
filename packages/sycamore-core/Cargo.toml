@@ -13,7 +13,6 @@ version.workspace = true
 
 [dependencies]
 paste = "1.0.14"
-sycamore-futures = { workspace = true, optional = true }
 sycamore-reactive = { workspace = true }
 
 [dev-dependencies]
@@ -21,7 +20,6 @@ sycamore = { path = "../sycamore" }
 
 [features]
 default = []
-suspense = ["sycamore-futures"]
 
 [lints]
 workspace = true

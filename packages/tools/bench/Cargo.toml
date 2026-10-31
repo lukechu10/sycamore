@@ -17,3 +17,6 @@ name = "reactivity"
 [[bench]]
 harness = false
 name = "ssr"
+
+[lints]
+workspace = true
