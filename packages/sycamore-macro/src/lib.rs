@@ -10,6 +10,7 @@ use syn::{DeriveInput, parse_macro_input};
 mod component;
 mod inline_props;
 mod props;
+mod props2;
 
 /// A macro for ergonomically creating complex UI complex layouts.
 ///
@@ -52,6 +53,23 @@ pub fn derive_props(input: TokenStream) -> TokenStream {
 
     props::impl_derive_props(&input)
         .unwrap_or_else(|err| err.to_compile_error())
+        .into()
+}
+
+/// Replaces a function with a zero-argument fluent builder constructor.
+#[proc_macro_attribute]
+pub fn builder(args: TokenStream, input: TokenStream) -> TokenStream {
+    if !args.is_empty() {
+        return syn::Error::new(
+            proc_macro2::Span::call_site(),
+            "`builder` does not accept arguments",
+        )
+        .into_compile_error()
+        .into();
+    }
+    let function = parse_macro_input!(input as syn::ItemFn);
+    props2::expand(function)
+        .unwrap_or_else(syn::Error::into_compile_error)
         .into()
 }
 
