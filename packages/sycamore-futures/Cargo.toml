@@ -15,7 +15,6 @@ version.workspace = true
 futures = "0.3.25"
 pin-project = "1.1.3"
 sycamore-reactive = { workspace = true }
-sycamore-macro = { workspace = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 js-sys = "0.3.106"
