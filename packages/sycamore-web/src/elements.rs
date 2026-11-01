@@ -1,7 +1,5 @@
 #![allow(non_snake_case)]
 
-use events::EventHandler;
-
 use crate::*;
 
 /// Create an HTML element with `tag`.
@@ -1130,6 +1128,11 @@ pub trait GlobalAttributes: SetAttribute + Sized {
         self
     }
 
+    /// Set event handler `name` with `handler`.
+    ///
+    /// Note that this method does not enforce any type checking on the event type.
+    /// If you want to enforce type checking, use one of the event-specific methods, such as
+    /// `on_click`, `on_input`, etc.
     fn add_event_handler<T: AsRef<web_sys::Event> + JsCast>(
         mut self,
         name: &'static str,
@@ -1141,35 +1144,24 @@ pub trait GlobalAttributes: SetAttribute + Sized {
         self
     }
 
-    /// Set an event handler with `name`.
-    #[deprecated(
-        note = "Use add_event_handler instead. Html events have designated methods, e.g. on:click -> on_click."
-    )]
-    fn on<E: events::EventDescriptor, R>(
-        mut self,
-        _: E,
-        mut handler: impl EventHandler<E, R>,
-    ) -> Self {
-        let scope = use_current_scope(); // Run handler inside the current scope.
-        let handler = move |ev: web_sys::Event| scope.run_in(|| handler.call(ev.unchecked_into()));
-        self.set_event_handler(E::NAME, handler);
-        self
-    }
-
     /// Set a two way binding with `name`.
-    fn bind<E: bind::BindDescriptor>(mut self, _: E, signal: Signal<E::ValueTy>) -> Self {
+    fn bind_prop<T: Into<JsValue> + Clone>(
+        mut self,
+        name: &'static str,
+        signal: Signal<T>,
+        from_js: impl Fn(&JsValue) -> T + 'static,
+    ) -> Self {
         let scope = use_current_scope(); // Run handler inside the current scope.
         let handler = move |ev: web_sys::Event| {
             scope.run_in(|| {
                 let value =
-                    js_sys::Reflect::get(&ev.current_target().unwrap(), &E::TARGET_PROPERTY.into())
-                        .unwrap();
-                signal.set(E::CONVERT_FROM_JS(&value).expect("failed to convert value from js"));
+                    js_sys::Reflect::get(&ev.current_target().unwrap(), &name.into()).unwrap();
+                signal.set(from_js(&value));
             })
         };
-        self.set_event_handler(<E::Event as events::EventDescriptor>::NAME, handler);
+        self.set_event_handler(name, handler);
 
-        self.prop(E::TARGET_PROPERTY, move || signal.get_clone().into())
+        self.prop(name, move || signal.get_clone().into())
     }
 }
 

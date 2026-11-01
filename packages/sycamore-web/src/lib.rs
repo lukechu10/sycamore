@@ -33,15 +33,14 @@ use sycamore_macro::*;
 use sycamore_reactive::*;
 use wasm_bindgen::prelude::*;
 
-pub mod bind;
-pub mod events;
-pub mod events2;
 #[doc(hidden)]
 pub mod utils;
 
 mod attributes;
+mod bind;
 mod components;
 mod elements;
+mod events;
 mod iter;
 mod macros;
 mod node;
@@ -56,9 +55,10 @@ mod suspense;
 pub(crate) mod view;
 
 pub use self::attributes::*;
+pub use self::bind::*;
 pub use self::components::*;
 pub use self::elements::*;
-pub use self::events2::*;
+pub use self::events::*;
 pub use self::iter::*;
 pub use self::node::*;
 pub use self::noderef::*;
@@ -89,7 +89,7 @@ pub mod rt {
 
     #[cfg(feature = "suspense")]
     pub use crate::wrap_async_component;
-    pub use crate::{View, bind, custom_element, tags};
+    pub use crate::{View, custom_element, tags};
 }
 
 /// Re-export of `js-sys` and `wasm-bindgen` for convenience.

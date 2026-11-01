@@ -30,7 +30,7 @@ fn CounterButton() -> View {
     let mut state = create_signal(0);
 
     view! {
-        button(r#type="button", on:click=move |_| state += 1) { "Click me: " (state) }
+        button(r#type="button", on_click=move |_| state += 1) { "Click me: " (state) }
     }
 }
 

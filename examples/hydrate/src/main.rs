@@ -32,7 +32,7 @@ fn Hello() -> View {
                 }
                 "!"
             }
-            input(bind:value=name)
+            input(bind_value=name)
         }
     }
 }

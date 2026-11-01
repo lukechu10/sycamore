@@ -95,9 +95,9 @@ pub mod prelude {
     pub use sycamore_web::tags::svg_attributes::*;
     #[cfg(feature = "web")]
     pub use sycamore_web::{
-        Attributes, Children, GlobalAttributes, GlobalEvents, GlobalProps, HtmlGlobalAttributes,
-        Indexed, Keyed, NodeRef, SvgGlobalAttributes, View, console_dbg, console_log,
-        create_node_ref, document, is_not_ssr, is_ssr, on_mount, window,
+        Attributes, Children, GlobalAttributes, GlobalBinds, GlobalEvents, GlobalProps,
+        HtmlGlobalAttributes, Indexed, Keyed, NodeRef, SvgGlobalAttributes, View, console_dbg,
+        console_log, create_node_ref, document, is_not_ssr, is_ssr, on_mount, window,
     };
 
     pub use crate::reactive::*;

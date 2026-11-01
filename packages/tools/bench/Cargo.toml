@@ -4,11 +4,9 @@ version = "0.1.0"
 edition.workspace = true
 publish = false
 
-[dependencies]
-sycamore = { path = "../../sycamore" }
-
 [dev-dependencies]
 criterion = "0.8.2"
+sycamore = { path = "../../sycamore" }
 
 [[bench]]
 harness = false
