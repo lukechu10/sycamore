@@ -4,7 +4,6 @@ fn compile_fail() {
     let _ = create_root(|| {
         let _: View = view! { button };
         let _: View = view! { button(disabled) };
-        let _: View = view! { button(on:click) };
         let _: View = view! { button(prop:disabled) };
         let _: View = view! {
             button(unknown:directive="123")
@@ -16,9 +15,6 @@ fn compile_fail() {
             div(..unknown_attributes)
         };
         let _: View = view! { button(a.b.c="123") };
-        let _: View = view! {
-            button(bind:notbind=todo!())
-        };
         let _: View = view! { * };
 
         let _: View = view! {

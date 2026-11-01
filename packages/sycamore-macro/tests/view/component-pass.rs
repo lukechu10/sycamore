@@ -137,11 +137,11 @@ fn compile_pass() {
         };
         let str_signal = create_signal(String::new());
         let _: View = view! {
-            AttributesComponent(bind:value=str_signal)
+            AttributesComponent(bind_value=str_signal)
         };
         let on_click = |_| {};
         let _: View = view! {
-            AttributesComponent(on:click=on_click)
+            AttributesComponent(on_click=on_click)
         };
         let bool_signal = create_signal(false);
         let _: View = view! {

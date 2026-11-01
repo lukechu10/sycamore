@@ -27,7 +27,7 @@ fn compile_pass() {
         };
 
         let _: View = view! {
-            button(class="my-btn", on:click=|_| {})
+            button(class="my-btn", on_click=|_| {})
         };
         let _: View = view! {
             button(class="my-btn", aria-hidden="true")
