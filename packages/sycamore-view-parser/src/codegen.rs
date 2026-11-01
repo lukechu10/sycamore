@@ -170,12 +170,10 @@ impl Codegen {
                 quote! { .attr(#ident, #dyn_value) }
             }
             PropType::Directive { dir, ident } => match dir.to_string().as_str() {
-                "on" => quote! { .on(::sycamore::rt::events::#ident, #value) },
                 "prop" => {
                     let ident = ident.to_string();
                     quote! { .prop(#ident, #dyn_value) }
                 }
-                "bind" => quote! { .bind(::sycamore::rt::bind::#ident, #value) },
                 _ => syn::Error::new(dir.span(), format!("unknown directive `{dir}`"))
                     .to_compile_error(),
             },

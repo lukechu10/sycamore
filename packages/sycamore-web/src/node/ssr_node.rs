@@ -344,7 +344,7 @@ mod tests {
             move || {
                 let value = create_signal(String::new());
                 sycamore_macro::view! {
-                    input(bind:value=value)
+                    input(bind_value=value)
                 }
             },
             expect![[r#"<input data-hk="0.0">"#]],

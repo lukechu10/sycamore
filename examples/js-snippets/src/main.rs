@@ -17,9 +17,9 @@ fn App() -> View {
     });
 
     view! {
-        input(r#type="number", bind:valueAsNumber=a)
+        input(r#type="number", bind_value_as_number=a)
         span { "*" }
-        input(r#type="number", bind:valueAsNumber=b)
+        input(r#type="number", bind_value_as_number=b)
         span { "=" }
         span { (product) }
     }

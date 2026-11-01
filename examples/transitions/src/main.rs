@@ -49,9 +49,9 @@ fn App() -> View {
     view! {
         div {
             div {
-                button(on:click=move |_| update(Tab::One), disabled=tab.get() == Tab::One) { "One" }
-                button(on:click=move |_| update(Tab::Two), disabled=tab.get() == Tab::Two) { "Two" }
-                button(on:click=move |_| update(Tab::Three), disabled=tab.get() == Tab::Three) {
+                button(on_click=move |_| update(Tab::One), disabled=tab.get() == Tab::One) { "One" }
+                button(on_click=move |_| update(Tab::Two), disabled=tab.get() == Tab::Two) { "Two" }
+                button(on_click=move |_| update(Tab::Three), disabled=tab.get() == Tab::Three) {
                     "Three"
                 }
             }

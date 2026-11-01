@@ -7,9 +7,9 @@ fn App() -> View {
     view! {
         p { (format!("{:.2}", value.get())) }
 
-        input(r#type="range", min="1", step="0.25", max="10", bind:valueAsNumber=value)
+        input(r#type="range", min="1", step="0.25", max="10", bind_value_as_number=value)
         br {}
-        input(r#type="number", min="1", step="0.25", max="10", bind:valueAsNumber=value)
+        input(r#type="number", min="1", step="0.25", max="10", bind_value_as_number=value)
     }
 }
 
