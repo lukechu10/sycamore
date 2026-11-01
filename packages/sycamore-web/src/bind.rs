@@ -14,7 +14,7 @@ macro_rules! impl_bind {
 
 macro_rules! impl_binds {
     ($($name:ident: $event:ident, $value_ty:ty, $prop:expr, $fn:expr,)*) => {
-        $(impl_bind!($name: $event, $value_ty, $target, $fn);)*
+        $(impl_bind!($name: $event, $value_ty, $prop, $fn);)*
     };
 }
 
