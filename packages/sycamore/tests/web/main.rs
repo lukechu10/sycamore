@@ -296,7 +296,7 @@ fn two_way_bind_to_props() {
         let value = create_signal(String::new());
 
         let node = view! {
-            input(bind:value=value)
+            input(bind_value=value)
             p { (value.get_clone()) }
         };
 
@@ -318,7 +318,7 @@ fn two_way_bind_to_value_as_number() {
         let value = create_signal(1.0);
 
         let node = view! {
-            input(r#type="range", bind:valueAsNumber=value) // Note that type must be "range" or "number"
+            input(r#type="range", bind_value_as_number=value) // Note that type must be "range" or "number"
         };
 
         sycamore::render_in_scope(|| node, &test_container());
