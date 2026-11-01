@@ -1144,24 +1144,19 @@ pub trait GlobalAttributes: SetAttribute + Sized {
         self
     }
 
-    /// Set a two way binding with `name`.
+    /// Set a two way binding.
     fn bind_prop<T: Into<JsValue> + Clone>(
-        mut self,
-        name: &'static str,
+        self,
+        event: &'static str,
+        prop: &'static str,
         signal: Signal<T>,
         from_js: impl Fn(&JsValue) -> T + 'static,
     ) -> Self {
-        let scope = use_current_scope(); // Run handler inside the current scope.
-        let handler = move |ev: web_sys::Event| {
-            scope.run_in(|| {
-                let value =
-                    js_sys::Reflect::get(&ev.current_target().unwrap(), &name.into()).unwrap();
-                signal.set(from_js(&value));
-            })
-        };
-        self.set_event_handler(name, handler);
-
-        self.prop(name, move || signal.get_clone().into())
+        self.add_event_handler(event, move |ev: web_sys::Event| {
+            let value = js_sys::Reflect::get(&ev.current_target().unwrap(), &prop.into()).unwrap();
+            signal.set(from_js(&value));
+        })
+        .prop(prop, move || signal.get_clone().into())
     }
 }
 
