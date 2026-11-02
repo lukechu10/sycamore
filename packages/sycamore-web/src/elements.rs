@@ -449,7 +449,6 @@ pub mod tags {
             readonly: impl Into<MaybeDyn<bool>>,
             required: impl Into<MaybeDyn<bool>>,
             size: impl Into<StringAttribute>, // TODO: int value
-            spellcheck: impl Into<MaybeDyn<bool>>,
             src: impl Into<StringAttribute>,
             step: impl Into<StringAttribute>,
             tabindex: impl Into<StringAttribute>, // TODO: int value
@@ -648,7 +647,6 @@ pub mod tags {
             readonly: impl Into<MaybeDyn<bool>>,
             required: impl Into<MaybeDyn<bool>>,
             rows: impl Into<StringAttribute>, // TODO: int value
-            spellcheck: impl Into<MaybeDyn<bool>>,
             r#type("type"): impl Into<StringAttribute>,
             value: impl Into<StringAttribute>,
             wrap: impl Into<StringAttribute>,
