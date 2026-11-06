@@ -320,13 +320,74 @@ impl RootHandle {
 }
 
 /// Tracks nodes that are accessed inside a reactive scope.
-#[derive(Default)]
 pub(crate) struct DependencyTracker {
     /// A list of reactive nodes that were accessed.
-    pub dependencies: SmallVec<[NodeId; 1]>,
+    dependencies: SmallVec<[NodeId; 1]>,
+    /// Whether to trap any signal accesses. This is used to emit warnings/panic when a signal is
+    /// accessed reactively in a context where it shouldn't be (e.g. top-level of a component).
+    trap: bool,
 }
 
 impl DependencyTracker {
+    /// Create a new dependency tracker.
+    pub fn new() -> Self {
+        Self {
+            dependencies: SmallVec::new(),
+            trap: false,
+        }
+    }
+
+    /// Create a new dependency tracker that traps any signal accesses.
+    pub fn new_trapping() -> Self {
+        Self {
+            dependencies: SmallVec::new(),
+            trap: true,
+        }
+    }
+
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn track_node(&mut self, node: NodeId) {
+        if self.trap {
+            cfg_select! {
+                debug_assertions => {
+                    let root = Root::global();
+                    let message = format!(
+                        "Signal (created at {}) was tracked outside of a tracking scope at {}. This is usually a bug. Either wrap the access to the signal in a closure, or use `get_untracked`/`with_untracked`/`untrack` to access the signal without tracking it.",
+                        root.nodes.borrow()[node].created_at,
+                        std::panic::Location::caller()
+                    );
+                }
+                _ => {
+                    let message = "A signal was tracked outside of a tracking scope.";
+                }
+            }
+
+            cfg_select! {
+                all(
+                    target_arch = "wasm32",
+                    not(sycamore_force_ssr),
+                    feature = "wasm-bindgen"
+                ) => {
+                    // We create an ad-hoc `console_log` function here since we want to avoid
+                    // pulling in the entire `web-sys` crate just for this one function.
+                    use wasm_bindgen::prelude::*;
+                    #[wasm_bindgen]
+                    unsafe extern "C" {
+                        #[wasm_bindgen(js_namespace = console, js_name = log)]
+                        fn console_log(s: &str);
+                    }
+                    console_log(message);
+                }
+                _ => eprintln!("{message}"),
+            };
+
+            if cfg!(feature = "strict") {
+                panic!("panicking because the `sycamore-reactive/strict` feature is enabled.");
+            }
+        }
+        self.dependencies.push(node);
+    }
+
     /// Sets the `dependents` field for all the nodes that have been tracked and updates
     /// `dependencies` of the `dependent`.
     pub fn create_dependency_link(self, root: &Root, dependent: NodeId) {
@@ -337,6 +398,12 @@ impl DependencyTracker {
         }
         // Set the signal dependencies so that it is updated automatically.
         root.nodes.borrow_mut()[dependent].dependencies = self.dependencies;
+    }
+}
+
+impl Default for DependencyTracker {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -464,7 +531,20 @@ pub fn untrack<T>(f: impl FnOnce() -> T) -> T {
 
 /// Same as [`untrack`] but for a specific [`Root`].
 pub(crate) fn untrack_in_scope<T>(f: impl FnOnce() -> T, root: &'static Root) -> T {
-    let prev = root.tracker.replace(None);
+    let prev = root.tracker.take();
+    let ret = f();
+    root.tracker.replace(prev);
+    ret
+}
+
+/// Create a new dependency tracking scope that traps any signal accesses. This is used to detect
+/// when a signal is accessed reactively in a context where it shouldn't be (e.g. top-level of a
+/// component).
+pub fn trapping_scope<T>(f: impl FnOnce() -> T) -> T {
+    let root = Root::global();
+    let prev = root
+        .tracker
+        .replace(Some(DependencyTracker::new_trapping()));
     let ret = f();
     root.tracker.replace(prev);
     ret
@@ -662,6 +742,19 @@ mod tests {
                 a.set(1);
                 a.dispose();
             })
+        });
+    }
+
+    #[test]
+    #[should_panic]
+    #[cfg(feature = "strict")]
+    fn trapping_dependency_tracker() {
+        let _ = create_root(|| {
+            let a = create_signal(0);
+            let b = create_signal(0);
+            trapping_scope(|| {
+                a.get(); // This should panic because we are in a trapping scope.
+            });
         });
     }
 }
