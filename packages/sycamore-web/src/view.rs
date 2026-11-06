@@ -24,6 +24,11 @@ impl<T> View<T> {
         }
     }
 
+    /// Create a new view from a value that implements [`Build`].
+    pub fn from<U: Build<Self>>(value: U) -> Self {
+        value.build()
+    }
+
     /// Create a new view with a single node.
     pub fn from_node(node: T) -> Self {
         Self {
