@@ -1,5 +1,7 @@
 #![allow(non_snake_case)]
 
+use sycamore_core::Build;
+
 use crate::*;
 
 /// Create an HTML element with `tag`.
@@ -1169,8 +1171,8 @@ pub trait GlobalProps: GlobalAttributes + AsHtmlNode + Sized {
     }
 
     /// Set the children of an element.
-    fn children(mut self, children: impl Into<View>) -> Self {
-        self.as_html_node().append_view(children.into());
+    fn children(mut self, children: impl Build<View>) -> Self {
+        self.as_html_node().append_view(children.build());
         self
     }
 

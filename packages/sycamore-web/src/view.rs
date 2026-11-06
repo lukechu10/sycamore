@@ -3,7 +3,7 @@
 use std::fmt;
 
 use smallvec::{SmallVec, smallvec};
-use sycamore_core::Children;
+use sycamore_core::{Build, BuildFromFn, Children};
 
 use crate::*;
 
@@ -71,90 +71,98 @@ impl<T> fmt::Debug for View<T> {
     }
 }
 
-impl<T> From<Children<Self>> for View<T> {
-    fn from(children: Children<Self>) -> Self {
-        children.call()
+impl<T: ViewNode> BuildFromFn for View<T> {
+    fn from_fn(f: impl FnMut() -> Self + 'static) -> Self {
+        Self::from_dynamic(f)
     }
 }
 
-impl<T> From<Vec<View<T>>> for View<T> {
-    fn from(nodes: Vec<View<T>>) -> Self {
+impl<T> Build<View<T>> for View<T> {
+    fn build(self) -> View<T> {
+        self
+    }
+}
+
+impl<T> Build<View<T>> for Vec<View<T>> {
+    fn build(self) -> View<T> {
         View {
-            nodes: nodes.into_iter().flat_map(|v| v.nodes).collect(),
+            nodes: self.into_iter().flat_map(|v| v.nodes).collect(),
         }
     }
 }
 
-impl<T> From<Option<View<T>>> for View<T> {
-    fn from(node: Option<View<T>>) -> Self {
-        node.unwrap_or_default()
+impl<T> Build<View<T>> for Option<View<T>> {
+    fn build(self) -> View<T> {
+        self.unwrap_or_default()
     }
 }
 
-impl<T: ViewNode, U: Clone + Into<Self>> From<ReadSignal<U>> for View<T> {
-    fn from(signal: ReadSignal<U>) -> Self {
-        (move || signal.get_clone()).into()
-    }
-}
-impl<T: ViewNode, U: Clone + Into<Self>> From<Signal<U>> for View<T> {
-    fn from(signal: Signal<U>) -> Self {
-        (*signal).into()
-    }
-}
-impl<T: ViewNode, U: Clone + Into<Self> + Into<MaybeDyn<U>>> From<MaybeDyn<U>> for View<T> {
-    fn from(value: MaybeDyn<U>) -> Self {
-        (move || value.get_clone()).into()
+impl<T> Build<View<T>> for Children<View<T>> {
+    fn build(self) -> View<T> {
+        self.call()
     }
 }
 
-macro_rules! impl_view_from {
+impl<T: ViewNode, U: Clone + Build<View<T>>> Build<View<T>> for ReadSignal<U> {
+    fn build(self) -> View<T> {
+        (move || self.get_clone()).build()
+    }
+}
+impl<T: ViewNode, U: Clone + Build<View<T>>> Build<View<T>> for Signal<U> {
+    fn build(self) -> View<T> {
+        (*self).build()
+    }
+}
+impl<T: ViewNode, U: Clone + Into<Self> + Build<View<T>>> Build<View<T>> for MaybeDyn<U> {
+    fn build(self) -> View<T> {
+        (move || self.get_clone()).build()
+    }
+}
+
+macro_rules! impl_build {
     ($($ty:ty),*) => {
         $(
-            impl<T: ViewHtmlNode> From<$ty> for View<T> {
-                fn from(t: $ty) -> Self {
-                    View::from_node(T::create_text_node(t.into()))
+            impl<T: ViewHtmlNode> Build<View<T>> for $ty {
+                fn build(self) -> View<T> {
+                    View::from_node(T::create_text_node(self.into()))
                 }
             }
         )*
     }
 }
 
-macro_rules! impl_view_from_to_string {
+macro_rules! impl_build_with_to_string {
     ($($ty:ty),*) => {
         $(
-            impl<T: ViewHtmlNode> From<$ty> for View<T> {
-                fn from(t: $ty) -> Self {
-                    View::from_node(T::create_text_node(t.to_string().into()))
+            impl<T: ViewHtmlNode> Build<View<T>> for $ty {
+                fn build(self) -> View<T> {
+                    View::from_node(T::create_text_node(self.to_string().into()))
                 }
             }
         )*
     }
 }
 
-impl_view_from!(&'static str, String, Cow<'static, str>);
-impl_view_from_to_string!(
+impl_build!(&'static str, String, Cow<'static, str>);
+impl_build_with_to_string!(
     i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize, f32, f64
 );
 
-impl<T: ViewNode, F: FnMut() -> U + 'static, U: Into<View<T>> + 'static> From<F> for View<T> {
-    fn from(f: F) -> Self {
-        T::create_dynamic_view(f)
-    }
-}
 // Implement `From` for all tuples of types that implement `Into<View<U>>`.
-macro_rules! impl_from_tuple {
+macro_rules! impl_build_from_tuple {
     ($($name:ident),*) => {
         paste::paste! {
-            impl<U, $($name),*> From<($($name,)*)> for View<U>
+            // impl<U, $($name),*> From<($($name,)*)> for View<U>
+            impl<U, $($name),*> Build<View<U>> for ($($name,)*)
             where
-                $($name: Into<View<U>>),*
+                $($name: Build<View<U>>),*
             {
-                fn from(t: ($($name,)*)) -> Self {
-                    let ($([<$name:lower>]),*) = t;
+                fn build(self: ($($name,)*)) -> View<U> {
+                    let ($([<$name:lower>]),*) = self;
                     #[allow(unused_mut)]
                     let mut nodes = SmallVec::new();
                     $(
-                        nodes.extend([<$name:lower>].into().nodes);
+                        nodes.extend([<$name:lower>].build().nodes);
                     )*
                     View { nodes }
                 }
@@ -163,16 +171,16 @@ macro_rules! impl_from_tuple {
     };
 }
 
-impl_from_tuple!();
-impl_from_tuple!(A, B);
-impl_from_tuple!(A, B, C);
-impl_from_tuple!(A, B, C, D);
-impl_from_tuple!(A, B, C, D, E);
-impl_from_tuple!(A, B, C, D, E, F);
-impl_from_tuple!(A, B, C, D, E, F, G);
-impl_from_tuple!(A, B, C, D, E, F, G, H);
-impl_from_tuple!(A, B, C, D, E, F, G, H, I);
-impl_from_tuple!(A, B, C, D, E, F, G, H, I, J);
+impl_build_from_tuple!();
+impl_build_from_tuple!(A, B);
+impl_build_from_tuple!(A, B, C);
+impl_build_from_tuple!(A, B, C, D);
+impl_build_from_tuple!(A, B, C, D, E);
+impl_build_from_tuple!(A, B, C, D, E, F);
+impl_build_from_tuple!(A, B, C, D, E, F, G);
+impl_build_from_tuple!(A, B, C, D, E, F, G, H);
+impl_build_from_tuple!(A, B, C, D, E, F, G, H, I);
+impl_build_from_tuple!(A, B, C, D, E, F, G, H, I, J);
 
 /// A trait that should be implemented for anything that represents a node in the view tree (UI
 /// tree).
