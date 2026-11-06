@@ -26,7 +26,7 @@
 //! the original body are not supported.
 
 use proc_macro2::{Span, TokenStream as TokenStream2};
-use quote::{format_ident, quote};
+use quote::{ToTokens, format_ident, quote};
 use syn::visit::{self, Visit};
 use syn::visit_mut::{self, VisitMut};
 use syn::{
@@ -66,20 +66,14 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
     {
         return Err(syn::Error::new_spanned(
             signature,
-            "`builder` supports only synchronous, safe, non-const Rust functions",
-        ));
-    }
-    if matches!(function.vis, Visibility::Public(_)) {
-        return Err(syn::Error::new_spanned(
-            &function.vis,
-            "`builder` currently supports crate-local functions only",
+            "`#[builder]` supports only synchronous, safe, non-const Rust functions",
         ));
     }
     for attr in &function.attrs {
         if !attr.path().is_ident("doc") && !attr.path().is_ident("cfg") {
             return Err(syn::Error::new_spanned(
                 attr,
-                "`builder` currently supports only `doc` and `cfg` attributes",
+                "`#[builder]` currently supports only `doc` and `cfg` attributes",
             ));
         }
     }
@@ -133,7 +127,7 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
         if !attrs.is_empty() {
             return Err(syn::Error::new_spanned(
                 param,
-                "`builder` does not support attributes on generic parameters",
+                "`#[builder]` does not support attributes on generic parameters",
             ));
         }
     }
@@ -157,20 +151,20 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
         let FnArg::Typed(arg) = arg else {
             return Err(syn::Error::new_spanned(
                 arg,
-                "`builder` requires a free function",
+                "`#[builder]` requires a free function",
             ));
         };
         let options = parameter_options(&arg.attrs)?;
         let Pat::Ident(pat) = arg.pat.as_ref() else {
             return Err(syn::Error::new_spanned(
                 &arg.pat,
-                "`builder` requires named parameters",
+                "`#[builder]` requires named parameters",
             ));
         };
         if pat.by_ref.is_some() || pat.subpat.is_some() {
             return Err(syn::Error::new_spanned(
                 pat,
-                "`builder` requires plain named parameters",
+                "`#[builder]` requires plain named parameters",
             ));
         }
         if pat.ident == "build" {
@@ -814,7 +808,7 @@ impl OutputLifetimes {
         if self.inferred.is_none() && self.error.is_none() {
             self.error = Some(syn::Error::new(
                 span,
-                "`builder` cannot infer the elided output lifetime; use an explicit lifetime",
+                "`#[builder]` cannot infer the elided output lifetime; use an explicit lifetime",
             ));
         }
         self.inferred.clone()
@@ -916,7 +910,7 @@ fn parameter_options(attrs: &[syn::Attribute]) -> syn::Result<ParameterOptions> 
         if !attr.path().is_ident("builder") {
             return Err(syn::Error::new_spanned(
                 attr,
-                "`builder` does not support this parameter attribute",
+                "`#[builder]` does not support this parameter attribute",
             ));
         }
         let mut found = false;
@@ -1034,7 +1028,7 @@ fn validate_type(ty: &Type, allow_impl_trait: bool) -> syn::Result<()> {
                 self.0.get_or_insert_with(|| {
                     syn::Error::new_spanned(
                         node,
-                        "`builder` could not lower this `impl Trait` argument",
+                        "`#[builder]` could not lower this `impl Trait` argument",
                     )
                 });
             }
@@ -1042,7 +1036,7 @@ fn validate_type(ty: &Type, allow_impl_trait: bool) -> syn::Result<()> {
         }
         fn visit_type_infer(&mut self, node: &'ast syn::TypeInfer) {
             self.0.get_or_insert_with(|| {
-                syn::Error::new_spanned(node, "`builder` requires explicit types")
+                syn::Error::new_spanned(node, "`#[builder]` requires explicit types")
             });
         }
         fn visit_type_reference(&mut self, node: &'ast syn::TypeReference) {
@@ -1054,7 +1048,7 @@ fn validate_type(ty: &Type, allow_impl_trait: bool) -> syn::Result<()> {
                 self.0.get_or_insert_with(|| {
                     syn::Error::new_spanned(
                         node,
-                        "`builder` requires an explicit lifetime on references",
+                        "`#[builder]` requires an explicit lifetime on references",
                     )
                 });
             }
@@ -1062,7 +1056,7 @@ fn validate_type(ty: &Type, allow_impl_trait: bool) -> syn::Result<()> {
         }
         fn visit_type_never(&mut self, node: &'ast syn::TypeNever) {
             self.0.get_or_insert_with(|| {
-                syn::Error::new_spanned(node, "`builder` does not support the never type")
+                syn::Error::new_spanned(node, "`#[builder]` does not support the never type")
             });
         }
         fn visit_type_fn_ptr(&mut self, _: &'ast syn::TypeFnPtr) {}

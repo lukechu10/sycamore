@@ -5,6 +5,12 @@ pub trait Build<T> {
     fn build(self) -> T;
 }
 
+impl<T> Build<T> for T {
+    fn build(self) -> T {
+        self
+    }
+}
+
 #[diagnostic::on_unimplemented(
     message = "required field `{Field}` of type `{Value}` is missing",
     label = "set `{Field}` before calling `.build()`"
@@ -15,7 +21,7 @@ pub trait FieldValue<Field, Value> {
 
 pub struct Missing;
 
-pub struct Set<T>(pub(crate) T);
+pub struct Set<T>(pub T);
 
 #[diagnostic::do_not_recommend]
 impl<Field, T> FieldValue<Field, T> for Set<T> {

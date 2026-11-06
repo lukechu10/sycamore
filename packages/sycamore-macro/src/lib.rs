@@ -62,7 +62,7 @@ pub fn builder(args: TokenStream, input: TokenStream) -> TokenStream {
     if !args.is_empty() {
         return syn::Error::new(
             proc_macro2::Span::call_site(),
-            "`builder` does not accept arguments",
+            "`#[builder]` does not accept arguments",
         )
         .into_compile_error()
         .into();
