@@ -41,8 +41,8 @@ use crate::*;
 #[component]
 pub fn Suspense(
     /// The fallback [`View`] to display while the child nodes are being awaited.
-    #[prop(default = Box::new(|| view! {}), setter(transform = |f: impl Fn() -> View + 'static| Box::new(f) as Box<dyn Fn() -> View>))]
-    fallback: Box<dyn Fn() -> View>,
+    #[prop(default = || view! {})]
+    fallback: impl Fn() -> View + 'static,
     children: Children,
     /// The component will automatically update this signal with the `is_loading` state.
     ///

@@ -14,6 +14,8 @@
 //! Required setters may only be called once; optional and defaulted setters replace earlier values.
 //! `#[builder(into)]` makes a setter accept `impl Into<SetterType>`, where `SetterType` is the type
 //! the setter would otherwise accept.
+//! Other argument attributes, including doc comments, are forwarded unchanged to the corresponding
+//! builder setter method, not retained on the private helper's parameters.
 //! Argument-position `impl Trait` introduces an inferred constructor type parameter; callers
 //! specifying explicit type arguments may need an additional `_`. An unset `Option<impl Trait>` may
 //! require an explicit type argument. Opaque return types use a function pointer in the builder and
@@ -39,6 +41,7 @@ use syn::{
 };
 
 struct Field {
+    attrs: Vec<syn::Attribute>,
     ident: Ident,
     root_ty: Type,
     ty: Type,
@@ -206,6 +209,12 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
             None
         };
         fields.push(Field {
+            attrs: arg
+                .attrs
+                .iter()
+                .filter(|attr| !attr.path().is_ident("builder"))
+                .cloned()
+                .collect(),
             ident: pat.ident.clone(),
             root_ty,
             ty,
@@ -254,7 +263,7 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
     function.sig.ident = helper.clone();
     for arg in &mut function.sig.inputs {
         if let FnArg::Typed(arg) = arg {
-            arg.attrs.retain(|attr| !attr.path().is_ident("builder"));
+            arg.attrs.clear();
         }
     }
 
@@ -593,6 +602,7 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
     };
 
     let required_setters = required.iter().map(|field| {
+        let attrs = &field.attrs;
         let name = &field.ident;
         let ty = &field.ty;
         let (setter_type, setter_value) = setter_input(field, ty);
@@ -636,6 +646,7 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
         });
         quote! {
             impl #impl_parameters self::Builder #before #module_where {
+                #(#attrs)*
                 pub fn #name(self, #name: #setter_type) -> self::Builder #after {
                     self::Builder { #(#values,)* #callback_transfer #marker_name: self.#marker_name }
                 }
@@ -649,9 +660,11 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
             field.optional_inner.as_ref()
         };
         setter_type.map(|ty| {
+            let attrs = &field.attrs;
             let name = &field.ident;
             let (setter_type, setter_value) = setter_input(field, ty);
             quote! {
+                #(#attrs)*
                 pub fn #name(mut self, #name: #setter_type) -> Self {
                     self.#name = ::core::option::Option::Some(#setter_value);
                     self
@@ -980,6 +993,84 @@ mod tests {
     }
 
     #[test]
+    fn forwards_parameter_attributes_only_to_setter_methods() {
+        let function: ItemFn = parse_quote! {
+            fn example(
+                /// Required value.
+                #[must_use]
+                #[custom::attribute(arbitrary)]
+                #[builder(into)]
+                required: String,
+                /// Optional value.
+                #[cfg_attr(unix, deprecated(note = "use another setter"))]
+                optional: Option<i32>,
+                /// Defaulted value.
+                #[inline]
+                #[builder(default)]
+                defaulted: i32,
+                /// Explicitly required option.
+                #[builder(required)]
+                explicit: Option<i32>,
+            ) {}
+        };
+        let expected: Vec<_> = function
+            .sig
+            .inputs
+            .iter()
+            .map(|arg| {
+                let FnArg::Typed(arg) = arg else {
+                    panic!("expected typed argument")
+                };
+                let attrs: Vec<_> = arg
+                    .attrs
+                    .iter()
+                    .filter(|attr| !attr.path().is_ident("builder"))
+                    .collect();
+                (quote!(#(#attrs)*).to_string(), false)
+            })
+            .collect();
+        let expanded: syn::File = syn::parse2(expand(function).unwrap()).unwrap();
+        let mut expected = expected;
+        for item in &expanded.items {
+            match item {
+                syn::Item::Fn(function) => {
+                    for arg in &function.sig.inputs {
+                        let FnArg::Typed(arg) = arg else {
+                            panic!("expected typed argument")
+                        };
+                        assert!(arg.attrs.is_empty());
+                    }
+                }
+                syn::Item::Mod(module) => {
+                    for item in &module.content.as_ref().unwrap().1 {
+                        let syn::Item::Impl(implementation) = item else {
+                            continue;
+                        };
+                        for item in &implementation.items {
+                            let syn::ImplItem::Fn(method) = item else {
+                                continue;
+                            };
+                            let index = match method.sig.ident.to_string().as_str() {
+                                "required" => 0,
+                                "optional" => 1,
+                                "defaulted" => 2,
+                                "explicit" => 3,
+                                _ => continue,
+                            };
+                            let attrs = &method.attrs;
+                            assert_eq!(quote!(#(#attrs)*).to_string(), expected[index].0);
+                            assert!(!expected[index].1, "duplicate setter");
+                            expected[index].1 = true;
+                        }
+                    }
+                }
+                _ => panic!("unexpected generated item"),
+            }
+        }
+        assert!(expected.iter().all(|(_, seen)| *seen));
+    }
+
+    #[test]
     fn filters_cfg_attr_recursively() {
         let original: syn::Meta = parse_quote! {
             cfg_attr(feature = "outer",
@@ -1075,10 +1166,7 @@ fn parameter_options(attrs: &[syn::Attribute]) -> syn::Result<ParameterOptions> 
     let mut options = ParameterOptions::default();
     for attr in attrs {
         if !attr.path().is_ident("builder") {
-            return Err(syn::Error::new_spanned(
-                attr,
-                "`#[builder]` does not support this parameter attribute",
-            ));
+            continue;
         }
         let mut found = false;
         attr.parse_nested_meta(|meta| {
