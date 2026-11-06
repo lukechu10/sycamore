@@ -23,7 +23,7 @@ impl Codegen {
             nodes => {
                 let nodes = nodes.iter().map(|node| self.node(node));
                 quote! {
-                    ::std::convert::Into::<::sycamore::rt::View>::into(::std::vec![#(#nodes),*])
+                    ::sycamore::rt::Build::<::sycamore::rt::View>::build(::std::vec![#(#nodes),*])
                 }
             }
         }
@@ -40,19 +40,19 @@ impl Codegen {
                 }
             }
             Node::Text(TextNode { value }) => quote! {
-                ::std::convert::Into::<::sycamore::rt::View>::into(#value)
+                ::sycamore::rt::Build::<::sycamore::rt::View>::build(#value)
             },
             Node::Dyn(DynNode { value }) => {
                 let is_dynamic = is_dyn(value);
                 if is_dynamic {
                     quote! {
                         ::sycamore::rt::View::from_dynamic(
-                            move || ::std::convert::Into::<::sycamore::rt::View>::into(#value)
+                            move || ::sycamore::rt::Build::<::sycamore::rt::View>::build(#value)
                         )
                     }
                 } else {
                     quote! {
-                        ::std::convert::Into::<::sycamore::rt::View>::into(#value)
+                        ::sycamore::rt::Build::<::sycamore::rt::View>::build(#value)
                     }
                 }
             }
@@ -226,7 +226,7 @@ impl Codegen {
         };
         quote! {{
             ::sycamore::rt::component_scope(move || {
-                ::std::convert::Into::<::sycamore::rt::View>::into(
+                ::sycamore::rt::Build::<::sycamore::rt::View>::build(
                     #ident()
                         #(.#plain_names(#plain_values))*
                         #(#other_attributes)*
