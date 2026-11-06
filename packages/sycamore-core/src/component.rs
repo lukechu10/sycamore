@@ -4,12 +4,10 @@ use std::fmt;
 
 use sycamore_reactive::*;
 
-/// Runs the given closure inside a new component scope. In other words, this does the following:
-/// * Create a new untracked scope (see [`untrack`]).
-/// * Call the closure `f` passed to this function.
-#[doc(hidden)]
+/// Runs the given closure inside a new component scope. In particular, it does the following:
+/// * Create a new trapping tracked scope (see [`trapping_scope`]).
 pub fn component_scope<T>(f: impl FnOnce() -> T) -> T {
-    untrack(f)
+    trapping_scope(f)
 }
 
 /// A trait that is implemented automatically by the `Props` derive macro.

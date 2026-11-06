@@ -376,7 +376,7 @@ impl DependencyTracker {
                         #[wasm_bindgen(js_namespace = console, js_name = log)]
                         fn console_log(s: &str);
                     }
-                    console_log(message);
+                    console_log(&message);
                 }
                 _ => eprintln!("{message}"),
             };
