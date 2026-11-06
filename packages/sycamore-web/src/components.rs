@@ -4,7 +4,7 @@ use sycamore_macro::{component, view};
 
 use crate::*;
 
-/// An utility component that only renders its children when a condition is satisfied.
+/// A utility component that only renders its children when a condition is satisfied.
 #[component]
 pub fn Show(#[prop(into)] when: MaybeDyn<bool>, children: Children) -> View {
     let mut children = children.call();
@@ -23,8 +23,8 @@ pub fn Show(#[prop(into)] when: MaybeDyn<bool>, children: Children) -> View {
             let cloned = utils::clone_nodes_via_web_sys(&children);
 
             if when.get() {
-                // Do not set `children` to the document fragment since the document fragment
-will                 // be emptied when it is appended.
+                // Do not set `children` to the document fragment since the document fragment will
+                // be emptied when it is appended.
                 children = utils::unwrap_from_document_fragment(cloned);
 
                 utils::clone_nodes_via_web_sys(&children)

@@ -102,6 +102,8 @@ impl ToTokens for ComponentFn {
         let ComponentFn { f } = self;
         let mut f = f.clone();
 
+        f.attrs.push(parse_quote!(#[allow(non_snake_case)]));
+
         // Change all `#[prop]` attributes to `#[builder]` attributes so that the builder macro can
         // process them.
         for input in &mut f.sig.inputs {

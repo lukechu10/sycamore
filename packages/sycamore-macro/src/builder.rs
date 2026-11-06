@@ -24,9 +24,13 @@
 //! `__builder_<function>_defaults` helper. These names must not collide with existing items.
 //! The original function name becomes the builder constructor, so recursive calls to that name in
 //! the original body are not supported.
+//!
+//! `cfg`, `allow`, `warn`, `deny`, and `forbid` attributes are forwarded to all generated
+//! top-level items. `cfg_attr` is filtered recursively to forward only these attributes.
+//! All function attributes, including `expect`, remain on the builder constructor.
 
 use proc_macro2::{Span, TokenStream as TokenStream2};
-use quote::{ToTokens, format_ident, quote};
+use quote::{format_ident, quote};
 use syn::visit::{self, Visit};
 use syn::visit_mut::{self, VisitMut};
 use syn::{
@@ -68,14 +72,6 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
             signature,
             "`#[builder]` supports only synchronous, safe, non-const Rust functions",
         ));
-    }
-    for attr in &function.attrs {
-        if !attr.path().is_ident("doc") && !attr.path().is_ident("cfg") {
-            return Err(syn::Error::new_spanned(
-                attr,
-                "`#[builder]` currently supports only `doc` and `cfg` attributes",
-            ));
-        }
     }
 
     let helper_generics = signature.generics.clone();
@@ -245,7 +241,14 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
     );
     let visibility = function.vis.clone();
     let attrs = function.attrs.clone();
-    let cfg_attrs: Vec<_> = attrs.iter().filter(|a| a.path().is_ident("cfg")).collect();
+    let shared_attrs: Vec<_> = attrs
+        .iter()
+        .filter_map(|attr| match shared_attribute_meta(&attr.meta) {
+            Ok(Some(meta)) => Some(Ok(quote!(#[#meta]))),
+            Ok(None) => None,
+            Err(error) => Some(Err(error)),
+        })
+        .collect::<syn::Result<_>>()?;
     function.attrs.clear();
     function.vis = Visibility::Inherited;
     function.sig.ident = helper.clone();
@@ -573,7 +576,7 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
             });
         (
             quote! {
-                #(#cfg_attrs)*
+                #(#shared_attrs)*
                 #[allow(clippy::multiple_bound_locations)]
                 fn #defaults_helper #root_generics (
                     #(#default_argument_names: ::core::option::Option<#root_default_types>),*
@@ -658,12 +661,12 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
     });
 
     Ok(quote! {
-        #(#cfg_attrs)*
+        #(#shared_attrs)*
         #function
 
         #default_helper
 
-        #(#cfg_attrs)*
+        #(#shared_attrs)*
         #[allow(unused_imports)]
         #visibility mod #name {
             use super::*;
@@ -880,6 +883,170 @@ impl VisitMut for ImplArgumentLowerer {
             *ty = parse_quote!(#ident);
         } else {
             visit_mut::visit_type_mut(self, ty);
+        }
+    }
+}
+
+// Keep the constructor's attributes unchanged. For the other generated items,
+// retain only shared attributes, preserving every enclosing cfg_attr condition.
+fn shared_attribute_meta(meta: &syn::Meta) -> syn::Result<Option<syn::Meta>> {
+    if ["cfg", "allow", "warn", "deny", "forbid"]
+        .iter()
+        .any(|name| meta.path().is_ident(name))
+    {
+        return Ok(Some(meta.clone()));
+    }
+    if !meta.path().is_ident("cfg_attr") {
+        return Ok(None);
+    }
+    let syn::Meta::List(list) = meta else {
+        return Err(syn::Error::new_spanned(
+            meta,
+            "expected cfg_attr(condition, attributes...)",
+        ));
+    };
+    let arguments = list.parse_args_with(
+        syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated,
+    )?;
+    let mut arguments = arguments.into_iter();
+    let condition = arguments.next().ok_or_else(|| {
+        syn::Error::new_spanned(meta, "expected cfg_attr(condition, attributes...)")
+    })?;
+    let mut shared = Vec::new();
+    let mut has_attributes = false;
+    for argument in arguments {
+        has_attributes = true;
+        if let Some(attribute) = shared_attribute_meta(&argument)? {
+            shared.push(attribute);
+        }
+    }
+    if !has_attributes {
+        return Err(syn::Error::new_spanned(
+            meta,
+            "expected at least one attribute after cfg_attr condition",
+        ));
+    }
+    if shared.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(parse_quote!(cfg_attr(#condition, #(#shared),*))))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn forwards_shared_attributes_to_all_top_level_items() {
+        let function = parse_quote! {
+            #[cfg(feature = "example")]
+            #[cfg_attr(feature = "example", allow(dead_code))]
+            #[allow(dead_code)]
+            #[expect(unused_variables)]
+            #[warn(unused_mut)]
+            #[deny(unreachable_code)]
+            #[forbid(unsafe_code)]
+            #[doc = "Constructor documentation"]
+            #[must_use]
+            #[custom::attribute(arbitrary)]
+            fn example(#[builder(default)] value: i32) -> i32 { value }
+        };
+        let expanded: syn::File = syn::parse2(expand(function).unwrap()).unwrap();
+        assert_eq!(expanded.items.len(), 4);
+        for (index, item) in expanded.items.iter().enumerate() {
+            let attrs = match item {
+                syn::Item::Fn(item) => &item.attrs,
+                syn::Item::Mod(item) => &item.attrs,
+                _ => panic!("unexpected generated item"),
+            };
+            for name in ["cfg", "cfg_attr", "allow", "warn", "deny", "forbid"] {
+                assert!(attrs.iter().any(|attr| attr.path().is_ident(name)));
+            }
+            let is_constructor = index == 3;
+            for name in ["doc", "must_use", "expect"] {
+                assert_eq!(
+                    attrs.iter().any(|attr| attr.path().is_ident(name)),
+                    is_constructor,
+                );
+            }
+            assert_eq!(
+                attrs
+                    .iter()
+                    .any(|attr| attr.path().segments.first().unwrap().ident == "custom"),
+                is_constructor,
+            );
+        }
+    }
+
+    #[test]
+    fn filters_cfg_attr_recursively() {
+        let original: syn::Meta = parse_quote! {
+            cfg_attr(feature = "outer",
+                must_use,
+                allow(dead_code),
+                expect(unused_variables),
+                cfg_attr(feature = "inner", cfg(unix), forbid(unsafe_code), inline),
+                cfg_attr(feature = "constructor_only", deprecated)
+            )
+        };
+        let expected: syn::Meta = parse_quote! {
+            cfg_attr(feature = "outer",
+                allow(dead_code),
+                cfg_attr(feature = "inner", cfg(unix), forbid(unsafe_code))
+            )
+        };
+        let actual = shared_attribute_meta(&original).unwrap().unwrap();
+        assert_eq!(quote!(#actual).to_string(), quote!(#expected).to_string());
+
+        let constructor_only: syn::Meta = parse_quote! {
+            cfg_attr(feature = "outer", expect(dead_code), cfg_attr(unix, must_use))
+        };
+        assert!(shared_attribute_meta(&constructor_only).unwrap().is_none());
+    }
+
+    #[test]
+    fn preserves_original_cfg_attr_only_on_constructor() {
+        let function = parse_quote! {
+            #[cfg_attr(feature = "example", cfg(unix), must_use, expect(dead_code))]
+            fn example() {}
+        };
+        let expanded: syn::File = syn::parse2(expand(function).unwrap()).unwrap();
+        let shared: syn::Meta = parse_quote!(cfg_attr(feature = "example", cfg(unix)));
+        let original: syn::Meta = parse_quote! {
+            cfg_attr(feature = "example", cfg(unix), must_use, expect(dead_code))
+        };
+        for (index, item) in expanded.items.iter().enumerate() {
+            let attrs = match item {
+                syn::Item::Fn(item) => &item.attrs,
+                syn::Item::Mod(item) => &item.attrs,
+                _ => panic!("unexpected generated item"),
+            };
+            let actual = &attrs
+                .iter()
+                .find(|attr| attr.path().is_ident("cfg_attr"))
+                .unwrap()
+                .meta;
+            let expected = if index == 2 { &original } else { &shared };
+            assert_eq!(quote!(#actual).to_string(), quote!(#expected).to_string());
+        }
+    }
+
+    #[test]
+    fn forwards_shared_attributes_without_a_defaults_helper() {
+        let function = parse_quote! {
+            #[cfg_attr(feature = "example", allow(dead_code))]
+            fn example(value: i32) -> i32 { value }
+        };
+        let expanded: syn::File = syn::parse2(expand(function).unwrap()).unwrap();
+        assert_eq!(expanded.items.len(), 3);
+        for item in &expanded.items {
+            let attrs = match item {
+                syn::Item::Fn(item) => &item.attrs,
+                syn::Item::Mod(item) => &item.attrs,
+                _ => panic!("unexpected generated item"),
+            };
+            assert!(attrs.iter().any(|attr| attr.path().is_ident("cfg_attr")));
         }
     }
 }
