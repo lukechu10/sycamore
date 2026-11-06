@@ -13,84 +13,59 @@ error: expected `=`
   |                                              ^
 
 error: expected `=`
- --> tests/view/element-fail.rs:7:46
+ --> tests/view/element-fail.rs:7:51
   |
-7 |         let _: View = view! { button(on:click) };
-  |                                              ^
-
-error: expected `=`
- --> tests/view/element-fail.rs:8:51
-  |
-8 |         let _: View = view! { button(prop:disabled) };
+7 |         let _: View = view! { button(prop:disabled) };
   |                                                   ^
 
 error: expected one of `)`, `,`, `.`, `?`, or an operator, found `::`
-  --> tests/view/element-fail.rs:10:20
+  --> tests/view/element-fail.rs:9:20
    |
-10 |             button(unknown:directive="123")
+ 9 |             button(unknown:directive="123")
    |                    ^^^^^^^ expected one of `)`, `,`, `.`, `?`, or an operator
-11 |         };
+10 |         };
    |          - help: missing `,`
 
 error: unknown directive `unknown`
-  --> tests/view/element-fail.rs:10:20
-   |
-10 |             button(unknown:directive="123")
-   |                    ^^^^^^^
+ --> tests/view/element-fail.rs:9:20
+  |
+9 |             button(unknown:directive="123")
+  |                    ^^^^^^^
 
 error: expected `=`
-  --> tests/view/element-fail.rs:18:39
+  --> tests/view/element-fail.rs:17:39
    |
-18 |         let _: View = view! { button(a.b.c="123") };
+17 |         let _: View = view! { button(a.b.c="123") };
    |                                       ^
 
 error: expected a valid node
-  --> tests/view/element-fail.rs:22:31
+  --> tests/view/element-fail.rs:18:31
    |
-22 |         let _: View = view! { * };
+18 |         let _: View = view! { * };
    |                               ^
 
 error[E0425]: cannot find function `unknownelement` in module `sycamore::rt::tags`
-  --> tests/view/element-fail.rs:13:13
+  --> tests/view/element-fail.rs:12:13
    |
-13 |             unknownelement {}
+12 |             unknownelement {}
    |             ^^^^^^^^^^^^^^ not found in `sycamore::rt::tags`
 
 error[E0425]: cannot find value `unknown_attributes` in this scope
-  --> tests/view/element-fail.rs:16:19
+  --> tests/view/element-fail.rs:15:19
    |
-16 |             div(..unknown_attributes)
+15 |             div(..unknown_attributes)
    |                   ^^^^^^^^^^^^^^^^^^ not found in this scope
 
-error[E0425]: cannot find value `notbind` in module `sycamore::rt::bind`
-  --> tests/view/element-fail.rs:20:25
-   |
-20 |             button(bind:notbind=todo!())
-   |                         ^^^^^^^ not found in `sycamore::rt::bind`
-
 error[E0061]: this function takes 1 argument but 2 arguments were supplied
-  --> tests/view/element-fail.rs:9:23
+  --> tests/view/element-fail.rs:8:23
    |
- 9 |           let _: View = view! {
+ 8 |           let _: View = view! {
    |  _______________________^
-10 | |             button(unknown:directive="123")
+ 9 | |             button(unknown:directive="123")
    | |                    ------- unexpected argument #2
-11 | |         };
+10 | |         };
    | |_________^
    |
 note: associated function defined here
   --> $RUST/core/src/convert/mod.rs
    = note: this error originates in the macro `view` (in Nightly builds, run with -Z macro-backtrace for more info)
-
-warning: unreachable call
-  --> tests/view/element-fail.rs:19:23
-   |
-19 |           let _: View = view! {
-   |  _______________________^
-20 | |             button(bind:notbind=todo!())
-   | |                                 ------- any code following this expression is unreachable
-21 | |         };
-   | |_________^ unreachable call
-   |
-   = note: `#[warn(unreachable_code)]` (part of `#[warn(unused)]`) on by default
-   = note: this warning originates in the macro `view` (in Nightly builds, run with -Z macro-backtrace for more info)

@@ -1,7 +1,5 @@
 #![allow(non_snake_case)]
 
-use events::EventHandler;
-
 use crate::*;
 
 /// Create an HTML element with `tag`.
@@ -451,7 +449,6 @@ pub mod tags {
             readonly: impl Into<MaybeDyn<bool>>,
             required: impl Into<MaybeDyn<bool>>,
             size: impl Into<StringAttribute>, // TODO: int value
-            spellcheck: impl Into<MaybeDyn<bool>>,
             src: impl Into<StringAttribute>,
             step: impl Into<StringAttribute>,
             tabindex: impl Into<StringAttribute>, // TODO: int value
@@ -650,7 +647,6 @@ pub mod tags {
             readonly: impl Into<MaybeDyn<bool>>,
             required: impl Into<MaybeDyn<bool>>,
             rows: impl Into<StringAttribute>, // TODO: int value
-            spellcheck: impl Into<MaybeDyn<bool>>,
             r#type("type"): impl Into<StringAttribute>,
             value: impl Into<StringAttribute>,
             wrap: impl Into<StringAttribute>,
@@ -1130,32 +1126,35 @@ pub trait GlobalAttributes: SetAttribute + Sized {
         self
     }
 
-    /// Set an event handler with `name`.
-    fn on<E: events::EventDescriptor, R>(
+    /// Set event handler `name` with `handler`.
+    ///
+    /// Note that this method does not enforce any type checking on the event type.
+    /// If you want to enforce type checking, use one of the event-specific methods, such as
+    /// `on_click`, `on_input`, etc.
+    fn add_event_handler<T: AsRef<web_sys::Event> + JsCast>(
         mut self,
-        _: E,
-        mut handler: impl EventHandler<E, R>,
+        name: &'static str,
+        mut handler: impl FnMut(T) + 'static,
     ) -> Self {
         let scope = use_current_scope(); // Run handler inside the current scope.
-        let handler = move |ev: web_sys::Event| scope.run_in(|| handler.call(ev.unchecked_into()));
-        self.set_event_handler(E::NAME, handler);
+        let handler = move |ev: web_sys::Event| scope.run_in(|| handler(ev.unchecked_into()));
+        self.set_event_handler(name, handler);
         self
     }
 
-    /// Set a two way binding with `name`.
-    fn bind<E: bind::BindDescriptor>(mut self, _: E, signal: Signal<E::ValueTy>) -> Self {
-        let scope = use_current_scope(); // Run handler inside the current scope.
-        let handler = move |ev: web_sys::Event| {
-            scope.run_in(|| {
-                let value =
-                    js_sys::Reflect::get(&ev.current_target().unwrap(), &E::TARGET_PROPERTY.into())
-                        .unwrap();
-                signal.set(E::CONVERT_FROM_JS(&value).expect("failed to convert value from js"));
-            })
-        };
-        self.set_event_handler(<E::Event as events::EventDescriptor>::NAME, handler);
-
-        self.prop(E::TARGET_PROPERTY, move || signal.get_clone().into())
+    /// Set a two way binding.
+    fn bind_prop<T: Into<JsValue> + Clone>(
+        self,
+        event: &'static str,
+        prop: &'static str,
+        signal: Signal<T>,
+        from_js: impl Fn(&JsValue) -> T + 'static,
+    ) -> Self {
+        self.add_event_handler(event, move |ev: web_sys::Event| {
+            let value = js_sys::Reflect::get(&ev.current_target().unwrap(), &prop.into()).unwrap();
+            signal.set(from_js(&value));
+        })
+        .prop(prop, move || signal.get_clone().into())
     }
 }
 

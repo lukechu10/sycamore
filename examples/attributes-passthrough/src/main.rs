@@ -24,7 +24,7 @@ fn App() -> View {
                 CustomButton(
                     id="button1",
                     r#type="button",
-                    on:click=|_| console_log!("Button 1 clicked!"),
+                    on_click=|_| console_log!("Button 1 clicked!"),
                 ) { "Button 1" }
                 CustomButton(
                     id="button2",
@@ -32,7 +32,7 @@ fn App() -> View {
                     class="red-button",
                     style="background-color:red;",
                     prop:disabled=true,
-                    on:click=|_| console_log!("Button 2 clicked!"),
+                    on_click=|_| console_log!("Button 2 clicked!"),
                 ) { "Button 2" }
             }
         }

@@ -9,9 +9,9 @@ fn Counter() -> View {
     view! {
         div {
             p { "Value: " (state) }
-            button(on:click=increment) { "+" }
-            button(on:click=decrement) { "-" }
-            button(on:click=reset) { "Reset" }
+            button(on_click=increment) { "+" }
+            button(on_click=decrement) { "-" }
+            button(on_click=reset) { "Reset" }
         }
     }
 }
@@ -32,7 +32,7 @@ fn Hello() -> View {
                 }
                 "!"
             }
-            input(bind:value=name)
+            input(bind_value=name)
         }
     }
 }

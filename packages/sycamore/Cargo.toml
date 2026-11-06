@@ -30,12 +30,7 @@ web-sys = { version = "0.3.60", features = ["HtmlInputElement"] }
 default = ["web", "wasm-bindgen-interning"]
 nightly = ["sycamore-reactive/nightly"]
 hydrate = ["web", "sycamore-web/hydrate"]
-suspense = [
-	"web",
-	"sycamore-futures",
-	"sycamore-core/suspense",
-	"sycamore-web/suspense",
-]
+suspense = ["web", "sycamore-futures", "sycamore-web/suspense"]
 serde = ["sycamore-reactive/serde"]
 wasm-bindgen-interning = [
 	"web",

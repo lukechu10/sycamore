@@ -13,8 +13,8 @@ fn CreateRAF() -> View {
     view! {
         div {
             p { (state) " frames" }
-            button(on:click=move |_| start()) { "Start" }
-            button(on:click=move |_| stop()) { "Stop" }
+            button(on_click=move |_| start()) { "Start" }
+            button(on_click=move |_| stop()) { "Stop" }
         }
     }
 }
@@ -37,11 +37,11 @@ fn Tweened() -> View {
             progress(prop:value=progress.get()[0])
             progress(prop:value=progress.get()[1])
 
-            button(on:click=move |_| progress.set([0.0, 1.0])) { "0%" }
-            button(on:click=move |_| progress.set([0.25, 0.75])) { "25%" }
-            button(on:click=move |_| progress.set([0.5, 0.5])) { "50%" }
-            button(on:click=move |_| progress.set([0.75, 0.25])) { "75%" }
-            button(on:click=move |_| progress.set([1.0, 0.0])) { "100%" }
+            button(on_click=move |_| progress.set([0.0, 1.0])) { "0%" }
+            button(on_click=move |_| progress.set([0.25, 0.75])) { "25%" }
+            button(on_click=move |_| progress.set([0.5, 0.5])) { "50%" }
+            button(on_click=move |_| progress.set([0.75, 0.25])) { "75%" }
+            button(on_click=move |_| progress.set([1.0, 0.0])) { "100%" }
         }
     }
 }
