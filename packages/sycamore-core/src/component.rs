@@ -59,6 +59,8 @@ impl UnitBuilder {
 ///
 /// Add a field called `children` of this type to your properties struct.
 ///
+/// Children are lazily evaluated and are only instantiated when they are inserted.
+///
 /// # Example
 /// ```
 /// # use sycamore::prelude::*;
