@@ -7,10 +7,10 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{DeriveInput, parse_macro_input};
 
+mod builder;
 mod component;
 mod inline_props;
 mod props;
-mod props2;
 
 /// A macro for ergonomically creating complex UI complex layouts.
 ///
@@ -68,7 +68,7 @@ pub fn builder(args: TokenStream, input: TokenStream) -> TokenStream {
         .into();
     }
     let function = parse_macro_input!(input as syn::ItemFn);
-    props2::expand(function)
+    builder::expand(function)
         .unwrap_or_else(syn::Error::into_compile_error)
         .into()
 }

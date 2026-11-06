@@ -1,31 +1,29 @@
 //! Automatically convert function arguments into a fluent API for Sycamore components.
 //!
-//! The consuming crate must define `crate::runtime` with the `Build`, `FieldValue`,
-//! `Missing`, and `Set` items used by the generated code. It supports synchronous,
-//! crate-local free functions with named arguments, generic parameters, and
-//! argument- and return-position `impl Trait`. `Option<T>`, `std::option::Option<T>`, and
-//! `core::option::Option<T>` arguments are optional; aliases are not recognized and
-//! an unqualified `Option` must refer to the standard type.
-//! `#[builder(required)]` on an automatically optional parameter requires its
-//! setter to receive the full `Option<T>` (including `None`). `#[builder(default)]`
-//! uses `Default::default`, while `#[builder(default = callable)]` invokes a
-//! zero-argument callable. Defaults are evaluated at build time only if unset, and
-//! a defaulted `Option<T>` setter takes the full `Option<T>`. `default` and
-//! `required` cannot be combined. Required setters may only be called once;
-//! optional and defaulted setters replace earlier values. `#[builder(into)]` makes
-//! a setter accept `impl Into<SetterType>`, where `SetterType` is the type the setter
-//! would otherwise accept.
-//! Argument-position `impl Trait` introduces an inferred constructor type parameter;
-//! callers specifying explicit type arguments may need an additional `_`. An unset
-//! `Option<impl Trait>` may require an explicit type argument. Opaque return types
-//! use a function pointer in the builder and still implement `Build<T>`.
+//! It supports synchronous, crate-local free functions with named arguments, generic parameters,
+//! and argument- and return-position `impl Trait`. `Option<T>`, `std::option::Option<T>`, and
+//! `core::option::Option<T>` arguments are optional; aliases are not recognized and an unqualified
+//! `Option` must refer to the standard type.
+//!
+//! `#[builder(required)]` on an automatically optional parameter requires its setter to receive the
+//! full `Option<T>` (including `None`).
+//!
+//! `#[builder(default)]` uses `Default::default`, while `#[builder(default = callable)]` invokes a
+//! zero-argument callable. Defaults are evaluated at build time only if unset, and a defaulted
+//! `Option<T>` setter takes the full `Option<T>`. `default` and `required` cannot be combined.
+//! Required setters may only be called once; optional and defaulted setters replace earlier values.
+//! `#[builder(into)]` makes a setter accept `impl Into<SetterType>`, where `SetterType` is the type
+//! the setter would otherwise accept.
+//! Argument-position `impl Trait` introduces an inferred constructor type parameter; callers
+//! specifying explicit type arguments may need an additional `_`. An unset `Option<impl Trait>` may
+//! require an explicit type argument. Opaque return types use a function pointer in the builder and
+//! still implement `Build<T>`.
 //!
 //! Expansion creates a module named after the function and a private helper named
 //! `__builder_<function>_inner`. A function with defaults also gets a
-//! `__builder_<function>_defaults` helper. These names must not collide with existing
-//! items.
-//! The original function name becomes the builder constructor, so recursive calls
-//! to that name in the original body are not supported.
+//! `__builder_<function>_defaults` helper. These names must not collide with existing items.
+//! The original function name becomes the builder constructor, so recursive calls to that name in
+//! the original body are not supported.
 
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote};
@@ -381,7 +379,7 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
     );
     let missing: Vec<_> = required
         .iter()
-        .map(|_| quote!(crate::runtime::Missing))
+        .map(|_| quote!(::sycamore::rt::Missing))
         .collect();
     let missing_parameters = angle(
         &base_arguments
@@ -479,7 +477,7 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
         .iter()
         .map(|field| {
             if field.state.is_some() {
-                quote!(crate::runtime::Missing)
+                quote!(::sycamore::rt::Missing)
             } else {
                 quote!(::core::option::Option::None)
             }
@@ -495,7 +493,7 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
             let state = field.state.as_ref().unwrap();
             let ident = &field.ident;
             let ty = &field.ty;
-            quote!(#state: crate::runtime::FieldValue<self::fields::#ident, #ty>)
+            quote!(#state: ::sycamore::rt::FieldValue<self::fields::#ident, #ty>)
         })
         .collect();
     bounds.extend(default_fields.iter().filter_map(|field| {
@@ -522,7 +520,7 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
         match &field.state {
             Some(state) => {
                 let ty = &field.ty;
-                quote!(<#state as crate::runtime::FieldValue<self::fields::#ident, #ty>>::into_value(self.#ident))
+                quote!(<#state as ::sycamore::rt::FieldValue<self::fields::#ident, #ty>>::into_value(self.#ident))
             }
             None if field.default.is_some() => {
                 let value = &default_value_names[default_index];
@@ -611,7 +609,7 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
             .iter()
             .map(|f| {
                 if f.ident == *name {
-                    quote!(crate::runtime::Missing)
+                    quote!(::sycamore::rt::Missing)
                 } else {
                     let state = f.state.as_ref().unwrap();
                     quote!(#state)
@@ -622,7 +620,7 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
             .iter()
             .map(|f| {
                 if f.ident == *name {
-                    quote!(crate::runtime::Set<#ty>)
+                    quote!(::sycamore::rt::Set<#ty>)
                 } else {
                     let state = f.state.as_ref().unwrap();
                     quote!(#state)
@@ -634,7 +632,7 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
         let values = fields.iter().map(|f| {
             let ident = &f.ident;
             if *ident == *name {
-                quote!(#ident: crate::runtime::Set(#setter_value))
+                quote!(#ident: ::sycamore::rt::Set(#setter_value))
             } else {
                 quote!(#ident: self.#ident)
             }
@@ -696,7 +694,7 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
             }
 
             #[allow(clippy::multiple_bound_locations)]
-            impl #parameters crate::runtime::Build<#result_type> for self::Builder #type_parameters #combined_where {
+            impl #parameters ::sycamore::rt::Build<#result_type> for self::Builder #type_parameters #combined_where {
                 fn build(self) -> #result_type {
                     self::Builder::build(self)
                 }

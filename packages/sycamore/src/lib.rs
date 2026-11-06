@@ -106,6 +106,7 @@ pub mod prelude {
 /// Re-exports for use by `sycamore-macro`. Not intended for use by end-users.
 #[doc(hidden)]
 pub mod rt {
+    pub use sycamore_core::props_runtime::*;
     pub use sycamore_core::{Props, component_scope};
     #[cfg(feature = "suspense")]
     pub use sycamore_futures::*;
