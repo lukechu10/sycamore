@@ -1,13 +1,12 @@
 //! The `#[component]` attribute macro implementation.
 
-use proc_macro2::{Span, TokenStream};
-use quote::{ToTokens, format_ident, quote};
+use proc_macro2::TokenStream;
+use quote::{ToTokens, format_ident, quote, quote_spanned};
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::{
-    AttrStyle, Attribute, Expr, FnArg, Generics, Ident, Item, ItemFn, Meta, Pat, PatIdent, Result,
-    Signature, Token, parse_quote,
+    Expr, FnArg, Ident, Item, ItemFn, Meta, Pat, PatIdent, Result, Signature, Token, parse_quote,
 };
 
 pub struct ComponentFn {
@@ -185,9 +184,16 @@ impl ToTokens for ComponentFn {
             let builder_impl = match builder_impl {
                 Ok(tokens) => tokens,
                 Err(err) => {
-                    let err_tokens = err.to_compile_error();
-                    let err_tokens = err_tokens.to_string().replace("#[builder", "#[prop");
-                    return tokens.extend(err_tokens.parse::<TokenStream>().unwrap());
+                    let original_err = err.to_compile_error();
+                    let message = original_err
+                        .to_string()
+                        .split('\"')
+                        .nth(1)
+                        .unwrap_or("")
+                        .replace("#[builder", "#[prop");
+                    tokens
+                        .extend(syn::Error::new_spanned(original_err, message).to_compile_error());
+                    return;
                 }
             };
             tokens.extend(builder_impl)
