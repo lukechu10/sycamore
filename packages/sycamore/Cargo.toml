@@ -32,6 +32,7 @@ nightly = ["sycamore-reactive/nightly"]
 hydrate = ["web", "sycamore-web/hydrate"]
 suspense = ["web", "sycamore-futures", "sycamore-web/suspense"]
 serde = ["sycamore-reactive/serde"]
+strict = ["sycamore-reactive/strict"]
 wasm-bindgen-interning = [
 	"web",
 	"dep:wasm-bindgen",

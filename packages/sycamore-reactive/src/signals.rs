@@ -344,6 +344,10 @@ impl<T> ReadSignal<T> {
     /// Track the signal in the current reactive scope. This is done automatically when calling
     /// [`ReadSignal::get`] and other similar methods.
     ///
+    /// If outside of a reactive scope, this function prints a warning to stderr (or the browser's
+    /// console) and does nothing. If you want this to panic instead, you can enable the `strict`
+    /// feature on the `sycamore-reactive` crate.
+    ///
     /// # Example
     /// ```
     /// # use sycamore_reactive::*;
@@ -359,6 +363,31 @@ impl<T> ReadSignal<T> {
     pub fn track(self) {
         if let Some(tracker) = &mut *self.root.tracker.borrow_mut() {
             tracker.dependencies.push(self.id);
+        } else {
+            let message = "cannot track signal outside of a tracking scope. This is usually a bug. If you are sure this is not a bug, you can ignore this warning.";
+
+            cfg_select! {
+                all(
+                    target_arch = "wasm32",
+                    not(sycamore_force_ssr),
+                    feature = "wasm-bindgen"
+                ) => {
+                    // We create an ad-hoc `console_log` function here since we want to avoid
+                    // pulling in the entire `web-sys` crate just for this one function.
+                    use wasm_bindgen::prelude::*;
+                    #[wasm_bindgen]
+                    unsafe extern "C" {
+                        #[wasm_bindgen(js_namespace = console, js_name = log)]
+                        fn console_log(s: &str);
+                    }
+                    console_log(message);
+                }
+                _ => eprintln!("{message}"),
+            };
+
+            if cfg!(feature = "strict") {
+                panic!("panicking because the `sycamore-reactive/strict` feature is enabled.");
+            }
         }
     }
 }

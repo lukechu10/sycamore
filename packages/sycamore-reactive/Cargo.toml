@@ -22,6 +22,7 @@ wasm-bindgen = { version = "0.2.93", optional = true }
 default = []
 nightly = []
 serde = ["dep:serde"]
+strict = []
 wasm-bindgen = ["dep:wasm-bindgen"]
 
 [lints]
