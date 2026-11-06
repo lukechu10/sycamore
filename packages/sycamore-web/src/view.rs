@@ -152,7 +152,6 @@ impl_build_with_to_string!(
 macro_rules! impl_build_from_tuple {
     ($($name:ident),*) => {
         paste::paste! {
-            // impl<U, $($name),*> From<($($name,)*)> for View<U>
             impl<U, $($name),*> Build<View<U>> for ($($name,)*)
             where
                 $($name: Build<View<U>>),*
@@ -188,7 +187,7 @@ impl_build_from_tuple!(A, B, C, D, E, F, G, H, I, J);
 /// Examples include `DomNode` and `SsrNode` which are used to render views to the browser DOM and
 /// to a string respectively. This trait can be implemented for other types to create custom render
 /// backends.
-pub trait ViewNode: Into<View<Self>> + Sized + 'static {
+pub trait ViewNode: Build<View<Self>> + Sized + 'static {
     /// Appends a child to the node. Panics if the node is not an element or other node that can
     /// have children (e.g. text node).
     fn append_child(&mut self, child: Self);

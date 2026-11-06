@@ -49,9 +49,9 @@ impl NodeState {
     }
 }
 
-impl From<HydrateNode> for View<HydrateNode> {
-    fn from(node: HydrateNode) -> Self {
-        View::from_node(node)
+impl Build<View<HydrateNode>> for HydrateNode {
+    fn build(self) -> View<HydrateNode> {
+        View::from_node(self)
     }
 }
 
