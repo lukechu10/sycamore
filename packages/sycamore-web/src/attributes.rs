@@ -122,8 +122,8 @@ mod tests {
 
     use super::*;
 
-    fn check<T: Build<View>>(view: impl FnOnce() -> T, expect: Expect) {
-        let actual = render_to_string(move || view().build());
+    fn check(view: impl Into<Children>, expect: Expect) {
+        let actual = render_to_string(view);
         expect.assert_eq(&actual);
     }
 

@@ -20,7 +20,7 @@ pub enum SsrMode {
 
 /// Render a [`View`] into a static [`String`]. Useful for rendering to a string on the server side.
 #[must_use]
-pub fn render_to_string(view: impl FnOnce() -> View) -> String {
+pub fn render_to_string(view: impl Into<Children>) -> String {
     is_not_ssr! {
         let _ = view;
         panic!("`render_to_string` only available in SSR mode");
@@ -46,7 +46,7 @@ pub fn render_to_string(view: impl FnOnce() -> View) -> String {
 ///
 /// Implementation detail of [`render_to_string`].
 #[must_use]
-pub fn render_to_string_in_scope(view: impl FnOnce() -> View) -> String {
+pub fn render_to_string_in_scope(view: impl Into<Children>) -> String {
     is_not_ssr! {
         let _ = view;
         panic!("`render_to_string_in_scope` only available in SSR mode");
@@ -59,7 +59,7 @@ pub fn render_to_string_in_scope(view: impl FnOnce() -> View) -> String {
             provide_context(SsrMode::Sync);
 
             let prev = IS_HYDRATING.replace(true);
-            let view = view();
+            let view = view.into().call();
             IS_HYDRATING.set(prev);
             ssr_node::render_recursive_view(&view, &mut buf);
         });
@@ -90,7 +90,7 @@ pub fn render_to_string_in_scope(view: impl FnOnce() -> View) -> String {
 /// ```
 #[must_use]
 #[cfg(feature = "suspense")]
-pub async fn render_to_string_await_suspense(f: impl FnOnce() -> View) -> String {
+pub async fn render_to_string_await_suspense(f: impl Into<Children>) -> String {
     is_not_ssr! {
         let _ = f;
         panic!("`render_to_string` only available in SSR mode");
@@ -120,7 +120,7 @@ pub async fn render_to_string_await_suspense(f: impl FnOnce() -> View) -> String
                         provide_context(HydrationRegistry::new());
                         provide_context(SsrMode::Blocking);
 
-                        view = f();
+                        view = f.into().call();
                     }));
 
                     // Now we wait until all suspense has resolved.
@@ -200,7 +200,7 @@ pub async fn render_to_string_await_suspense(f: impl FnOnce() -> View) -> String
 /// ```
 #[cfg(feature = "suspense")]
 pub fn render_to_string_stream(
-    view: impl FnOnce() -> View,
+    view: impl Into<Children>,
 ) -> impl futures::Stream<Item = String> + Send {
     is_not_ssr! {
         let _ = view;
@@ -235,7 +235,7 @@ pub fn render_to_string_stream(
 
                 provide_context(suspense_state);
 
-                let view = view();
+                let view = view.into().call();
                 ssr_node::render_recursive_view(&view, &mut buf);
 
                 // Keep a buffer of all futures being polled. This is to avoid holding onto a lock
