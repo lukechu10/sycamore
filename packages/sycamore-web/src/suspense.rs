@@ -134,7 +134,7 @@ pub fn Suspense(
 
                 view! {
                     Show(when=is_loading) {
-                        (fallback())
+                        (fallback)
                     }
                     Show(when=move || !is_loading.get()) {
                         (view)
@@ -162,7 +162,7 @@ pub fn Suspense(
                 view! {
                     NoSsr {
                         Show(when=move || is_loading.get()) {
-                            (fallback())
+                            (fallback)
                         }
                     }
                     Show(when=move || !is_loading.get()) {

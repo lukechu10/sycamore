@@ -1,6 +1,8 @@
 use std::cell::{LazyCell, RefCell};
 use std::collections::HashMap;
 
+use sycamore_core::Build;
+
 use super::dom_node::DomNode;
 use super::*;
 

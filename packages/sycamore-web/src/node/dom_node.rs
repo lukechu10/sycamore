@@ -1,5 +1,6 @@
 use std::any::{Any, TypeId};
 
+use sycamore_core::Build;
 use wasm_bindgen::intern;
 
 use crate::*;
