@@ -1,13 +1,10 @@
 //! The `#[component]` attribute macro implementation.
 
 use proc_macro2::TokenStream;
-use quote::{ToTokens, format_ident, quote, quote_spanned};
+use quote::{ToTokens, format_ident, quote};
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
-use syn::spanned::Spanned;
-use syn::{
-    Expr, FnArg, Ident, Item, ItemFn, Meta, Pat, PatIdent, Result, Signature, Token, parse_quote,
-};
+use syn::{FnArg, Item, ItemFn, Meta, Pat, Result, Signature, Token, parse_quote};
 
 pub struct ComponentFn {
     pub f: ItemFn,
@@ -25,74 +22,6 @@ impl Parse for ComponentFn {
                 "the `component` attribute can only be applied to functions",
             )),
         }
-    }
-}
-
-struct AsyncCompInputs {
-    sync_input: Punctuated<FnArg, Token![,]>,
-    async_args: Vec<Expr>,
-}
-
-fn async_comp_inputs_from_sig_inputs(inputs: &Punctuated<FnArg, Token![,]>) -> AsyncCompInputs {
-    let mut sync_input = Punctuated::new();
-    let mut async_args = Vec::new();
-
-    fn pat_ident_arm(
-        sync_input: &mut Punctuated<FnArg, Token![,]>,
-        fn_arg: &FnArg,
-        id: &PatIdent,
-    ) -> Expr {
-        sync_input.push(fn_arg.clone());
-        let ident = &id.ident;
-        parse_quote! { #ident }
-    }
-
-    let mut inputs = inputs.iter();
-
-    let prop_arg = inputs.next();
-    let prop_arg = prop_arg.map(|prop_fn_arg| match prop_fn_arg {
-        FnArg::Typed(t) => match &*t.pat {
-            Pat::Ident(id) => pat_ident_arm(&mut sync_input, prop_fn_arg, id),
-            Pat::Struct(pat_struct) => {
-                // For the sync input we don't want a destructured pattern but just to take a
-                // `syn::PatType` (i.e. `props: MyPropsStruct`) then the inner async function
-                // signature can have the destructured pattern and it will work correctly
-                // as long as we provide our brand new ident that we used in the
-                // `syn::PatIdent`.
-                let ident = Ident::new("props", pat_struct.span());
-                // Props are taken by value so no refs or mutability required here
-                // The destructured pattern can add mutability (if required) even without this
-                // set.
-                let pat_ident = PatIdent {
-                    attrs: vec![],
-                    by_ref: None,
-                    mutability: None,
-                    ident,
-                    subpat: None,
-                };
-                let pat_type = syn::PatType {
-                    attrs: vec![],
-                    pat: Box::new(Pat::Ident(pat_ident)),
-                    colon_token: Default::default(),
-                    ty: t.ty.clone(),
-                };
-
-                let fn_arg = FnArg::Typed(pat_type);
-                sync_input.push(fn_arg);
-                parse_quote! { props }
-            }
-            _ => panic!("unexpected pattern!"),
-        },
-        FnArg::Receiver(_) => unreachable!(),
-    });
-
-    if let Some(arg) = prop_arg {
-        async_args.push(arg);
-    }
-
-    AsyncCompInputs {
-        async_args,
-        sync_input,
     }
 }
 
@@ -136,29 +65,25 @@ impl ToTokens for ComponentFn {
         } = &f;
 
         if f.sig.asyncness.is_some() {
-            // When the component function is async then we need to extract out some of the
-            // function signature (Syn::Signature) so that we can wrap the async function with
-            // a non-async component.
-            //
-            // In order to support the struct destructured pattern for props we alter the existing
-            // signature for the non-async component so that it is defined as a `Syn::PatType`
-            // (i.e. props: MyPropsStruct) with a new `Syn::Ident` "props". We then use this ident
-            // again as an argument to the inner async function which has the user defined
-            // destructured pattern which will work as expected.
-            //
-            // Note: this does not affect the signature of the function.
             let inputs = &sig.inputs;
-            let AsyncCompInputs {
-                sync_input,
-                async_args: args,
-            } = async_comp_inputs_from_sig_inputs(inputs);
+            let args = inputs
+                .iter()
+                .map(|fn_arg| match fn_arg {
+                    FnArg::Typed(t) => match &*t.pat {
+                        Pat::Ident(id) => &id.ident,
+                        _ => panic!(
+                            "async component props cannot be destructured in the function signature"
+                        ),
+                    },
+                    FnArg::Receiver(_) => unreachable!(),
+                })
+                .collect::<Vec<_>>();
 
             let non_async_sig = Signature {
                 asyncness: None,
-                inputs: sync_input,
                 ..sig.clone()
             };
-            let inner_ident = format_ident!("{}_inner", sig.ident);
+            let inner_ident = format_ident!("{}_async", sig.ident);
             let inner_sig = Signature {
                 ident: inner_ident.clone(),
                 ..sig.clone()
@@ -169,7 +94,6 @@ impl ToTokens for ComponentFn {
                 // TODO: this is a hack to get the builder macro to work with async components.
                 // We plan on removing async components in the future so this is good enough for now.
                 #[builder]
-                #[allow(non_snake_case)]
                 #vis #non_async_sig {
                     // Define the original function as a nested function so that it cannot be
                     // called from outside.
