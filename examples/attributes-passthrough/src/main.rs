@@ -4,7 +4,7 @@ use sycamore::web::{StringAttribute, extend_element};
 #[component(extend_element!(html:button))]
 fn CustomButton(
     #[prop(into)] id: StringAttribute,
-    #[prop(default)] attributes: Attributes,
+    attributes: Attributes,
     children: Children,
 ) -> View {
     console_log!("Intercepted `id` attribute: {:?}", id.get_clone());
