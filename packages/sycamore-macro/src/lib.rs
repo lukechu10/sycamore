@@ -1,4 +1,6 @@
 //! Proc-macros used in [Sycamore](https://docs.rs/sycamore).
+//!
+//! This crate is re-exported in the [`sycamore`](https://docs.rs/sycamore) crate, so you can use the proc-macros by importing the `sycamore` crate instead of this crate directly.
 
 #![deny(missing_debug_implementations)]
 #![warn(missing_docs)]
