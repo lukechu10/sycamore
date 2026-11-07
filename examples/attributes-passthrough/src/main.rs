@@ -3,7 +3,7 @@ use sycamore::web::StringAttribute;
 
 #[component]
 fn CustomButton(
-    #[prop(setter(into))] id: StringAttribute,
+    #[prop(into)] id: StringAttribute,
     #[prop(attributes(html, button))] attributes: Attributes,
     children: Children,
 ) -> View {

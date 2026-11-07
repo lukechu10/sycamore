@@ -25,7 +25,7 @@ async fn VisitsCount() -> View {
     let visits = fetch_visits(id).await.unwrap_or_default();
 
     p().children(("Total Visits: ", span().children(move || visits.value)))
-        .into()
+        .build()
 }
 
 #[component]
@@ -33,11 +33,9 @@ fn App() -> View {
     div()
         .children((
             p().children("Page Visit Counter"),
-            Suspense()
-                .fallback(|| "Loading".into())
-                .children(Children::new(VisitsCount)),
+            Suspense().fallback(|| "Loading").children(VisitsCount),
         ))
-        .into()
+        .build()
 }
 
 fn main() {

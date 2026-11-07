@@ -4,7 +4,7 @@ use sycamore::web::tags::*;
 
 use super::*;
 
-fn check(actual: impl FnOnce() -> View, expect: &Expect) {
+fn check(actual: impl Into<Children>, expect: &Expect) {
     expect.assert_eq(&sycamore::render_to_string(actual));
 }
 

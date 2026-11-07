@@ -24,7 +24,7 @@ fn App() -> View {
             )),
             input().bind_value(name),
         ))
-        .into()
+        .build()
 }
 
 fn main() {
