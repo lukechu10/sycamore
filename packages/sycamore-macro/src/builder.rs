@@ -1,9 +1,9 @@
 //! Automatically convert function arguments into a fluent API for Sycamore components.
 //!
-//! It supports synchronous, crate-local free functions with named arguments, generic parameters,
-//! and argument- and return-position `impl Trait`. `Option<T>`, `std::option::Option<T>`, and
-//! `core::option::Option<T>` arguments are optional; aliases are not recognized and an unqualified
-//! `Option` must refer to the standard type.
+//! It supports synchronous and async crate-local free functions with named arguments, generic
+//! parameters, and argument- and return-position `impl Trait`. `Option<T>`,
+//! `std::option::Option<T>`, and `core::option::Option<T>` arguments are optional; aliases are not
+//! recognized and an unqualified `Option` must refer to the standard type.
 //!
 //! `#[builder(required)]` on an automatically optional parameter requires its setter to receive the
 //! full `Option<T>` (including `None`).
@@ -20,6 +20,9 @@
 //! specifying explicit type arguments may need an additional `_`. An unset `Option<impl Trait>` may
 //! require an explicit type argument. Opaque return types use a function pointer in the builder and
 //! still implement `Build<T>`.
+//! Async functions have synchronous constructors and setters; `build()` returns an unboxed future
+//! and implements `Build<FutureType>`. Defaults are evaluated when `build()` is called, before the
+//! future is polled. No `Send` or `'static` bounds are added.
 //!
 //! Expansion creates a module named after the function and a private helper named
 //! `__builder_<function>_inner`. A function with defaults also gets a
@@ -66,14 +69,13 @@ struct ParameterOptions {
 pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
     let signature = &function.sig;
     if signature.constness.is_some()
-        || signature.asyncness.is_some()
         || !matches!(signature.safety, syn::Safety::Default)
         || signature.abi.is_some()
         || signature.variadic.is_some()
     {
         return Err(syn::Error::new_spanned(
             signature,
-            "`#[builder]` supports only synchronous, safe, non-const Rust functions",
+            "`#[builder]` supports only safe, non-const Rust functions",
         ));
     }
 
@@ -230,6 +232,11 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
             validate_type(ty, true)?;
             (**ty).clone()
         }
+    };
+    let root_output: Type = if signature.asyncness.is_some() {
+        parse_quote!(impl ::core::future::Future<Output = #root_output>)
+    } else {
+        root_output
     };
     let opaque_output = contains_impl_trait(&root_output);
     let mut output = root_output.clone();
