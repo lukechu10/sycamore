@@ -166,6 +166,9 @@ impl ToTokens for ComponentFn {
             tokens.extend(quote! {
                 // Create a new function that is not async so that it is just a standard component.
                 #(#attrs)*
+                // TODO: this is a hack to get the builder macro to work with async components.
+                // We plan on removing async components in the future so this is good enough for now.
+                #[builder]
                 #[allow(non_snake_case)]
                 #vis #non_async_sig {
                     // Define the original function as a nested function so that it cannot be
