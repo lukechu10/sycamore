@@ -30,14 +30,18 @@ pub fn view(input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn component(args: TokenStream, item: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as component::ComponentArgs);
+    let f = {
+        let item = item.clone();
+        parse_macro_input!(item as syn::ItemFn)
+    };
 
-    component::component_impl(args, item.clone().into())
+    component::expand(args, f)
         .unwrap_or_else(|err| {
             // If proc-macro errors, emit the original function for better IDE support.
             let error_tokens = err.into_compile_error();
-            let body_input = proc_macro2::TokenStream::from(item);
+            let item: proc_macro2::TokenStream = item.into();
             quote! {
-                #body_input
+                #item
                 #error_tokens
             }
         })

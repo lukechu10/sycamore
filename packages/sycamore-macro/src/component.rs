@@ -153,7 +153,6 @@ impl Parse for ComponentArgs {
     }
 }
 
-pub fn component_impl(args: ComponentArgs, item: TokenStream) -> Result<TokenStream> {
-    let f = syn::parse::<ItemFn>(item.into())?;
+pub fn expand(args: ComponentArgs, f: ItemFn) -> Result<TokenStream> {
     Ok(to_tokens(args.attrs, f))
 }
