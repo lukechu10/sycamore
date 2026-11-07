@@ -84,7 +84,8 @@ let outer_view = view! {
 
 ## Control flow
 
-The `view!` macro supports using `if`/`else` and `match` statements directly inside the DSL.
+The `view!` macro supports using `if`/`else` and `match` statements directly
+inside the DSL.
 
 ```rust
 view! {

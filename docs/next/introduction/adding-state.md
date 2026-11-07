@@ -197,9 +197,9 @@ Of course, displaying the state in our UI is not all that useful if we can't
 update the state. There are many places where you might update the state but the
 most common place is probably inside an event handler.
 
-Sycamore makes it easy to add event handlers to your view, using the `on_<event>`
-attribute. For example, the following code adds an event handler to the `click`
-event and increments the counter by 1.
+Sycamore makes it easy to add event handlers to your view, using the
+`on_<event>` attribute. For example, the following code adds an event handler to
+the `click` event and increments the counter by 1.
 
 ```rust
 view! {
