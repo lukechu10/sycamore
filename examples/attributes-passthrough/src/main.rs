@@ -1,5 +1,5 @@
 use sycamore::prelude::*;
-use sycamore::web::{StringAttribute, extend_element};
+use sycamore::web::StringAttribute;
 
 #[component(extend_element!(html:button))]
 fn CustomButton(

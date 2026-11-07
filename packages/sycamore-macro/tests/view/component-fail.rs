@@ -15,8 +15,8 @@ fn Component() -> View {
     }
 }
 
-#[component]
-pub fn AttributesComponent(#[prop(attributes(html, div))] attributes: Attributes) -> View {
+#[component(extend_element!(html:div))]
+pub fn AttributesComponent(attributes: Attributes) -> View {
     view! {
         div(..attributes)
     }

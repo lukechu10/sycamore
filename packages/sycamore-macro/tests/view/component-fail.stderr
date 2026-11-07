@@ -24,51 +24,46 @@ error[E0425]: cannot find function, tuple struct or tuple variant `UnknownCompon
 31 |             UnknownComponent {}
    |             ^^^^^^^^^^^^^^^^ not found in this scope
 
-error[E0599]: no method named `not_a_prop` found for struct `sycamore::web::View<T>` in the current scope
+error[E0599]: no method named `not_a_prop` found for struct `__builder_Component` in the current scope
   --> tests/view/component-fail.rs:36:23
    |
+11 |   #[component]
+   |   ------------ method `not_a_prop` not found for this struct
+...
 35 |           let _: View = view! {
    |  _______________________-
 36 | |             Component(not_a_prop=1)
-   | |                      -^^^^^^^^^^ method not found in `sycamore::web::View`
+   | |                      -^^^^^^^^^^ method not found in `__builder_Component`
    | |______________________|
    |
 
-error[E0277]: the trait bound `PropsComponentPropsBuilder<((),)>: Into<sycamore::web::View>` is not satisfied
-  --> tests/view/component-fail.rs:39:23
+error[E0277]: required field `prop` of type `&'static str` is missing
+  --> tests/view/component-fail.rs:40:13
    |
-39 |           let _: View = view! {
-   |  _______________________^
-40 | |             PropsComponent {}
-41 | |         };
-   | |_________^ unsatisfied trait bound
+40 |             PropsComponent {}
+   |             ^^^^^^^^^^^^^^ set `prop` before calling `.build()`
    |
-help: the trait `FnMut()` is not implemented for `PropsComponentPropsBuilder<((),)>`
+   = help: the trait `FieldValue<prop, &'static str>` is not implemented for `Missing`
+note: required by a bound in `__builder_PropsComponent::<__BuilderField0>::build`
   --> tests/view/component-fail.rs:3:1
    |
  3 | #[component]
-   | ^^^^^^^^^^^^
-   = note: required for `sycamore::web::View` to implement `From<PropsComponentPropsBuilder<((),)>>`
-   = note: required for `PropsComponentPropsBuilder<((),)>` to implement `Into<sycamore::web::View>`
-   = note: this error originates in the macro `view` which comes from the expansion of the attribute macro `component` (in Nightly builds, run with -Z macro-backtrace for more info)
+   | ^^^^^^^^^^^^ required by this bound in `__builder_PropsComponent::<__BuilderField0>::build`
+   = note: this error originates in the attribute macro `component` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error[E0277]: the trait bound `PropsComponentPropsBuilder<((),)>: Into<sycamore::web::View>` is not satisfied
-  --> tests/view/component-fail.rs:42:23
+error[E0277]: required field `prop` of type `&'static str` is missing
+  --> tests/view/component-fail.rs:43:13
    |
-42 |           let _: View = view! {
-   |  _______________________^
-43 | |             PropsComponent {}
-44 | |         };
-   | |_________^ unsatisfied trait bound
+43 |             PropsComponent {}
+   |             ^^^^^^^^^^^^^^ set `prop` before calling `.build()`
    |
-help: the trait `FnMut()` is not implemented for `PropsComponentPropsBuilder<((),)>`
+   = help: the trait `FieldValue<prop, &'static str>` is not implemented for `Missing`
+note: required by a bound in `__builder_PropsComponent::<__BuilderField0>::build`
   --> tests/view/component-fail.rs:3:1
    |
  3 | #[component]
-   | ^^^^^^^^^^^^
-   = note: required for `sycamore::web::View` to implement `From<PropsComponentPropsBuilder<((),)>>`
-   = note: required for `PropsComponentPropsBuilder<((),)>` to implement `Into<sycamore::web::View>`
-   = note: this error originates in the macro `view` which comes from the expansion of the attribute macro `component` (in Nightly builds, run with -Z macro-backtrace for more info)
+   | ^^^^^^^^^^^^ required by this bound in `__builder_PropsComponent::<__BuilderField0>::build`
+   = note: this error originates in the attribute macro `component` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0308]: mismatched types
   --> tests/view/component-fail.rs:46:33

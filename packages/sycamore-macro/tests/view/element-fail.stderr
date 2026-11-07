@@ -67,5 +67,8 @@ error[E0061]: this function takes 1 argument but 2 arguments were supplied
    | |_________^
    |
 note: associated function defined here
-  --> $RUST/core/src/convert/mod.rs
+  --> $WORKSPACE/packages/sycamore-web/src/view.rs
+   |
+   |     pub fn from<U: Build<Self>>(value: U) -> Self {
+   |            ^^^^
    = note: this error originates in the macro `view` (in Nightly builds, run with -Z macro-backtrace for more info)

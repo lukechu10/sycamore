@@ -97,7 +97,8 @@ pub mod prelude {
     pub use sycamore_web::{
         Attributes, Children, GlobalAttributes, GlobalBinds, GlobalEvents, GlobalProps,
         HtmlGlobalAttributes, Indexed, Keyed, NodeRef, SvgGlobalAttributes, View, console_dbg,
-        console_log, create_node_ref, document, is_not_ssr, is_ssr, on_mount, window,
+        console_log, create_node_ref, document, extend_element, is_not_ssr, is_ssr, on_mount,
+        window,
     };
 
     pub use crate::reactive::*;

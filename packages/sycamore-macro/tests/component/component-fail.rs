@@ -1,11 +1,6 @@
 use sycamore::prelude::*;
 
 #[component]
-fn Comp1() {
-    todo!();
-}
-
-#[component]
 const fn Comp2() -> View {
     todo!();
 }
@@ -22,17 +17,5 @@ fn Comp4(self) -> View {
 
 #[component]
 struct Comp5;
-
-#[component]
-fn CompWithMultipleProps(prop1: i32, prop2: i32) -> View {
-    let _ = prop1;
-    let _ = prop2;
-    ::std::todo!();
-}
-
-#[component]
-fn CompWithUnitProps(_prop: ()) -> View {
-    ::std::todo!();
-}
 
 fn main() {}

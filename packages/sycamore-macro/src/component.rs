@@ -169,7 +169,7 @@ fn to_tokens(args: Punctuated<Macro, Comma>, mut f: ItemFn) -> TokenStream {
             #(#attrs)*
             // TODO: this is a hack to get the builder macro to work with async components.
             // We plan on removing async components in the future so this is good enough for now.
-            #[builder]
+            #[::sycamore::builder]
             #vis #non_async_sig {
                 // Define the original function as a nested function so that it cannot be
                 // called from outside.
