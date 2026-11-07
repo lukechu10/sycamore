@@ -14,6 +14,12 @@ pub use component::*;
 /// Most commonly, the generic `T` is a `View` type and the trait is implemented for all types that
 /// can be converted into a `View`. This would include things like `&str`, `String`, `View` itself,
 /// and in particular, component builders.
+#[diagnostic::on_unimplemented(
+    message = "cannot build a value of type `{T}`",
+    label = "try calling `.build()` explicitly to see which fields are missing",
+    note = "this value does not satisfy the builder requirements",
+    note = "check that all required builder fields have been set"
+)]
 pub trait Build<T> {
     /// Build the value of type `T`.
     fn build(self) -> T;

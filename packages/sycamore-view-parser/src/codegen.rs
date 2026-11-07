@@ -4,7 +4,8 @@
 //! additional information to the codegen such as which mode (Client, Hydrate, SSR), etc...
 
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{quote, quote_spanned};
+use syn::spanned::Spanned;
 use syn::{Expr, Pat};
 
 use crate::ir::{DynNode, Node, Prop, PropType, Root, TagIdent, TagNode, TextNode};
@@ -224,14 +225,15 @@ impl Codegen {
                 )
             }
         };
+        let call = quote_spanned!(ident.span()=> #ident());
+        let build = quote_spanned!(ident.span()=> .build());
         quote! {{
             ::sycamore::rt::component_scope(move || {
-                ::sycamore::rt::Build::<::sycamore::rt::View>::build(
-                    #ident()
-                        #(.#plain_names(#plain_values))*
-                        #(#other_attributes)*
-                        #children_quoted
-                )
+                #call
+                    #(.#plain_names(#plain_values))*
+                    #(#other_attributes)*
+                    #children_quoted
+                    #build
             })
         }}
     }
