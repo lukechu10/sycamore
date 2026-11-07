@@ -8,12 +8,12 @@
 //! `#[builder(required)]` on an automatically optional parameter requires its setter to receive the
 //! full `Option<T>` (including `None`).
 //!
-//! `#[builder(default)]` uses `Default::default`, while `#[builder(default = callable)]` invokes a
-//! zero-argument callable. Defaults are evaluated at build time only if unset, and a defaulted
-//! `Option<T>` setter takes the full `Option<T>`. `default` and `required` cannot be combined.
-//! Required setters may only be called once; optional and defaulted setters replace earlier values.
-//! `#[builder(into)]` makes a setter accept `impl Into<SetterType>`, where `SetterType` is the type
-//! the setter would otherwise accept.
+//! `#[builder(default)]` uses `Default::default`, while `#[builder(default = expression)]`
+//! evaluates the supplied expression. Defaults are evaluated at build time only if unset, and a
+//! defaulted `Option<T>` setter takes the full `Option<T>`. `default` and `required` cannot be
+//! combined. Required setters may only be called once; optional and defaulted setters replace
+//! earlier values. `#[builder(into)]` makes a setter accept `impl Into<SetterType>`, where
+//! `SetterType` is the type the setter would otherwise accept.
 //! Other argument attributes, including doc comments, are forwarded unchanged to the corresponding
 //! builder setter method, not retained on the private helper's parameters.
 //! Argument-position `impl Trait` introduces an inferred constructor type parameter; callers
@@ -59,7 +59,7 @@ struct Field {
 
 enum DefaultValue {
     Trait,
-    Function(syn::Expr),
+    Expression(syn::Expr),
 }
 
 #[derive(Default)]
@@ -73,6 +73,7 @@ struct ParameterOptions {
 pub struct BuilderExpansion {
     pub tokens: TokenStream2,
     // The standalone attribute only needs `tokens`; component macros use this metadata.
+    #[allow(dead_code)]
     pub builder: BuilderInfo,
 }
 
@@ -574,7 +575,7 @@ pub fn expand(mut function: ItemFn) -> syn::Result<BuilderExpansion> {
             .map(|((field, argument), value)| {
                 let fallback = match field.default.as_ref().unwrap() {
                     DefaultValue::Trait => quote!(::core::default::Default::default()),
-                    DefaultValue::Function(expression) => quote!((#expression)()),
+                    DefaultValue::Expression(expression) => quote!(#expression),
                 };
                 quote!(match #argument {
                     ::core::option::Option::Some(#value) => #value,
@@ -1317,7 +1318,7 @@ fn parameter_options(attrs: &[syn::Attribute]) -> syn::Result<ParameterOptions> 
                     return Err(meta.error("duplicate `#[builder(default)]`"));
                 }
                 options.default = Some(if meta.input.peek(syn::Token![=]) {
-                    DefaultValue::Function(meta.value()?.parse()?)
+                    DefaultValue::Expression(meta.value()?.parse()?)
                 } else {
                     DefaultValue::Trait
                 });
