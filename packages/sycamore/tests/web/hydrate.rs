@@ -1,5 +1,5 @@
 use expect_test::{Expect, expect};
-use sycamore::web::Portal2;
+use sycamore::web::Portal;
 use sycamore::web::tags::*;
 
 use super::*;
@@ -126,7 +126,7 @@ mod dynamic {
         let _ = create_root(|| {
             let state = create_signal(0);
 
-            sycamore::hydrate_in_scope(|| v(*state), &c);
+            sycamore::hydrate_in_scope(move || v(*state), &c);
 
             assert_text_content!(query("p"), "0");
 
@@ -158,7 +158,7 @@ mod dynamic_with_siblings {
         let _ = create_root(|| {
             let state = create_signal(0);
 
-            sycamore::hydrate_in_scope(|| v(*state), &c);
+            sycamore::hydrate_in_scope(move || v(*state), &c);
 
             // Reactivity should work normally.
             state.set(1);
@@ -188,7 +188,7 @@ mod top_level_dynamic_with_siblings {
         let _ = create_root(|| {
             let state = create_signal(0);
 
-            sycamore::hydrate_in_scope(|| v(*state), &c);
+            sycamore::hydrate_in_scope(move || v(*state), &c);
 
             // Reactivity should work normally.
             state.set(1);
@@ -227,7 +227,7 @@ mod keyed_list {
         let _ = create_root(|| {
             let state = create_signal(vec![0, 1, 2]);
 
-            sycamore::hydrate_in_scope(|| v(*state), &c);
+            sycamore::hydrate_in_scope(move || v(*state), &c);
 
             // Reactivity should work normally.
             state.set(vec![2, 1, 0]);
@@ -265,7 +265,7 @@ mod indexed_list {
         let _ = create_root(|| {
             let state = create_signal(vec![0, 1, 2]);
 
-            sycamore::hydrate_in_scope(|| v(*state), &c);
+            sycamore::hydrate_in_scope(move || v(*state), &c);
 
             // Reactivity should work normally.
             state.set(vec![2, 1, 0]);
@@ -279,7 +279,7 @@ mod portal {
     fn v(state: ReadSignal<bool>) -> View {
         view! {
             div(id="target")
-            Portal2(selector="#target") {
+            Portal(selector="#target") {
                 (if state.get() {
                     view! {
                         "Hello from the other side!"
@@ -303,7 +303,7 @@ mod portal {
         let _ = create_root(|| {
             let state = create_signal(true);
 
-            sycamore::hydrate_in_scope(|| v(*state), &c);
+            sycamore::hydrate_in_scope(move || v(*state), &c);
         });
     }
 }
