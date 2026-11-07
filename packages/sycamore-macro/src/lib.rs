@@ -9,8 +9,6 @@ use syn::{DeriveInput, parse_macro_input};
 
 mod builder;
 mod component;
-mod inline_props;
-mod props;
 
 /// A macro for ergonomically creating complex UI complex layouts.
 ///
@@ -43,16 +41,6 @@ pub fn component(args: TokenStream, item: TokenStream) -> TokenStream {
                 #error_tokens
             }
         })
-        .into()
-}
-
-/// The derive macro for `Props`. The macro creates a builder-like API used in the [`view!`] macro.
-#[proc_macro_derive(Props, attributes(prop))]
-pub fn derive_props(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as DeriveInput);
-
-    props::impl_derive_props(&input)
-        .unwrap_or_else(|err| err.to_compile_error())
         .into()
 }
 
