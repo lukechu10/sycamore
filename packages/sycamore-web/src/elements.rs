@@ -1,5 +1,7 @@
 #![allow(non_snake_case)]
 
+use sycamore_core::Build;
+
 use crate::*;
 
 /// Create an HTML element with `tag`.
@@ -21,9 +23,9 @@ pub fn custom_element(tag: &'static str) -> CustomElement {
     CustomElement(element(tag))
 }
 
-impl From<CustomElement> for View {
-    fn from(el: CustomElement) -> Self {
-        View::from_node(el.0)
+impl Build<View> for CustomElement {
+    fn build(self) -> View {
+        View::from_node(self.0)
     }
 }
 
@@ -97,9 +99,9 @@ macro_rules! impl_element {
                 [<Html $name:camel>](element($tag))
             }
 
-            impl From<[<Html $name:camel>]> for View {
-                fn from(el: [<Html $name:camel>]) -> Self {
-                    View::from_node(el.0)
+            impl Build<View> for [<Html $name:camel>] {
+                fn build(self) -> View {
+                    View::from_node(self.0)
                 }
             }
 
@@ -191,9 +193,9 @@ macro_rules! impl_svg_element {
                 [<Svg $name:camel>](svg_element($tag))
             }
 
-            impl From<[<Svg $name:camel>]> for View {
-                fn from(el: [<Svg $name:camel>]) -> Self {
-                    View::from_node(el.0)
+            impl Build<View> for [<Svg $name:camel>] {
+                fn build(self) -> View {
+                    View::from_node(self.0)
                 }
             }
 
@@ -1169,8 +1171,8 @@ pub trait GlobalProps: GlobalAttributes + AsHtmlNode + Sized {
     }
 
     /// Set the children of an element.
-    fn children(mut self, children: impl Into<View>) -> Self {
-        self.as_html_node().append_view(children.into());
+    fn children(mut self, children: impl Build<View>) -> Self {
+        self.as_html_node().append_view(children.build());
         self
     }
 

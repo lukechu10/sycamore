@@ -79,6 +79,8 @@ mod web {
 
 #[doc(hidden)]
 pub mod rt {
+    pub use paste::paste;
+    pub use sycamore_core::builder_runtime::*;
     pub use sycamore_core::*;
     #[cfg(feature = "suspense")]
     pub use sycamore_futures::*;

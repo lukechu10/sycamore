@@ -36,13 +36,9 @@ data in your view.
 
 ```rust
 view! {
-    (if let Some(data) = resource.get_clone() {
-        view! {
-            ...
-        }
-    } else {
-        view! {}
-    })
+    if let Some(data) = resource.get_clone() {
+        ...
+    }
 }
 ```
 
@@ -86,14 +82,10 @@ asynchronous data. For example:
 
 ```rust
 view! {
-    Suspense(fallback=move || view! { LoadingSpinner {} }) {
-        (if let Some(data) = resource.get_clone() {
-            view! {
-                ...
-            }
-        } else {
-            view! {}
-        })
+    Suspense(fallback=LoadingSpinner) {
+        if let Some(data) = resource.get_clone() {
+            ...
+        }
     }
 }
 ```

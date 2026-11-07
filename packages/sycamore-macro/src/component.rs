@@ -1,209 +1,231 @@
 //! The `#[component]` attribute macro implementation.
 
-use proc_macro2::{Span, TokenStream};
-use quote::{ToTokens, format_ident, quote};
+use proc_macro2::TokenStream;
+use quote::{format_ident, quote};
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
-use syn::spanned::Spanned;
-use syn::{
-    AttrStyle, Attribute, Expr, FnArg, Generics, Ident, Item, ItemFn, Meta, Pat, PatIdent, Result,
-    ReturnType, Signature, Token, Type, TypeTuple, parse_quote,
-};
+use syn::token::Comma;
+use syn::{FnArg, ItemFn, Macro, Meta, Pat, Result, Signature, Token, Type, parse_quote};
 
-pub struct ComponentFn {
-    pub f: ItemFn,
+/// Prop types that automatically receive `#[prop(default, into)]` unless marked `required`.
+const AUTOMATIC_PROP_TYPES: &[&str] = &["Children", "Attributes", "Callback"];
+
+/// Infer prop settings before handing the function to the builder macro.
+fn preprocess_props(f: &mut ItemFn) -> Result<()> {
+    for input in &mut f.sig.inputs {
+        let FnArg::Typed(input) = input else {
+            continue;
+        };
+        // This is deliberately syntactic: aliases are not resolved, and qualified paths are
+        // recognized by their final segment, just like an imported Children or Attributes type.
+        let Type::Path(ty) = &*input.ty else {
+            continue;
+        };
+        let Some(segment) = ty.path.segments.last() else {
+            continue;
+        };
+        if ty.qself.is_some()
+            || !AUTOMATIC_PROP_TYPES
+                .iter()
+                .any(|name| segment.ident == *name)
+        {
+            continue;
+        }
+        let prop_type = &segment.ident;
+
+        let mut required = false;
+        let mut explicit_settings = Vec::new();
+        let mut attrs = Vec::with_capacity(input.attrs.len() + 1);
+        for mut attr in std::mem::take(&mut input.attrs) {
+            if attr.path().is_ident("prop") {
+                let options =
+                    attr.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?;
+                let mut retained = Punctuated::<Meta, Token![,]>::new();
+                let mut removed_required = false;
+                for option in options {
+                    if matches!(&option, Meta::Path(path) if path.is_ident("required")) {
+                        if required {
+                            return Err(syn::Error::new_spanned(
+                                option,
+                                "duplicate `#[prop(required)]`",
+                            ));
+                        }
+                        required = true;
+                        removed_required = true;
+                    } else {
+                        if option.path().is_ident("default") || option.path().is_ident("into") {
+                            explicit_settings.push(option.clone());
+                        }
+                        retained.push(option);
+                    }
+                }
+                if retained.is_empty() && removed_required {
+                    continue;
+                }
+                if let Meta::List(list) = &mut attr.meta {
+                    list.tokens = quote!(#retained);
+                }
+            }
+            attrs.push(attr);
+        }
+        if required {
+            if let Some(default) = explicit_settings
+                .iter()
+                .find(|option| option.path().is_ident("default"))
+            {
+                return Err(syn::Error::new_spanned(
+                    default,
+                    "`#[prop(required)]` and `#[prop(default)]` cannot be combined",
+                ));
+            }
+        } else {
+            if let Some(option) = explicit_settings.first() {
+                let setting = option.path().get_ident().unwrap();
+                return Err(syn::Error::new_spanned(
+                    option,
+                    format!(
+                        "`#[prop({setting})]` is unnecessary for `{prop_type}` props; \
+                         `#[component]` adds it automatically",
+                    ),
+                ));
+            }
+            attrs.push(parse_quote!(#[prop(default, into)]));
+        }
+        input.attrs = attrs;
+    }
+    Ok(())
 }
 
-impl Parse for ComponentFn {
-    fn parse(input: ParseStream) -> Result<Self> {
-        // Parse macro body.
-        let parsed: Item = input.parse()?;
+fn to_tokens(args: Punctuated<Macro, Comma>, mut f: ItemFn) -> TokenStream {
+    f.attrs.push(parse_quote!(#[allow(non_snake_case)]));
 
-        match parsed {
-            Item::Fn(mut f) => {
-                let ItemFn { sig, .. } = &mut f;
-
-                if sig.constness.is_some() {
-                    return Err(syn::Error::new(
-                        sig.constness.span(),
-                        "const functions can't be components",
-                    ));
-                }
-
-                if sig.abi.is_some() {
-                    return Err(syn::Error::new(
-                        sig.abi.span(),
-                        "extern functions can't be components",
-                    ));
-                }
-
-                if let ReturnType::Default = sig.output {
-                    return Err(syn::Error::new(
-                        sig.paren_token.span.close(),
-                        "component must return `sycamore::view::View`",
-                    ));
-                };
-
-                let inputs = sig.inputs.clone().into_iter().collect::<Vec<_>>();
-
-                match &inputs[..] {
-                    [] => {}
-                    [input] => {
-                        if let FnArg::Receiver(_) = input {
-                            return Err(syn::Error::new(
-                                input.span(),
-                                "components can't accept a receiver",
-                            ));
-                        }
-
-                        if let FnArg::Typed(pat) = input
-                            && let Type::Tuple(TypeTuple { elems, .. }) = &*pat.ty
-                            && elems.is_empty()
-                        {
-                            return Err(syn::Error::new(
-                                pat.ty.span(),
-                                "taking an unit tuple as props is useless",
-                            ));
-                        }
+    // Change all `#[prop]` attributes to `#[builder]` attributes so that the builder macro can
+    // process them.
+    for input in &mut f.sig.inputs {
+        let attrs = match input {
+            FnArg::Typed(pat_type) => &mut pat_type.attrs,
+            FnArg::Receiver(receiver) => &mut receiver.attrs,
+        };
+        for attr in attrs {
+            if attr.path().is_ident("prop") {
+                match &mut attr.meta {
+                    Meta::Path(path) => {
+                        *path = parse_quote!(builder);
                     }
-                    [..] => {}
-                };
-
-                Ok(Self { f })
+                    Meta::List(meta_list) => {
+                        meta_list.path = parse_quote!(builder);
+                    }
+                    Meta::NameValue(meta_name_value) => {
+                        meta_name_value.path = parse_quote!(builder);
+                    }
+                }
             }
-            item => Err(syn::Error::new_spanned(
-                item,
-                "the `component` attribute can only be applied to functions",
-            )),
         }
     }
-}
 
-struct AsyncCompInputs {
-    sync_input: Punctuated<FnArg, Token![,]>,
-    async_args: Vec<Expr>,
-}
+    let ItemFn {
+        attrs,
+        vis,
+        sig,
+        block,
+        ..
+    } = &f;
 
-fn async_comp_inputs_from_sig_inputs(inputs: &Punctuated<FnArg, Token![,]>) -> AsyncCompInputs {
-    let mut sync_input = Punctuated::new();
-    let mut async_args = Vec::new();
-
-    fn pat_ident_arm(
-        sync_input: &mut Punctuated<FnArg, Token![,]>,
-        fn_arg: &FnArg,
-        id: &PatIdent,
-    ) -> Expr {
-        sync_input.push(fn_arg.clone());
-        let ident = &id.ident;
-        parse_quote! { #ident }
-    }
-
-    let mut inputs = inputs.iter();
-
-    let prop_arg = inputs.next();
-    let prop_arg = prop_arg.map(|prop_fn_arg| match prop_fn_arg {
-        FnArg::Typed(t) => match &*t.pat {
-            Pat::Ident(id) => pat_ident_arm(&mut sync_input, prop_fn_arg, id),
-            Pat::Struct(pat_struct) => {
-                // For the sync input we don't want a destructured pattern but just to take a
-                // `syn::PatType` (i.e. `props: MyPropsStruct`) then the inner async function
-                // signature can have the destructured pattern and it will work correctly
-                // as long as we provide our brand new ident that we used in the
-                // `syn::PatIdent`.
-                let ident = Ident::new("props", pat_struct.span());
-                // Props are taken by value so no refs or mutability required here
-                // The destructured pattern can add mutability (if required) even without this
-                // set.
-                let pat_ident = PatIdent {
-                    attrs: vec![],
-                    by_ref: None,
-                    mutability: None,
-                    ident,
-                    subpat: None,
-                };
-                let pat_type = syn::PatType {
-                    attrs: vec![],
-                    pat: Box::new(Pat::Ident(pat_ident)),
-                    colon_token: Default::default(),
-                    ty: t.ty.clone(),
-                };
-
-                let fn_arg = FnArg::Typed(pat_type);
-                sync_input.push(fn_arg);
-                parse_quote! { props }
-            }
-            _ => panic!("unexpected pattern!"),
-        },
-        FnArg::Receiver(_) => unreachable!(),
-    });
-
-    if let Some(arg) = prop_arg {
-        async_args.push(arg);
-    }
-
-    AsyncCompInputs {
-        async_args,
-        sync_input,
-    }
-}
-
-impl ToTokens for ComponentFn {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        let ComponentFn { f } = self;
-        let ItemFn {
-            attrs,
-            vis,
-            sig,
-            block,
-            ..
-        } = &f;
-
-        if sig.asyncness.is_some() {
-            // When the component function is async then we need to extract out some of the
-            // function signature (Syn::Signature) so that we can wrap the async function with
-            // a non-async component.
-            //
-            // In order to support the struct destructured pattern for props we alter the existing
-            // signature for the non-async component so that it is defined as a `Syn::PatType`
-            // (i.e. props: MyPropsStruct) with a new `Syn::Ident` "props". We then use this ident
-            // again as an argument to the inner async function which has the user defined
-            // destructured pattern which will work as expected.
-            //
-            // Note: this does not affect the signature of the function.
-            let inputs = &sig.inputs;
-            let AsyncCompInputs {
-                sync_input,
-                async_args: args,
-            } = async_comp_inputs_from_sig_inputs(inputs);
-
-            let non_async_sig = Signature {
-                asyncness: None,
-                inputs: sync_input,
-                ..sig.clone()
-            };
-            let inner_ident = format_ident!("{}_inner", sig.ident);
-            let inner_sig = Signature {
-                ident: inner_ident.clone(),
-                ..sig.clone()
-            };
-            tokens.extend(quote! {
-                // Create a new function that is not async so that it is just a standard component.
-                #(#attrs)*
-                #[allow(non_snake_case)]
-                #vis #non_async_sig {
-                    // Define the original function as a nested function so that it cannot be
-                    // called from outside.
-                    #[allow(non_snake_case)]
-                    #inner_sig #block
-
-                    ::sycamore::rt::wrap_async_component(move || #inner_ident(#(#args),*))
-                }
-            });
-        } else {
-            tokens.extend(quote! {
-                #[allow(non_snake_case)]
-                #f
+    if f.sig.asyncness.is_some() {
+        let inputs = &sig.inputs;
+        let args = inputs
+            .iter()
+            .map(|fn_arg| match fn_arg {
+                FnArg::Typed(t) => match &*t.pat {
+                    Pat::Ident(id) => &id.ident,
+                    _ => panic!(
+                        "async component props cannot be destructured in the function signature"
+                    ),
+                },
+                FnArg::Receiver(_) => unreachable!(),
             })
+            .collect::<Vec<_>>();
+
+        let non_async_sig = Signature {
+            asyncness: None,
+            ..sig.clone()
+        };
+        let inner_ident = format_ident!("{}_async", sig.ident);
+        let mut inner_inputs = sig.inputs.clone();
+        for input in &mut inner_inputs {
+            if let FnArg::Typed(pat_type) = input {
+                pat_type
+                    .attrs
+                    .retain(|attr| !attr.path().is_ident("builder"));
+            }
+        }
+        let inner_sig = Signature {
+            ident: inner_ident.clone(),
+            inputs: inner_inputs,
+            ..sig.clone()
+        };
+        quote! {
+            // Create a new function that is not async so that it is just a standard component.
+            #(#attrs)*
+            // TODO: this is a hack to get the builder macro to work with async components.
+            // We plan on removing async components in the future so this is good enough for now.
+            #[::sycamore::builder]
+            #vis #non_async_sig {
+                // Define the original function as a nested function so that it cannot be
+                // called from outside.
+                #[allow(non_snake_case)]
+                #inner_sig #block
+
+                ::sycamore::rt::wrap_async_component(move || #inner_ident(#(#args),*))
+            }
+        }
+    } else {
+        // If the builder macro failed to expand, change the `#[builder]` attribute in the error
+        // message back to `#[prop]` so that the user can see the original attribute that caused
+        // the error.
+        let builder_expansion = crate::builder::expand(f);
+        let builder_expansion = match builder_expansion {
+            Ok(expansion) => expansion,
+            Err(err) => {
+                let original_err = err.to_compile_error();
+                let message = original_err
+                    .to_string()
+                    .split('\"')
+                    .nth(1)
+                    .unwrap_or("")
+                    .replace("#[builder", "#[prop");
+                return syn::Error::new_spanned(original_err, message).to_compile_error();
+            }
+        };
+        let builder = builder_expansion.tokens;
+
+        let macros = args.into_iter().map(|mut _macro| {
+            // Prepend each macro with the builder information so that the macro can access the
+            // builder type and generics.
+            let macro_input = _macro.tokens.clone();
+            let (impl_generics, ty_generics, where_clause) =
+                &builder_expansion.builder.generics.split_for_impl();
+            let ty_ident = &builder_expansion.builder.ident;
+            _macro.tokens = quote! {
+                builder: {
+                    ty: #ty_ident #ty_generics,
+                    impl_generics: [#impl_generics],
+                    where_clause: [#where_clause],
+                },
+                #macro_input
+            };
+            // Change the macro delimiter to braces so that we don't run into missing semicolon
+            // errors.
+            _macro.delimiter = syn::MacroDelimiter::Brace(syn::token::Brace {
+                span: *_macro.delimiter.span(),
+            });
+            _macro
+        });
+
+        quote! {
+            #builder
+
+            #(#macros)*
         }
     }
 }
@@ -211,14 +233,14 @@ impl ToTokens for ComponentFn {
 /// Arguments to the `component` attribute proc-macro.
 pub struct ComponentArgs {
     _comma: Option<Token![,]>,
-    attrs: Punctuated<Meta, Token![,]>,
+    attrs: Punctuated<Macro, Token![,]>,
 }
 
 impl Parse for ComponentArgs {
     fn parse(input: ParseStream) -> Result<Self> {
         let comma: Option<Token![,]> = input.parse()?;
-        let attrs: Punctuated<Meta, Token![,]> = if !input.is_empty() {
-            input.parse_terminated(Meta::parse, Token![,])?
+        let attrs: Punctuated<Macro, Token![,]> = if !input.is_empty() {
+            input.parse_terminated(Macro::parse, Token![,])?
         } else {
             Punctuated::new()
         };
@@ -229,169 +251,7 @@ impl Parse for ComponentArgs {
     }
 }
 
-pub fn component_impl(args: ComponentArgs, item: TokenStream) -> Result<TokenStream> {
-    let mut item_fn = syn::parse::<ItemFn>(item.into())?;
-    // If component has more than one argument, use inline props.
-    let inline_props = if item_fn.sig.inputs.is_empty() {
-        quote! {}
-    } else {
-        inline_props_impl(&mut item_fn, args.attrs)?
-    };
-    // TODO: don't parse the function twice.
-    let comp = syn::parse::<ComponentFn>(item_fn.to_token_stream().into())?;
-    Ok(quote! {
-        #inline_props
-        #comp
-    })
-}
-
-/// Generates the props struct and builder, then turns the component into a builder factory and a
-/// private props-taking implementation function.
-fn inline_props_impl(item: &mut ItemFn, attrs: Punctuated<Meta, Token![,]>) -> Result<TokenStream> {
-    let component_ident = item.sig.ident.clone();
-    let component_impl_ident = format_ident!("{}_component", component_ident);
-    let component_vis = item.vis.clone();
-    let props_vis = &component_vis;
-    let props_struct_ident = format_ident!("{}Props", component_ident);
-
-    let inputs = item.sig.inputs.clone();
-    let props = inputs.clone().into_iter().collect::<Vec<_>>();
-    let generics: &mut Generics = &mut item.sig.generics;
-    let mut fields = Vec::new();
-    for arg in inputs {
-        match arg {
-            FnArg::Receiver(receiver) => {
-                return Err(syn::Error::new(
-                    receiver.span(),
-                    "`self` cannot be a property",
-                ));
-            }
-            FnArg::Typed(pat_type) => match *pat_type.pat {
-                Pat::Ident(ident_pat) => super::inline_props::push_field(
-                    &mut fields,
-                    generics,
-                    pat_type.attrs,
-                    ident_pat.clone().ident,
-                    *pat_type.ty,
-                ),
-                _ => {
-                    return Err(syn::Error::new(
-                        pat_type.pat.span(),
-                        "pattern must contain an identifier, properties cannot be unnamed",
-                    ));
-                }
-            },
-        }
-    }
-
-    let generics_phantoms = generics.params.iter().enumerate().filter_map(|(i, param)| {
-        let phantom_ident = format_ident!("__phantom{i}");
-        match param {
-            syn::GenericParam::Type(ty) => {
-                let ty = &ty.ident;
-                Some(quote! {
-                    #[prop(default, setter(skip))]
-                    #phantom_ident: ::std::marker::PhantomData<#ty>
-                })
-            }
-            syn::GenericParam::Lifetime(lt) => {
-                let lt = &lt.lifetime;
-                Some(quote! {
-                    #[prop(default, setter(skip))]
-                    #phantom_ident: ::std::marker::PhantomData<&#lt ()>
-                })
-            }
-            syn::GenericParam::Const(_) => None,
-        }
-    });
-
-    let doc_comment = format!("Props for [`{}`].", component_ident);
-    let (_, _, where_clause) = generics.split_for_impl();
-
-    let attrs = attrs.into_iter().map(|a| Attribute {
-        pound_token: Token![#](Span::call_site()),
-        style: AttrStyle::Outer,
-        bracket_token: Default::default(),
-        meta: a,
-    });
-    let props_struct = quote! {
-        #[allow(non_camel_case_types)]
-        #[doc = #doc_comment]
-        #(#attrs)*
-        #props_vis struct #props_struct_ident #generics #where_clause {
-            #(#fields,)*
-            #(#generics_phantoms,)*
-        }
-    };
-    let mut props_input: syn::DeriveInput = syn::parse2(props_struct)?;
-
-    // Rewrite component body.
-
-    // Get the ident (technically, patterns) of each prop.
-    let props_pats = props.iter().map(|arg| match arg {
-        FnArg::Receiver(_) => unreachable!(),
-        FnArg::Typed(arg) => match &*arg.pat {
-            Pat::Ident(pat) => {
-                if pat.subpat.is_some() {
-                    let ident = &pat.ident;
-                    quote! { #ident: #pat }
-                } else {
-                    quote! { #pat }
-                }
-            }
-            _ => unreachable!(),
-        },
-    });
-    // Rewrite function signature and body to make the original function private implementation
-    // detail called by the generated builder conversion.
-    let props_struct_generics = generics.split_for_impl().1;
-    let props_struct_type = quote!(#props_struct_ident #props_struct_generics);
-    item.sig.inputs = parse_quote! { __props: #props_struct_type };
-    item.sig.ident = component_impl_ident;
-    item.vis = syn::Visibility::Inherited;
-    let block = item.block.clone();
-    item.block = parse_quote! {{
-        let #props_struct_ident {
-            #(#props_pats,)*
-            ..
-        } = __props;
-        #block
-    }};
-
-    let props_impl = super::props::impl_component_props(&props_input, item)?;
-
-    // The derive macro normally registers `prop` as a helper attribute. Since the component
-    // macro invokes the props codegen directly, remove those attributes from the emitted struct
-    // after the props codegen has consumed them.
-    props_input
-        .attrs
-        .retain(|attr| !attr.path().is_ident("prop"));
-    if let syn::Data::Struct(data) = &mut props_input.data
-        && let syn::Fields::Named(fields) = &mut data.fields
-    {
-        for field in &mut fields.named {
-            field.attrs.retain(|attr| !attr.path().is_ident("prop"));
-        }
-    }
-
-    let mut factory_sig = item.sig.clone();
-    factory_sig.ident = component_ident;
-    factory_sig.inputs.clear();
-    factory_sig.asyncness = None;
-    factory_sig.output = parse_quote!(-> <#props_struct_type as ::sycamore::rt::Props>::Builder);
-    let props_vis = &component_vis;
-    let attrs = &item.attrs;
-    let factory = quote! {
-        #(#attrs)*
-        #[allow(non_snake_case)]
-        #props_vis #factory_sig {
-            <#props_struct_type as ::sycamore::rt::Props>::builder()
-        }
-    };
-
-    Ok(quote! {
-        #props_input
-        #props_impl
-        #factory
-    })
+pub fn expand(args: ComponentArgs, mut f: ItemFn) -> Result<TokenStream> {
+    preprocess_props(&mut f)?;
+    Ok(to_tokens(args.attrs, f))
 }

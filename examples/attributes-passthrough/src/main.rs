@@ -1,10 +1,10 @@
 use sycamore::prelude::*;
 use sycamore::web::StringAttribute;
 
-#[component]
+#[component(extend_element!(html:button))]
 fn CustomButton(
-    #[prop(setter(into))] id: StringAttribute,
-    #[prop(attributes(html, button))] attributes: Attributes,
+    #[prop(into)] id: StringAttribute,
+    attributes: Attributes,
     children: Children,
 ) -> View {
     console_log!("Intercepted `id` attribute: {:?}", id.get_clone());

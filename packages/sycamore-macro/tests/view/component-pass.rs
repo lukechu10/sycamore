@@ -24,12 +24,8 @@ pub fn AllDefaultPropsComponent(#[prop(default)] prop: u32) -> View {
 }
 
 #[component]
-pub fn OptionalPropsComponent(
-    #[prop(default, setter(strip_option))] optional: Option<u32>,
-    implicit: Option<u32>,
-) -> View {
+pub fn OptionalPropsComponent(optional: Option<u32>) -> View {
     let _ = optional;
-    let _ = implicit;
     view! {
         div {}
     }
@@ -57,8 +53,8 @@ pub async fn AsyncComponentWithPropsDestructuring(children: Children) -> View {
     children.call()
 }
 
-#[component]
-pub fn AttributesComponent(#[prop(attributes(html, input))] attributes: Attributes) -> View {
+#[component(extend_element!(html:input))]
+pub fn AttributesComponent(attributes: Attributes) -> View {
     view! {
         input(..attributes)
     }
@@ -66,9 +62,6 @@ pub fn AttributesComponent(#[prop(attributes(html, input))] attributes: Attribut
 
 fn compile_pass() {
     let _ = create_root(|| {
-        let _: View = view! {
-            Component {}
-        };
         let _: View = view! {
             Component {}
         };
@@ -84,21 +77,9 @@ fn compile_pass() {
         let _: View = view! {
             AllDefaultPropsComponent {}
         };
-        let _: View = view! {
-            AllDefaultPropsComponent {}
-        };
 
         let _: View = view! {
             OptionalPropsComponent(optional=123)
-        };
-        let _: View = view! {
-            OptionalPropsComponent(implicit=123)
-        };
-        let _: View = view! {
-            OptionalPropsComponent(optional=123, implicit=123)
-        };
-        let _: View = view! {
-            OptionalPropsComponent {}
         };
         let _: View = view! {
             OptionalPropsComponent {}
@@ -118,15 +99,6 @@ fn compile_pass() {
         };
         let _: View = view! {
             ComponentWithChildren { Component {} }
-        };
-        let _: View = view! {
-            ComponentWithChildren { Component {} }
-        };
-        let _: View = view! {
-            ComponentWithChildren {}
-        };
-        let _: View = view! {
-            ComponentWithChildren {}
         };
         let _: View = view! {
             ComponentWithChildren {}

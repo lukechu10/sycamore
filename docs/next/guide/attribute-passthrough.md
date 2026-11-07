@@ -23,18 +23,17 @@ For such scenarios, **attribute passthrough** comes to the rescue!
 
 You can add a special `attributes` prop with the `Attributes` type to your
 component. You must then specify what kind of element these attributes are
-expected to be applied on using the `#[prop(attributes(...))]` tag. Finally, you
-can **spread** the attributes on the HTML element using the attribute spread
-syntax.
+expected to be applied on using the `#[component(extend_element!(...))]` syntax.
+Finally, you can **spread** the attributes on the HTML element using the
+attribute spread syntax.
 
 ```rust
-#[component(inline_props)]
+// `html` means that we are spreading onto an HTML element.
+// The other possible value is `svg`.
+//
+// `button` means that we are spreading onto a `<button>` element.
+#[component(extend_element!(html:button))]
 fn Button(
-    // `html` means that we are spreading onto an HTML element.
-    // The other possible value is `svg`.
-    //
-    // `button` means that we are spreading onto a `<button>` element.
-    #[prop(attributes(html, button))]
     attributes: Attributes,
     // We can still accept children.
     children: Children,
@@ -59,7 +58,7 @@ view! {
         // Pass as many HTML attributes/events as you want.
         id="my-button",
         class="btn btn-primary",
-        on:click=|_| {}
+        on_click=|_| {}
         // You can still pass in regular props as well.
         other_prop=123,
     ) {
@@ -90,9 +89,8 @@ could then write something like this.
 ```rust
 use sycamore::web::StringAttribute;
 
-#[component(inline_props)]
+#[component(extend_elements!(html:button))]
 fn Button(
-    #[prop(attributes(html, button))]
     attributes: Attributes,
     // StringAttribute is a type alias for MaybeDyn containing a string.
     class: StringAttribute,

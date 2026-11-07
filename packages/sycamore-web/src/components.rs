@@ -4,9 +4,9 @@ use sycamore_macro::{component, view};
 
 use crate::*;
 
-/// An utility component that only renders its children when a condition is satisfied.
+/// A utility component that only renders its children when a condition is satisfied.
 #[component]
-pub fn Show(#[prop(setter(into))] when: MaybeDyn<bool>, children: Children) -> View {
+pub fn Show(#[prop(into)] when: MaybeDyn<bool>, children: Children) -> View {
     let mut children = children.call();
     let when = create_selector(move || when.get());
 

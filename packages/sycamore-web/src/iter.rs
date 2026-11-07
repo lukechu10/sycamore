@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::ops::Deref;
 
+use sycamore_core::Build;
 use sycamore_macro::component;
 use wasm_bindgen::prelude::*;
 
@@ -116,7 +117,7 @@ where
                             reconcile_fragments(&parent, &mut old, &new);
                         }
                     }) as Box<dyn FnMut()>,
-                    (start, view, end).into(),
+                    (start, view, end).build(),
                 )
             })
         })
@@ -210,7 +211,7 @@ where
                             reconcile_fragments(&parent, &mut old, &new);
                         }
                     }) as Box<dyn FnMut()>,
-                    (start, view, end).into(),
+                    (start, view, end).build(),
                 )
             })
         })

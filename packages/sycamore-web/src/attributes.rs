@@ -115,14 +115,57 @@ impl Attributes {
     }
 }
 
+/// A macro that implements the necessary traits for a builder type to accept attributes and event
+/// handlers.
+///
+/// This macro should not be called directly. Instead, it is used by the `#[component]` macro to
+/// automatically implement the necessary traits for a component's builder type.
+#[macro_export]
+macro_rules! extend_element {
+    (
+        builder: {
+            ty: $builder:ty,
+            impl_generics: [$($impl_generics:tt)*],
+            where_clause: [$($where_clause:tt)*],
+        },
+        $ns:ident : $tag:ident
+    ) => {
+        $crate::rt::paste! {
+            impl $($impl_generics)* $builder $($where_clause)* {
+                fn __attributes_mut(&mut self) -> &mut $crate::Attributes {
+                    self.attributes.get_or_insert_default()
+                }
+            }
+
+            impl $($impl_generics)* $crate::SetAttribute for $builder $($where_clause)* {
+                fn set_attribute(&mut self, name: &'static str, value: impl $crate::AttributeValue) {
+                    self.__attributes_mut().set_attribute(name, value);
+                }
+
+                fn set_event_handler(
+                    &mut self,
+                    name: &'static str,
+                    value: impl FnMut($crate::rt::web_sys::Event) + 'static,
+                ) {
+                    self.__attributes_mut().set_event_handler(name, value);
+                }
+            }
+
+            impl $($impl_generics)* $crate::GlobalAttributes for $builder $($where_clause)* {}
+            impl $($impl_generics)* $crate::[<$ns:camel GlobalAttributes>] for $builder $($where_clause)* {}
+            impl $($impl_generics)* $crate::tags::[<$ns:camel $tag:camel Attributes>] for $builder $($where_clause)* {}
+        }
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use expect_test::{Expect, expect};
 
     use super::*;
 
-    fn check<T: Into<View>>(view: impl FnOnce() -> T, expect: Expect) {
-        let actual = render_to_string(move || view().into());
+    fn check(view: impl Into<Children>, expect: Expect) {
+        let actual = render_to_string(view);
         expect.assert_eq(&actual);
     }
 

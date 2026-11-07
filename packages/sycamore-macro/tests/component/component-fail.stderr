@@ -1,37 +1,23 @@
-error: component must return `sycamore::view::View`
- --> tests/component/component-fail.rs:4:9
+error: `#[prop]` supports only safe, non-const Rust functions
+ --> tests/component/component-fail.rs:4:1
   |
-4 | fn Comp1() {
-  |         ^^
+4 | const fn Comp2() -> View {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: const functions can't be components
+error: `#[prop]` supports only safe, non-const Rust functions
  --> tests/component/component-fail.rs:9:1
   |
-9 | const fn Comp2() -> View {
-  | ^^^^^
+9 | extern "C" fn Comp3() -> View {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: extern functions can't be components
-  --> tests/component/component-fail.rs:14:1
+error: `#[prop]` requires a free function
+  --> tests/component/component-fail.rs:14:10
    |
-14 | extern "C" fn Comp3() -> View {
-   | ^^^^^^
-
-error: `self` cannot be a property
-  --> tests/component/component-fail.rs:19:10
-   |
-19 | fn Comp4(self) -> View {
+14 | fn Comp4(self) -> View {
    |          ^^^^
 
 error: expected `fn`
-  --> tests/component/component-fail.rs:24:1
+  --> tests/component/component-fail.rs:19:1
    |
-24 | struct Comp5;
+19 | struct Comp5;
    | ^^^^^^
-
-error: `self` parameter is only allowed in associated functions
-  --> tests/component/component-fail.rs:19:10
-   |
-19 | fn Comp4(self) -> View {
-   |          ^^^^ not semantically valid as function parameter
-   |
-   = note: associated functions are those in `impl` or `trait` definitions

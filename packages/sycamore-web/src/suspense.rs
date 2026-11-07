@@ -3,6 +3,7 @@
 use std::future::Future;
 use std::num::NonZeroU32;
 
+use sycamore_core::Callback;
 use sycamore_futures::{
     create_detached_suspense_scope, create_suspense_scope, create_suspense_task,
 };
@@ -41,14 +42,12 @@ use crate::*;
 #[component]
 pub fn Suspense(
     /// The fallback [`View`] to display while the child nodes are being awaited.
-    #[prop(default = Box::new(|| view! {}), setter(transform = |f: impl Fn() -> View + 'static| Box::new(f) as Box<dyn Fn() -> View>))]
-    fallback: Box<dyn Fn() -> View>,
+    fallback: Children,
     children: Children,
     /// The component will automatically update this signal with the `is_loading` state.
     ///
     /// This is only updated in non-SSR mode.
-    #[prop(default = Box::new(|_| {}), setter(transform = |f: impl FnMut(bool) + 'static| Box::new(f) as Box<dyn FnMut(bool)>))]
-    mut set_is_loading: Box<dyn FnMut(bool) + 'static>,
+    mut set_is_loading: Callback<bool>,
 ) -> View {
     is_ssr! {
         use futures::FutureExt;
@@ -62,7 +61,7 @@ pub fn Suspense(
             // We make sure to return a closure so that the view can be properly hydrated.
             SsrMode::Sync => view! {
                 Show(when=true) {
-                    (fallback())
+                    (fallback)
                 }
                 Show(when=false) {}
             },
@@ -112,7 +111,7 @@ pub fn Suspense(
                 view! {
                     NoSsr {}
                     (start)
-                    NoHydrate(children=Children::new(fallback))
+                    NoHydrate(children=fallback)
                     (end)
                 }
             }
@@ -135,7 +134,7 @@ pub fn Suspense(
 
                 view! {
                     Show(when=is_loading) {
-                        (fallback())
+                        (fallback)
                     }
                     Show(when=move || !is_loading.get()) {
                         (view)
@@ -163,7 +162,7 @@ pub fn Suspense(
                 view! {
                     NoSsr {
                         Show(when=move || is_loading.get()) {
-                            (fallback())
+                            (fallback)
                         }
                     }
                     Show(when=move || !is_loading.get()) {
@@ -180,39 +179,13 @@ pub fn Suspense(
 #[component]
 pub fn Transition(
     /// The fallback [`View`] to display while the child nodes are being awaited.
-    #[prop(default = Box::new(|| view! {}), setter(transform = |f: impl Fn() -> View + 'static| Box::new(f) as Box<dyn Fn() -> View>))]
-    fallback: Box<dyn Fn() -> View>,
+    fallback: Children,
     children: Children,
     /// The component will automatically update this signal with the `is_loading` state.
     ///
     /// This is only updated in non-SSR mode.
-    #[prop(default = Box::new(|_| {}), setter(transform = |f: impl FnMut(bool) + 'static| Box::new(f) as Box<dyn FnMut(bool)>))]
-    set_is_loading: Box<dyn FnMut(bool) + 'static>,
+    set_is_loading: Callback<bool>,
 ) -> View {
-    /// Only trigger outer suspense on initial render. In subsequent renders, capture the suspense
-    /// scope.
-    #[component]
-    fn TransitionInner(children: Children, set_is_loading: Box<dyn FnMut(bool)>) -> View {
-        // TODO: Workaround for https://github.com/sycamore-rs/sycamore/issues/718.
-        let mut set_is_loading = set_is_loading;
-
-        // We create a detached suspense scope here to not create a deadlock with the outer
-        // suspense.
-        let (children, scope) = create_detached_suspense_scope(move || children.call());
-        // Trigger the outer suspense scope. Note that this is only triggered on the initial render
-        // and future renders will be captured by the inner suspense scope.
-        create_suspense_task(scope.until_finished());
-
-        let is_loading = scope.is_loading();
-        create_effect(move || {
-            set_is_loading(is_loading.get());
-        });
-
-        view! {
-            (children)
-        }
-    }
-
     view! {
         Suspense(
             fallback=fallback,
@@ -222,6 +195,27 @@ pub fn Transition(
                 }
             }),
         )
+    }
+}
+
+/// Only trigger outer suspense on initial render. In subsequent renders, capture the suspense
+/// scope.
+#[component]
+fn TransitionInner(children: Children, mut set_is_loading: Callback<bool>) -> View {
+    // We create a detached suspense scope here to not create a deadlock with the outer
+    // suspense.
+    let (children, scope) = create_detached_suspense_scope(move || children.call());
+    // Trigger the outer suspense scope. Note that this is only triggered on the initial render
+    // and future renders will be captured by the inner suspense scope.
+    create_suspense_task(scope.until_finished());
+
+    let is_loading = scope.is_loading();
+    create_effect(move || {
+        set_is_loading(is_loading.get());
+    });
+
+    view! {
+        (children)
     }
 }
 

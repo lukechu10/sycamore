@@ -4,7 +4,8 @@
 //! additional information to the codegen such as which mode (Client, Hydrate, SSR), etc...
 
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{quote, quote_spanned};
+use syn::spanned::Spanned;
 use syn::{Expr, Pat};
 
 use crate::ir::{DynNode, Node, Prop, PropType, Root, TagIdent, TagNode, TextNode};
@@ -23,7 +24,7 @@ impl Codegen {
             nodes => {
                 let nodes = nodes.iter().map(|node| self.node(node));
                 quote! {
-                    ::std::convert::Into::<::sycamore::rt::View>::into(::std::vec![#(#nodes),*])
+                    ::sycamore::rt::Build::<::sycamore::rt::View>::build(::std::vec![#(#nodes),*])
                 }
             }
         }
@@ -40,19 +41,19 @@ impl Codegen {
                 }
             }
             Node::Text(TextNode { value }) => quote! {
-                ::std::convert::Into::<::sycamore::rt::View>::into(#value)
+                ::sycamore::rt::Build::<::sycamore::rt::View>::build(#value)
             },
             Node::Dyn(DynNode { value }) => {
                 let is_dynamic = is_dyn(value);
                 if is_dynamic {
                     quote! {
                         ::sycamore::rt::View::from_dynamic(
-                            move || ::std::convert::Into::<::sycamore::rt::View>::into(#value)
+                            move || ::sycamore::rt::Build::<::sycamore::rt::View>::build(#value)
                         )
                     }
                 } else {
                     quote! {
-                        ::std::convert::Into::<::sycamore::rt::View>::into(#value)
+                        ::sycamore::rt::Build::<::sycamore::rt::View>::build(#value)
                     }
                 }
             }
@@ -224,14 +225,15 @@ impl Codegen {
                 )
             }
         };
+        let call = quote_spanned!(ident.span()=> #ident());
+        let build = quote_spanned!(ident.span()=> .build());
         quote! {{
             ::sycamore::rt::component_scope(move || {
-                ::std::convert::Into::<::sycamore::rt::View>::into(
-                    #ident()
-                        #(.#plain_names(#plain_values))*
-                        #(#other_attributes)*
-                        #children_quoted
-                )
+                #call
+                    #(.#plain_names(#plain_values))*
+                    #(#other_attributes)*
+                    #children_quoted
+                    #build
             })
         }}
     }

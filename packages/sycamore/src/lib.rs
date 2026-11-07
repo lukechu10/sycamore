@@ -86,7 +86,7 @@ pub use sycamore_web::{render_to_string_await_suspense, render_to_string_stream}
 /// use sycamore::prelude::*;
 /// ```
 pub mod prelude {
-    pub use sycamore_core::Props;
+    pub use sycamore_core::{Build, Callback};
     #[cfg(feature = "web")]
     pub use sycamore_macro::*;
     #[cfg(feature = "web")]
@@ -97,7 +97,8 @@ pub mod prelude {
     pub use sycamore_web::{
         Attributes, Children, GlobalAttributes, GlobalBinds, GlobalEvents, GlobalProps,
         HtmlGlobalAttributes, Indexed, Keyed, NodeRef, SvgGlobalAttributes, View, console_dbg,
-        console_log, create_node_ref, document, is_not_ssr, is_ssr, on_mount, window,
+        console_log, create_node_ref, document, extend_element, is_not_ssr, is_ssr, on_mount,
+        window,
     };
 
     pub use crate::reactive::*;
@@ -106,7 +107,8 @@ pub mod prelude {
 /// Re-exports for use by `sycamore-macro`. Not intended for use by end-users.
 #[doc(hidden)]
 pub mod rt {
-    pub use sycamore_core::{Props, component_scope};
+    pub use sycamore_core::builder_runtime::*;
+    pub use sycamore_core::{Build, component_scope};
     #[cfg(feature = "suspense")]
     pub use sycamore_futures::*;
     pub use sycamore_macro::*;

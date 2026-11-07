@@ -6,7 +6,7 @@ fn CompNoProps() -> View {
 }
 
 #[component]
-fn CompWithProps(prop: ::std::primitive::i32) -> View {
+fn CompWithProps(prop: i32) -> View {
     let _ = prop;
     todo!();
 }
@@ -17,7 +17,7 @@ async fn AsyncCompNoProps() -> View {
 }
 
 #[component]
-async fn AsyncCompWithProps(prop: ::std::primitive::i32) -> View {
+async fn AsyncCompWithProps(prop: i32) -> View {
     let _ = prop;
     todo!();
 }

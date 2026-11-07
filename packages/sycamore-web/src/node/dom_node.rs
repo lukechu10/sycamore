@@ -1,5 +1,6 @@
 use std::any::{Any, TypeId};
 
+use sycamore_core::Build;
 use wasm_bindgen::intern;
 
 use crate::*;
@@ -9,9 +10,9 @@ pub struct DomNode {
     pub(crate) raw: web_sys::Node,
 }
 
-impl From<DomNode> for View<DomNode> {
-    fn from(node: DomNode) -> Self {
-        View::from_node(node)
+impl Build<View<DomNode>> for DomNode {
+    fn build(self) -> View<DomNode> {
+        View::from_node(self)
     }
 }
 

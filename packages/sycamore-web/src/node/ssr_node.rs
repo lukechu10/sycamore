@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
 use once_cell::sync::Lazy;
+use sycamore_core::Build;
 
 use crate::*;
 
@@ -32,9 +33,9 @@ pub enum SsrNode {
     },
 }
 
-impl From<SsrNode> for View<SsrNode> {
-    fn from(node: SsrNode) -> Self {
-        View::from_node(node)
+impl Build<View<SsrNode>> for SsrNode {
+    fn build(self) -> View<SsrNode> {
+        View::from_node(self)
     }
 }
 
@@ -66,7 +67,7 @@ impl ViewNode for SsrNode {
                     *text.lock().unwrap() = value.take().unwrap();
                 }
             });
-            View::from(SsrNode::TextDynamic { text })
+            SsrNode::TextDynamic { text }.build()
         } else {
             let start = Self::create_marker_node();
             let end = Self::create_marker_node();
@@ -79,7 +80,7 @@ impl ViewNode for SsrNode {
                     *view.lock().unwrap() = value.into();
                 }
             });
-            View::from((start, Self::Dynamic { view }, end))
+            (start, Self::Dynamic { view }, end).build()
         }
     }
 }
@@ -273,8 +274,8 @@ mod tests {
     use super::*;
     use crate::tags::*;
 
-    fn check<T: Into<View>>(view: impl FnOnce() -> T, expect: Expect) {
-        let actual = render_to_string(move || view().into());
+    fn check(view: impl Into<Children>, expect: Expect) {
+        let actual = render_to_string(view);
         expect.assert_eq(&actual);
     }
 

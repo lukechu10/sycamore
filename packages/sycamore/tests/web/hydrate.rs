@@ -1,17 +1,17 @@
 use expect_test::{Expect, expect};
-use sycamore::web::Portal2;
+use sycamore::web::Portal;
 use sycamore::web::tags::*;
 
 use super::*;
 
-fn check(actual: impl FnOnce() -> View, expect: &Expect) {
+fn check(actual: impl Into<Children>, expect: &Expect) {
     expect.assert_eq(&sycamore::render_to_string(actual));
 }
 
 mod hello_world {
     use super::*;
     fn v() -> View {
-        p().children("Hello World!").into()
+        p().children("Hello World!").build()
     }
     static EXPECT: Expect = expect![[r#"<p data-hk="0.0">Hello World!</p>"#]];
     #[test]
@@ -32,7 +32,7 @@ mod hello_world {
 mod hydrate_recursive {
     use super::*;
     fn v() -> View {
-        div().children(p().children("Nested")).into()
+        div().children(p().children("Nested")).build()
     }
     static EXPECT: Expect = expect![[r#"<div data-hk="0.0"><p data-hk="0.1">Nested</p></div>"#]];
     #[test]
@@ -58,7 +58,7 @@ mod multiple_nodes_at_same_depth {
                 p().id("first").children("First"),
                 p().id("second").children("Second"),
             ))
-            .into()
+            .build()
     }
     static EXPECT: Expect = expect![[
         r#"<div data-hk="0.0"><p id="first" data-hk="0.1">First</p><p id="second" data-hk="0.2">Second</p></div>"#
@@ -86,7 +86,7 @@ mod top_level_fragment {
             p().id("first").children("First"),
             p().id("second").children("Second"),
         )
-            .into()
+            .build()
     }
     static EXPECT: Expect = expect![[
         r#"<p id="first" data-hk="0.0">First</p><p id="second" data-hk="0.1">Second</p>"#
@@ -111,7 +111,7 @@ mod top_level_fragment {
 mod dynamic {
     use super::*;
     fn v(state: ReadSignal<i32>) -> View {
-        p().children(move || state.get()).into()
+        p().children(move || state.get()).build()
     }
     static EXPECT: Expect = expect![[r#"<p data-hk="0.0"><!--/-->0<!--/--></p>"#]];
     #[test]
@@ -126,7 +126,7 @@ mod dynamic {
         let _ = create_root(|| {
             let state = create_signal(0);
 
-            sycamore::hydrate_in_scope(|| v(*state), &c);
+            sycamore::hydrate_in_scope(move || v(*state), &c);
 
             assert_text_content!(query("p"), "0");
 
@@ -143,7 +143,7 @@ mod dynamic {
 mod dynamic_with_siblings {
     use super::*;
     fn v(state: ReadSignal<i32>) -> View {
-        p().children(("Value: ", move || state.get(), "!")).into()
+        p().children(("Value: ", move || state.get(), "!")).build()
     }
     static EXPECT: Expect = expect![[r#"<p data-hk="0.0">Value: <!--/-->0<!--/-->!</p>"#]];
     #[test]
@@ -158,7 +158,7 @@ mod dynamic_with_siblings {
         let _ = create_root(|| {
             let state = create_signal(0);
 
-            sycamore::hydrate_in_scope(|| v(*state), &c);
+            sycamore::hydrate_in_scope(move || v(*state), &c);
 
             // Reactivity should work normally.
             state.set(1);
@@ -173,7 +173,7 @@ mod dynamic_with_siblings {
 mod top_level_dynamic_with_siblings {
     use super::*;
     fn v(state: ReadSignal<i32>) -> View {
-        ("Value: ", move || state.get(), "!").into()
+        ("Value: ", move || state.get(), "!").build()
     }
     static EXPECT: Expect = expect!["Value: <!--/-->0<!--/-->!"];
     #[test]
@@ -188,7 +188,7 @@ mod top_level_dynamic_with_siblings {
         let _ = create_root(|| {
             let state = create_signal(0);
 
-            sycamore::hydrate_in_scope(|| v(*state), &c);
+            sycamore::hydrate_in_scope(move || v(*state), &c);
 
             // Reactivity should work normally.
             state.set(1);
@@ -227,7 +227,7 @@ mod keyed_list {
         let _ = create_root(|| {
             let state = create_signal(vec![0, 1, 2]);
 
-            sycamore::hydrate_in_scope(|| v(*state), &c);
+            sycamore::hydrate_in_scope(move || v(*state), &c);
 
             // Reactivity should work normally.
             state.set(vec![2, 1, 0]);
@@ -265,7 +265,7 @@ mod indexed_list {
         let _ = create_root(|| {
             let state = create_signal(vec![0, 1, 2]);
 
-            sycamore::hydrate_in_scope(|| v(*state), &c);
+            sycamore::hydrate_in_scope(move || v(*state), &c);
 
             // Reactivity should work normally.
             state.set(vec![2, 1, 0]);
@@ -279,7 +279,7 @@ mod portal {
     fn v(state: ReadSignal<bool>) -> View {
         view! {
             div(id="target")
-            Portal2(selector="#target") {
+            Portal(selector="#target") {
                 (if state.get() {
                     view! {
                         "Hello from the other side!"
@@ -303,7 +303,7 @@ mod portal {
         let _ = create_root(|| {
             let state = create_signal(true);
 
-            sycamore::hydrate_in_scope(|| v(*state), &c);
+            sycamore::hydrate_in_scope(move || v(*state), &c);
         });
     }
 }

@@ -4,9 +4,6 @@ title: View Builder API
 
 # The View Builder API
 
-> The upcoming v0.10 release brings some changes to how components work with the
-> builder API.
-
 For those that prefer not to use macros, Sycamore also provides an ergonomic
 builder API for composing views.
 
@@ -29,20 +26,20 @@ div()
 ```
 
 These functions return specific element types such as `HtmlButtonElement`. To
-convert those into `View`s, simply use `.into()`. For example, if you are
+convert those into `View`s, simply use `.build()`. For example, if you are
 composing a component, you could write something like:
 
 ```rust
 #[component]
 fn Button() -> View {
-    button().into()
+    button().build()
 }
 ```
 
 ### Children
 
 You can add children to a element by using the `.children(...)` method. Anything
-that implements `Into<View>` can be appended as a child node. This includes
+that implements `Build<View>` can be appended as a child node. This includes
 string literals, numbers, other elements, signals, functions, and views.
 
 ```rust
@@ -51,7 +48,7 @@ div().children(
 )
 ```
 
-Tuples also implement `Into<View>` which lets you add multiple children in one
+Tuples also implement `Build<View>` which lets you add multiple children in one
 shot.
 
 ```rust
@@ -126,10 +123,10 @@ the attribute version.
 
 ### Events
 
-Events are attached using `.on(...)`.
+Events are attached using `.on_<event>(...)`.
 
 ```rust
-button().on(ev::click, |_| console_log!("clicked!")).children("Click me!")
+button().on_click(|_| console_log!("clicked!")).children("Click me!")
 ```
 
 ### Optional attributes
@@ -145,39 +142,21 @@ div().attr("data-attr", attr)
 
 ## Components
 
-Unfortunately with the builder API, we have a little more friction when using
-components. Since components are just functions, you can call them directly.
-However, when passing props, you will usually need to reference the prop type
-explicitly and call `.build()` at the end to construct the final prop value.
+Components that are generated using the `#[component]` attribute macro look very
+similar to built-in elements.
+
+The component builder implements `Build<View>` and so can be inserted directly
+under a `.children(...)` call without calling `.build()` explicitly.
+
+> Unfortunately due to Rust trait resolution limitations, error messages are
+> degraded when `.build()` is not explicitly used. If you get an error about
+> missing props and want to find out more information on which specific prop is
+> missing, inserting an explicit `.build()` call can greatly improve error
+> messages.
 
 ```rust
-// The component macro automatically generates the `Button_Props` type
-// if we are using inline props.
-#[component(inline_props)]
-fn Button(class: String) -> View { ... }
-
-div()
-    .children(Button(
-        Button_Props::builder().class("my-button".to_string()).build()
-    ))
-```
-
-### Changes in Sycamore v0.10
-
-In the upcoming Sycamore v0.10 release, components have been changed to be much
-closer aligned with the existing API for builtin elements.
-
-Components now return builder factories for the component props, which itself
-implements `Into<View>`. This means we can write something like:
-
-```rust
-// v0.10 code
 #[component]
 fn Button(class: String) -> View { ... }
 
-div()
-    .children(Button().class("my-button".to_string()))
+div().children(Button().class("my-button".to_string()))
 ```
-
-Also note that v0.10 removes support for struct props and makes inline props the
-default.

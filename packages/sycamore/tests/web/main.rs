@@ -241,7 +241,7 @@ fn optional_attribute() {
         let attr = create_signal(None);
 
         sycamore::render_in_scope(
-            || {
+            move || {
                 view! {
                     span(data-attribute=attr)
                 }
