@@ -1,6 +1,5 @@
 use std::cell::Cell;
 use std::collections::HashMap;
-use std::marker::PhantomData;
 use std::rc::Rc;
 
 use sycamore::prelude::*;
@@ -159,11 +158,7 @@ fn base_pathname() -> String {
 /// The sycamore router component. This component expects to be used inside a browser environment.
 /// For server environments, see [`StaticRouter`].
 #[component]
-pub fn Router<R, F, I>(
-    view: F,
-    integration: I,
-    #[prop(default, setter(skip))] _phantom: PhantomData<R>,
-) -> View
+pub fn Router<R, F, I>(view: F, integration: I) -> View
 where
     R: Route + 'static,
     F: FnOnce(ReadSignal<R>) -> View + 'static,
