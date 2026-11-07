@@ -3,9 +3,9 @@
 //! This crate should not be used directly. Instead, use the `sycamore` crate which re-exports this
 //! crate.
 
-mod component;
 #[doc(hidden)]
-pub mod props_runtime;
+pub mod builder_runtime;
+mod component;
 
 pub use component::*;
 
