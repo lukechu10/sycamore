@@ -118,11 +118,12 @@ impl Attributes {
 #[cfg(test)]
 mod tests {
     use expect_test::{Expect, expect};
+    use sycamore_core::Build;
 
     use super::*;
 
-    fn check<T: Into<View>>(view: impl FnOnce() -> T, expect: Expect) {
-        let actual = render_to_string(move || view().into());
+    fn check<T: Build<View>>(view: impl FnOnce() -> T, expect: Expect) {
+        let actual = render_to_string(move || view().build());
         expect.assert_eq(&actual);
     }
 

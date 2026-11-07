@@ -316,7 +316,7 @@ mod tests {
     #[component]
     fn App(receiver: oneshot::Receiver<()>) -> View {
         view! {
-            Suspense(fallback=|| "fallback".into()) { AsyncComponent(receiver=receiver) }
+            Suspense(fallback=|| "fallback") { AsyncComponent(receiver=receiver) }
         }
     }
 

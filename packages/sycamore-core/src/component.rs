@@ -4,6 +4,8 @@ use std::fmt;
 
 use sycamore_reactive::*;
 
+use crate::Build;
+
 /// Runs the given closure inside a new component scope. In other words, this does the following:
 /// * Create a new untracked scope (see [`untrack`]).
 /// * Call the closure `f` passed to this function.
@@ -92,12 +94,15 @@ impl<V> fmt::Debug for Children<V> {
     }
 }
 
-impl<F, V> From<F> for Children<V>
+impl<F, T, V> From<F> for Children<V>
 where
-    F: FnOnce() -> V + 'static,
+    F: FnOnce() -> T + 'static,
+    T: Build<V> + 'static,
 {
     fn from(f: F) -> Self {
-        Self { f: Box::new(f) }
+        Self {
+            f: Box::new(move || f().build()),
+        }
     }
 }
 
