@@ -169,7 +169,7 @@ pub async fn render_to_string_await_suspense(f: impl Into<Children>) -> String {
 /// #[component]
 /// fn App() -> View {
 ///     view! {
-///         Suspense(fallback=|| "Loading...".into()) {
+///         Suspense(fallback=|| "Loading...") {
 ///             AsyncComponent {}
 ///         }
 ///     }
@@ -328,10 +328,7 @@ mod tests {
                 App(receiver=receiver)
             }
         });
-        assert_eq!(
-            res,
-            "<!--/--><!--/-->fallback<!--/--><!--/--><!--/--><!--/-->"
-        );
+        assert_eq!(res, "<!--/-->fallback<!--/--><!--/--><!--/-->");
         assert!(sender.send(()).is_err(), "receiver should be dropped");
     }
 
