@@ -69,7 +69,24 @@ struct ParameterOptions {
     into: bool,
 }
 
-pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
+/// Generated code and the metadata needed to extend its builder.
+pub struct BuilderExpansion {
+    pub tokens: TokenStream2,
+    // The standalone attribute only needs `tokens`; component macros use this metadata.
+    #[allow(dead_code)]
+    pub builder: BuilderInfo,
+}
+
+/// Describes the builder in every required-field state, not just its initial state.
+pub struct BuilderInfo {
+    pub ident: Ident,
+    /// Complete builder parameters and original constraints, including inferred input types,
+    /// lifetimes, opaque output types, and required-field states. Use `split_for_impl()`
+    /// to generate an extension impl without adding build-only bounds such as `Default`.
+    pub generics: syn::Generics,
+}
+
+pub fn expand(mut function: ItemFn) -> syn::Result<BuilderExpansion> {
     let signature = &function.sig;
     if signature.constness.is_some()
         || !matches!(signature.safety, syn::Safety::Default)
@@ -363,13 +380,18 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
     } else {
         quote!(::<#(#constructor_arguments),*>)
     };
-    let parameters = angle(
-        &base_declarations
-            .iter()
-            .cloned()
-            .chain(states.iter().map(|state| quote!(#state)))
-            .collect::<Vec<_>>(),
-    );
+    let mut builder_generics = root_generics.clone();
+    if opaque_output {
+        builder_generics.params.push(parse_quote!(#output_ident));
+    }
+    for state in &states {
+        builder_generics.params.push(parse_quote!(#state));
+    }
+    let builder_info = BuilderInfo {
+        ident: builder.clone(),
+        generics: builder_generics,
+    };
+    let (parameters, _, _) = builder_info.generics.split_for_impl();
     let type_parameters = angle(
         &base_arguments
             .iter()
@@ -669,7 +691,8 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
         })
     });
 
-    Ok(quote! {
+    let builder = &builder_info.ident;
+    let tokens = quote! {
         #(#shared_attrs)*
         #function
 
@@ -712,6 +735,10 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
         #visibility fn #name #root_generics () -> #builder #root_missing_parameters #root_where {
             #builder { #(#field_names: #initial_values,)* #callback_initial #marker_name: ::core::marker::PhantomData }
         }
+    };
+    Ok(BuilderExpansion {
+        tokens,
+        builder: builder_info,
     })
 }
 
@@ -944,6 +971,76 @@ mod tests {
     use super::*;
 
     #[test]
+    fn exposes_complete_builder_metadata_for_extension_impls() {
+        let functions: Vec<ItemFn> = vec![
+            parse_quote!(
+                fn empty() {}
+            ),
+            parse_quote! {
+                fn generic<'a, T, const N: usize>(
+                    value: &'a [T; N],
+                    #[builder(default)] fallback: T,
+                ) -> &'a [T; N] where T: Clone { value }
+            },
+            parse_quote! {
+                fn opaque(value: impl core::fmt::Display) -> impl core::fmt::Display { value }
+            },
+            parse_quote! {
+                async fn asynchronous(value: &str, other: impl core::fmt::Display) -> usize {
+                    value.len()
+                }
+            },
+            parse_quote! {
+                fn collisions<__BuilderField0, __BuilderOutput>(
+                    first: __BuilderField0, second: __BuilderOutput,
+                ) -> impl Sized { (first, second) }
+            },
+        ];
+        // Original generics, inferred input types/lifetimes, opaque outputs, and field states.
+        let expected_parameters = [0, 4, 3, 5, 5];
+        for (function, expected_parameters) in functions.into_iter().zip(expected_parameters) {
+            let expansion = expand(function).unwrap();
+            let file: syn::File = syn::parse2(expansion.tokens).unwrap();
+            let info = expansion.builder;
+            let generated = file
+                .items
+                .iter()
+                .find_map(|item| match item {
+                    syn::Item::Struct(item) if item.ident == info.ident => Some(item),
+                    _ => None,
+                })
+                .expect("metadata must identify the generated builder");
+            let actual = &info.generics;
+            let expected = &generated.generics;
+            assert_eq!(quote!(#actual).to_string(), quote!(#expected).to_string());
+            let actual_where = &actual.where_clause;
+            let expected_where = &expected.where_clause;
+            assert_eq!(
+                quote!(#actual_where).to_string(),
+                quote!(#expected_where).to_string()
+            );
+            assert_eq!(actual.params.len(), expected_parameters);
+
+            let ident = &info.ident;
+            let (impl_generics, ty_generics, where_clause) = info.generics.split_for_impl();
+            let extension: syn::ItemImpl = syn::parse2(quote! {
+                impl #impl_generics BackendTrait for #ident #ty_generics #where_clause {}
+            })
+            .unwrap();
+            assert_eq!(extension.generics.params.len(), expected_parameters);
+            let bounds = quote!(#where_clause).to_string();
+            assert!(
+                !bounds.contains("FieldValue"),
+                "extensions must apply to incomplete builders"
+            );
+            assert!(
+                !bounds.contains("Default"),
+                "extensions must not inherit build-only bounds"
+            );
+        }
+    }
+
+    #[test]
     fn forwards_shared_attributes_to_all_top_level_items() {
         let function = parse_quote! {
             #[cfg(feature = "example")]
@@ -958,7 +1055,7 @@ mod tests {
             #[custom::attribute(arbitrary)]
             fn example(#[builder(default)] value: i32) -> i32 { value }
         };
-        let expanded: syn::File = syn::parse2(expand(function).unwrap()).unwrap();
+        let expanded: syn::File = syn::parse2(expand(function).unwrap().tokens).unwrap();
         assert_eq!(expanded.items.len(), 7);
         for (index, item) in expanded.items.iter().enumerate() {
             let attrs = match item {
@@ -1031,7 +1128,7 @@ mod tests {
                 (quote!(#(#attrs)*).to_string(), false)
             })
             .collect();
-        let expanded: syn::File = syn::parse2(expand(function).unwrap()).unwrap();
+        let expanded: syn::File = syn::parse2(expand(function).unwrap().tokens).unwrap();
         let mut expected = expected;
         for item in &expanded.items {
             match item {
@@ -1073,7 +1170,7 @@ mod tests {
         let function = parse_quote! {
             fn example(first: LocalType, second: LocalType, optional: Option<LocalType>) {}
         };
-        let expanded: syn::File = syn::parse2(expand(function).unwrap()).unwrap();
+        let expanded: syn::File = syn::parse2(expand(function).unwrap().tokens).unwrap();
         let modules: Vec<_> = expanded
             .items
             .iter()
@@ -1134,7 +1231,7 @@ mod tests {
             #[cfg_attr(feature = "example", cfg(unix), must_use, expect(dead_code))]
             fn example() {}
         };
-        let expanded: syn::File = syn::parse2(expand(function).unwrap()).unwrap();
+        let expanded: syn::File = syn::parse2(expand(function).unwrap().tokens).unwrap();
         let shared: syn::Meta = parse_quote!(cfg_attr(feature = "example", cfg(unix)));
         let original: syn::Meta = parse_quote! {
             cfg_attr(feature = "example", cfg(unix), must_use, expect(dead_code))
@@ -1167,7 +1264,7 @@ mod tests {
             #[cfg_attr(feature = "example", allow(dead_code))]
             fn example(value: i32) -> i32 { value }
         };
-        let expanded: syn::File = syn::parse2(expand(function).unwrap()).unwrap();
+        let expanded: syn::File = syn::parse2(expand(function).unwrap().tokens).unwrap();
         assert_eq!(expanded.items.len(), 7);
         for item in &expanded.items {
             let attrs = match item {

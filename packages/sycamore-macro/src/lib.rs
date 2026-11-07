@@ -57,6 +57,7 @@ pub fn builder(args: TokenStream, input: TokenStream) -> TokenStream {
     }
     let function = parse_macro_input!(input as syn::ItemFn);
     builder::expand(function)
+        .map(|expansion| expansion.tokens)
         .unwrap_or_else(syn::Error::into_compile_error)
         .into()
 }

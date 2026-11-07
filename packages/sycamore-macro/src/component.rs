@@ -107,9 +107,9 @@ impl ToTokens for ComponentFn {
             // If the builder macro failed to expand, change the `#[builder]` attribute in the error
             // message back to `#[prop]` so that the user can see the original attribute that caused
             // the error.
-            let builder_impl = crate::builder::expand(f);
-            let builder_impl = match builder_impl {
-                Ok(tokens) => tokens,
+            let builder_expansion = crate::builder::expand(f);
+            let builder_expansion = match builder_expansion {
+                Ok(expansion) => expansion,
                 Err(err) => {
                     let original_err = err.to_compile_error();
                     let message = original_err
@@ -123,7 +123,7 @@ impl ToTokens for ComponentFn {
                     return;
                 }
             };
-            tokens.extend(builder_impl)
+            tokens.extend(builder_expansion.tokens)
         }
     }
 }
