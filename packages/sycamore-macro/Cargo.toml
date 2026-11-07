@@ -17,7 +17,12 @@ proc-macro = true
 [dependencies]
 proc-macro2 = "1.0.47"
 quote = "1.0.21"
-syn = { version = "3.0.6", features = ["extra-traits", "full"] }
+syn = { version = "3.0.6", features = [
+	"extra-traits",
+	"full",
+	"visit",
+	"visit-mut",
+] }
 sycamore-view-parser = { workspace = true }
 
 [dev-dependencies]
