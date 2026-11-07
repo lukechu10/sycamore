@@ -73,7 +73,6 @@ struct ParameterOptions {
 pub struct BuilderExpansion {
     pub tokens: TokenStream2,
     // The standalone attribute only needs `tokens`; component macros use this metadata.
-    #[allow(dead_code)]
     pub builder: BuilderInfo,
 }
 
