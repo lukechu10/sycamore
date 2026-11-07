@@ -161,7 +161,6 @@ macro_rules! extend_element {
 #[cfg(test)]
 mod tests {
     use expect_test::{Expect, expect};
-    use sycamore_core::Build;
 
     use super::*;
 
