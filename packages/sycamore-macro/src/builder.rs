@@ -24,9 +24,13 @@
 //! and implements `Build<FutureType>`. Defaults are evaluated when `build()` is called, before the
 //! future is polled. No `Send` or `'static` bounds are added.
 //!
-//! Expansion creates a module named after the function and a private helper named
-//! `__builder_<function>_inner`. A function with defaults also gets a
+//! The builder, helpers, and implementations stay in the function's original scope,
+//! including for nested functions. Expansion creates a builder named `__builder_<function>`,
+//! a private marker module named `__builder_<function>_fields`, and a private
+//! `__builder_<function>_inner` helper. A function with defaults also gets a
 //! `__builder_<function>_defaults` helper. These names must not collide with existing items.
+//! Only field markers live in the module, using argument names for readable diagnostics.
+//! No path rebasing is needed.
 //! The original function name becomes the builder constructor, so recursive calls to that name in
 //! the original body are not supported.
 //!
@@ -46,7 +50,6 @@ use syn::{
 struct Field {
     attrs: Vec<syn::Attribute>,
     ident: Ident,
-    root_ty: Type,
     ty: Type,
     optional_inner: Option<Type>,
     default: Option<DefaultValue>,
@@ -141,11 +144,11 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
             syn::GenericParam::Lifetime(_) => None,
         })
         .collect();
-    let mut module_generics = root_generics.clone();
-    Rebase {
-        generic_names: &generic_names,
-    }
-    .visit_generics_mut(&mut module_generics);
+    let name = signature.ident.clone();
+    let name_suffix = name.to_string();
+    let name_suffix = name_suffix.trim_start_matches("r#");
+    let builder = format_ident!("__builder_{}", name_suffix);
+    let fields_module = format_ident!("__builder_{}_fields", name_suffix);
     let mut fields = Vec::new();
     let mut required_count = 0usize;
     for arg in &lowered_inputs {
@@ -175,9 +178,7 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
             ));
         }
         validate_type(&arg.ty, false)?;
-        let root_ty = (*arg.ty).clone();
-        let mut ty = root_ty.clone();
-        rebase_type(&mut ty, &generic_names);
+        let ty = (*arg.ty).clone();
         let automatic_optional = option_inner(&ty);
         if options.required && options.default.is_some() {
             return Err(syn::Error::new_spanned(
@@ -218,7 +219,6 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
                 .cloned()
                 .collect(),
             ident: pat.ident.clone(),
-            root_ty,
             ty,
             optional_inner,
             default: options.default,
@@ -239,14 +239,11 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
         root_output
     };
     let opaque_output = contains_impl_trait(&root_output);
-    let mut output = root_output.clone();
-    rebase_type(&mut output, &generic_names);
     let mut output_ident = format_ident!("__BuilderOutput");
     while generic_names.contains(&output_ident) {
         output_ident = format_ident!("_{}", output_ident);
     }
 
-    let name = signature.ident.clone();
     let helper = format_ident!(
         "__builder_{}_inner",
         name.to_string().trim_start_matches("r#")
@@ -298,12 +295,12 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
         .iter()
         .map(|field| field.state.as_ref().unwrap())
         .collect();
-    let mut base_declarations: Vec<_> = module_generics
+    let mut base_declarations: Vec<_> = root_generics
         .params
         .iter()
         .map(|param| quote!(#param))
         .collect();
-    let mut base_arguments: Vec<_> = module_generics
+    let mut base_arguments: Vec<_> = root_generics
         .params
         .iter()
         .map(|param| match param {
@@ -322,11 +319,9 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
         })
         .collect();
     let root_base_arguments = base_arguments.clone();
-    let mut new_generics = module_generics.clone();
     if opaque_output {
         base_declarations.push(quote!(#output_ident));
         base_arguments.push(quote!(#output_ident));
-        new_generics.params.push(parse_quote!(#output_ident));
     }
     let helper_arguments: Vec<_> = helper_generics
         .params
@@ -348,7 +343,7 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
     } else {
         quote!(::<#(#helper_arguments),*>)
     };
-    let mut constructor_arguments: Vec<_> = root_generics
+    let constructor_arguments: Vec<_> = root_generics
         .params
         .iter()
         .filter_map(|param| match param {
@@ -364,14 +359,6 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
         })
         .collect();
     let default_turbofish = if constructor_arguments.is_empty() {
-        quote!()
-    } else {
-        quote!(::<#(#constructor_arguments),*>)
-    };
-    if opaque_output {
-        constructor_arguments.push(quote!(_));
-    }
-    let constructor_turbofish = if constructor_arguments.is_empty() {
         quote!()
     } else {
         quote!(::<#(#constructor_arguments),*>)
@@ -394,13 +381,6 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
         .iter()
         .map(|_| quote!(::sycamore::rt::Missing))
         .collect();
-    let missing_parameters = angle(
-        &base_arguments
-            .iter()
-            .cloned()
-            .chain(missing.iter().cloned())
-            .collect::<Vec<_>>(),
-    );
     let root_result_type = opaque_output.then(|| quote!(#root_output));
     let root_missing_parameters = angle(
         &root_base_arguments
@@ -413,15 +393,14 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
     let result_type = if opaque_output {
         quote!(#output_ident)
     } else {
-        quote!(#output)
+        quote!(#root_output)
     };
-    let module_where = &module_generics.where_clause;
     let root_where = &root_generics.where_clause;
-    let original_predicates: Vec<_> = module_where
+    let original_predicates: Vec<_> = root_where
         .iter()
         .flat_map(|clause| clause.predicates.iter())
         .collect();
-    let marker_elements: Vec<_> = module_generics
+    let marker_elements: Vec<_> = root_generics
         .params
         .iter()
         .filter_map(|param| match param {
@@ -446,14 +425,8 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
         callback_name = format_ident!("_{}", callback_name);
     }
     let callback_types: Vec<_> = fields.iter().map(|field| &field.ty).collect();
-    let root_callback_types: Vec<_> = fields.iter().map(|field| &field.root_ty).collect();
     let callback_field = if opaque_output {
         quote!(#callback_name: fn(#(#callback_types),*) -> #output_ident,)
-    } else {
-        quote!()
-    };
-    let callback_parameter = if opaque_output {
-        quote!(#callback_name: fn(#(#callback_types),*) -> #output_ident)
     } else {
         quote!()
     };
@@ -463,12 +436,7 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
         quote!()
     };
     let callback_initial = if opaque_output {
-        quote!(#callback_name,)
-    } else {
-        quote!()
-    };
-    let constructor_callback = if opaque_output {
-        quote!(#helper #helper_turbofish as fn(#(#root_callback_types),*) -> _)
+        quote!(#callback_name: #helper #helper_turbofish as fn(#(#callback_types),*) -> _,)
     } else {
         quote!()
     };
@@ -498,7 +466,10 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
         .collect();
     let markers = required.iter().map(|field| {
         let ident = &field.ident;
-        quote!(#[allow(non_camel_case_types)] pub struct #ident;)
+        quote! {
+            #[allow(non_camel_case_types)]
+            pub struct #ident;
+        }
     });
     let mut bounds: Vec<_> = required
         .iter()
@@ -506,7 +477,7 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
             let state = field.state.as_ref().unwrap();
             let ident = &field.ident;
             let ty = &field.ty;
-            quote!(#state: ::sycamore::rt::FieldValue<self::fields::#ident, #ty>)
+            quote!(#state: ::sycamore::rt::FieldValue<#fields_module::#ident, #ty>)
         })
         .collect();
     bounds.extend(default_fields.iter().filter_map(|field| {
@@ -533,7 +504,7 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
         match &field.state {
             Some(state) => {
                 let ty = &field.ty;
-                quote!(<#state as ::sycamore::rt::FieldValue<self::fields::#ident, #ty>>::into_value(self.#ident))
+                quote!(<#state as ::sycamore::rt::FieldValue<#fields_module::#ident, #ty>>::into_value(self.#ident))
             }
             None if field.default.is_some() => {
                 let value = &default_value_names[default_index];
@@ -547,21 +518,20 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
     let invocation = if opaque_output {
         quote!((self.#callback_name)(#(#arguments),*))
     } else {
-        quote!(super::#helper #helper_turbofish (#(#arguments),*))
+        quote!(#helper #helper_turbofish (#(#arguments),*))
     };
 
     let (default_helper, default_resolution) = if default_fields.is_empty() {
         (quote!(), quote!())
     } else {
-        let root_default_types: Vec<_> =
-            default_fields.iter().map(|field| &field.root_ty).collect();
+        let root_default_types: Vec<_> = default_fields.iter().map(|field| &field.ty).collect();
         let default_field_names: Vec<_> = default_fields.iter().map(|field| &field.ident).collect();
         let root_predicates = root_where
             .iter()
             .flat_map(|clause| clause.predicates.iter());
         let root_default_bounds = default_fields.iter().filter_map(|field| {
             if matches!(field.default, Some(DefaultValue::Trait)) {
-                let ty = &field.root_ty;
+                let ty = &field.ty;
                 Some(quote!(#ty: ::core::default::Default))
             } else {
                 None
@@ -601,7 +571,7 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
                 }
             },
             quote! {
-                let (#(#default_value_names,)*) = super::#defaults_helper #default_turbofish (
+                let (#(#default_value_names,)*) = #defaults_helper #default_turbofish (
                     #(self.#default_field_names),*
                 );
             },
@@ -618,7 +588,13 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
             .filter(|state| **state != field.state.as_ref().unwrap())
             .copied()
             .collect();
-        let impl_parameters = angle(&base_declarations.iter().cloned().chain(other_states.iter().map(|state| quote!(#state))).collect::<Vec<_>>());
+        let impl_parameters = angle(
+            &base_declarations
+                .iter()
+                .cloned()
+                .chain(other_states.iter().map(|state| quote!(#state)))
+                .collect::<Vec<_>>(),
+        );
         let before: Vec<_> = required
             .iter()
             .map(|f| {
@@ -641,8 +617,20 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
                 }
             })
             .collect();
-        let before = angle(&base_arguments.iter().cloned().chain(before).collect::<Vec<_>>());
-        let after = angle(&base_arguments.iter().cloned().chain(after).collect::<Vec<_>>());
+        let before = angle(
+            &base_arguments
+                .iter()
+                .cloned()
+                .chain(before)
+                .collect::<Vec<_>>(),
+        );
+        let after = angle(
+            &base_arguments
+                .iter()
+                .cloned()
+                .chain(after)
+                .collect::<Vec<_>>(),
+        );
         let values = fields.iter().map(|f| {
             let ident = &f.ident;
             if *ident == *name {
@@ -652,10 +640,11 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
             }
         });
         quote! {
-            impl #impl_parameters self::Builder #before #module_where {
+            #(#shared_attrs)*
+            impl #impl_parameters #builder #before #root_where {
                 #(#attrs)*
-                pub fn #name(self, #name: #setter_type) -> self::Builder #after {
-                    self::Builder { #(#values,)* #callback_transfer #marker_name: self.#marker_name }
+                pub fn #name(self, #name: #setter_type) -> #builder #after {
+                    #builder { #(#values,)* #callback_transfer #marker_name: self.#marker_name }
                 }
             }
         }
@@ -687,44 +676,41 @@ pub fn expand(mut function: ItemFn) -> syn::Result<TokenStream2> {
         #default_helper
 
         #(#shared_attrs)*
-        #[allow(unused_imports)]
-        #visibility mod #name {
-            use super::*;
+        #[doc(hidden)]
+        #[allow(non_camel_case_types)]
+        #visibility struct #builder #parameters #root_where {
+            #(#field_names: #field_types,)*
+            #callback_field
+            #marker_name: ::core::marker::PhantomData<(#(#marker_elements,)* fn() -> *const (#(#callback_types,)*))>,
+        }
 
-            mod fields { #(#markers)* }
+        #(#shared_attrs)*
+        #[doc(hidden)]
+        mod #fields_module { #(#markers)* }
 
-            pub struct Builder #parameters #module_where {
-                #(#field_names: #field_types,)*
-                #callback_field
-                #marker_name: ::core::marker::PhantomData<(#(#marker_elements,)* fn() -> *const (#(#callback_types,)*))>,
+        #(#required_setters)*
+
+        #(#shared_attrs)*
+        impl #parameters #builder #type_parameters #root_where {
+            #(#optional_setters)*
+
+            pub fn build(self) -> #result_type #where_clause {
+                #default_resolution
+                #invocation
             }
+        }
 
-            #(#required_setters)*
-
-            impl #parameters self::Builder #type_parameters #module_where {
-                #(#optional_setters)*
-
-                pub fn build(self) -> #result_type #where_clause {
-                    #default_resolution
-                    #invocation
-                }
-            }
-
-            #[allow(clippy::multiple_bound_locations)]
-            impl #parameters ::sycamore::rt::Build<#result_type> for self::Builder #type_parameters #combined_where {
-                fn build(self) -> #result_type {
-                    self::Builder::build(self)
-                }
-            }
-
-            pub fn new #new_generics (#callback_parameter) -> self::Builder #missing_parameters #module_where {
-                self::Builder { #(#field_names: #initial_values,)* #callback_initial #marker_name: ::core::marker::PhantomData }
+        #(#shared_attrs)*
+        #[allow(clippy::multiple_bound_locations)]
+        impl #parameters ::sycamore::rt::Build<#result_type> for #builder #type_parameters #combined_where {
+            fn build(self) -> #result_type {
+                #builder::build(self)
             }
         }
 
         #(#attrs)*
-        #visibility fn #name #root_generics () -> #name::Builder #root_missing_parameters #root_where {
-            #name::new #constructor_turbofish (#constructor_callback)
+        #visibility fn #name #root_generics () -> #builder #root_missing_parameters #root_where {
+            #builder { #(#field_names: #initial_values,)* #callback_initial #marker_name: ::core::marker::PhantomData }
         }
     })
 }
@@ -973,18 +959,27 @@ mod tests {
             fn example(#[builder(default)] value: i32) -> i32 { value }
         };
         let expanded: syn::File = syn::parse2(expand(function).unwrap()).unwrap();
-        assert_eq!(expanded.items.len(), 4);
+        assert_eq!(expanded.items.len(), 7);
         for (index, item) in expanded.items.iter().enumerate() {
             let attrs = match item {
                 syn::Item::Fn(item) => &item.attrs,
+                syn::Item::Struct(item) => &item.attrs,
+                syn::Item::Impl(item) => &item.attrs,
                 syn::Item::Mod(item) => &item.attrs,
                 _ => panic!("unexpected generated item"),
             };
             for name in ["cfg", "cfg_attr", "allow", "warn", "deny", "forbid"] {
                 assert!(attrs.iter().any(|attr| attr.path().is_ident(name)));
             }
-            let is_constructor = index == 3;
-            for name in ["doc", "must_use", "expect"] {
+            let is_constructor = index == expanded.items.len() - 1;
+            assert_eq!(
+                attrs.iter().any(|attr| {
+                    let meta = &attr.meta;
+                    quote!(#meta).to_string() == "doc = \"Constructor documentation\""
+                }),
+                is_constructor
+            );
+            for name in ["must_use", "expect"] {
                 assert_eq!(
                     attrs.iter().any(|attr| attr.path().is_ident(name)),
                     is_constructor,
@@ -1048,33 +1043,63 @@ mod tests {
                         assert!(arg.attrs.is_empty());
                     }
                 }
-                syn::Item::Mod(module) => {
-                    for item in &module.content.as_ref().unwrap().1 {
-                        let syn::Item::Impl(implementation) = item else {
+                syn::Item::Impl(implementation) => {
+                    for item in &implementation.items {
+                        let syn::ImplItem::Fn(method) = item else {
                             continue;
                         };
-                        for item in &implementation.items {
-                            let syn::ImplItem::Fn(method) = item else {
-                                continue;
-                            };
-                            let index = match method.sig.ident.to_string().as_str() {
-                                "required" => 0,
-                                "optional" => 1,
-                                "defaulted" => 2,
-                                "explicit" => 3,
-                                _ => continue,
-                            };
-                            let attrs = &method.attrs;
-                            assert_eq!(quote!(#(#attrs)*).to_string(), expected[index].0);
-                            assert!(!expected[index].1, "duplicate setter");
-                            expected[index].1 = true;
-                        }
+                        let index = match method.sig.ident.to_string().as_str() {
+                            "required" => 0,
+                            "optional" => 1,
+                            "defaulted" => 2,
+                            "explicit" => 3,
+                            _ => continue,
+                        };
+                        let attrs = &method.attrs;
+                        assert_eq!(quote!(#(#attrs)*).to_string(), expected[index].0);
+                        assert!(!expected[index].1, "duplicate setter");
+                        expected[index].1 = true;
                     }
                 }
+                syn::Item::Struct(_) | syn::Item::Mod(_) => {}
                 _ => panic!("unexpected generated item"),
             }
         }
         assert!(expected.iter().all(|(_, seen)| *seen));
+    }
+
+    #[test]
+    fn isolates_only_field_markers_in_a_private_module() {
+        let function = parse_quote! {
+            fn example(first: LocalType, second: LocalType, optional: Option<LocalType>) {}
+        };
+        let expanded: syn::File = syn::parse2(expand(function).unwrap()).unwrap();
+        let modules: Vec<_> = expanded
+            .items
+            .iter()
+            .filter_map(|item| {
+                if let syn::Item::Mod(module) = item {
+                    Some(module)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        assert_eq!(modules.len(), 1);
+        let module = modules[0];
+        assert_eq!(module.ident, "__builder_example_fields");
+        assert!(matches!(module.vis, Visibility::Inherited));
+        let items = &module.content.as_ref().unwrap().1;
+        assert_eq!(items.len(), 2);
+        for (item, name) in items.iter().zip(["first", "second"]) {
+            let syn::Item::Struct(marker) = item else {
+                panic!("expected field marker")
+            };
+            assert_eq!(marker.ident, name);
+            assert!(matches!(marker.vis, Visibility::Public(_)));
+            assert!(matches!(marker.fields, syn::Fields::Unit));
+            assert!(marker.generics.params.is_empty());
+        }
     }
 
     #[test]
@@ -1117,6 +1142,8 @@ mod tests {
         for (index, item) in expanded.items.iter().enumerate() {
             let attrs = match item {
                 syn::Item::Fn(item) => &item.attrs,
+                syn::Item::Struct(item) => &item.attrs,
+                syn::Item::Impl(item) => &item.attrs,
                 syn::Item::Mod(item) => &item.attrs,
                 _ => panic!("unexpected generated item"),
             };
@@ -1125,7 +1152,11 @@ mod tests {
                 .find(|attr| attr.path().is_ident("cfg_attr"))
                 .unwrap()
                 .meta;
-            let expected = if index == 2 { &original } else { &shared };
+            let expected = if index == expanded.items.len() - 1 {
+                &original
+            } else {
+                &shared
+            };
             assert_eq!(quote!(#actual).to_string(), quote!(#expected).to_string());
         }
     }
@@ -1137,10 +1168,12 @@ mod tests {
             fn example(value: i32) -> i32 { value }
         };
         let expanded: syn::File = syn::parse2(expand(function).unwrap()).unwrap();
-        assert_eq!(expanded.items.len(), 3);
+        assert_eq!(expanded.items.len(), 7);
         for item in &expanded.items {
             let attrs = match item {
                 syn::Item::Fn(item) => &item.attrs,
+                syn::Item::Struct(item) => &item.attrs,
+                syn::Item::Impl(item) => &item.attrs,
                 syn::Item::Mod(item) => &item.attrs,
                 _ => panic!("unexpected generated item"),
             };
@@ -1238,36 +1271,6 @@ fn option_inner(ty: &Type) -> Option<Type> {
         GenericArgument::Type(ty) => Some(ty.clone()),
         _ => None,
     }
-}
-
-// Types are copied into a child module. Preserve relative paths and avoid
-// shadowing caller types with generated items and state parameters.
-struct Rebase<'a> {
-    generic_names: &'a [Ident],
-}
-
-impl VisitMut for Rebase<'_> {
-    fn visit_path_mut(&mut self, path: &mut syn::Path) {
-        visit_mut::visit_path_mut(self, path);
-        if path.leading_colon.is_none()
-            && let Some(first) = path.segments.first_mut()
-        {
-            if first.ident == "self" {
-                first.ident = Ident::new("super", first.ident.span());
-            } else if !self.generic_names.contains(&first.ident)
-                && (first.ident == "super"
-                    || first.ident == "Builder"
-                    || first.ident == "fields"
-                    || first.ident.to_string().starts_with("__BuilderField"))
-            {
-                path.segments.insert(0, parse_quote!(super));
-            }
-        }
-    }
-}
-
-fn rebase_type(ty: &mut Type, generic_names: &[Ident]) {
-    Rebase { generic_names }.visit_type_mut(ty);
 }
 
 fn contains_impl_trait(ty: &Type) -> bool {
