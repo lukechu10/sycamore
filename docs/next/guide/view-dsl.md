@@ -82,6 +82,24 @@ let outer_view = view! {
 };
 ```
 
+## Control flow
+
+The `view!` macro supports using `if`/`else` and `match` statements directly inside the DSL.
+
+```rust
+view! {
+    if hidden.get() {
+        p {
+            "Can't see me!"
+        }
+    } else {
+        p {
+            "Peek a boo!"
+        }
+    }
+}
+```
+
 ## Attributes
 
 Attributes (including classes and ids) can also be specified.
@@ -150,11 +168,11 @@ the attribute version.
 
 ### Events
 
-Events are attached using the `on:*` directive.
+Events are attached using the `on_<event>` attribute.
 
 ```rust
 view! {
-    button(on:click=|_| { /* do something interesting */ }) {
+    button(on_click=|_| { /* do something interesting */ }) {
         "Click me"
     }
 }
@@ -179,7 +197,7 @@ Calling components from the `view!` macro follows essentially the same syntax as
 for elements.
 
 ```rust
-#[component(inline_props)]
+#[component]
 fn Button(class: String) -> View { ... }
 
 view! {

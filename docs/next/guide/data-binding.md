@@ -14,7 +14,7 @@ use sycamore::prelude::*;
 let value = create_signal(String::new());
 
 view! {
-    input(bind:value=value)
+    input(bind_value=value)
 }
 ```
 

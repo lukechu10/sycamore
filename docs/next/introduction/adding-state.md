@@ -197,13 +197,13 @@ Of course, displaying the state in our UI is not all that useful if we can't
 update the state. There are many places where you might update the state but the
 most common place is probably inside an event handler.
 
-Sycamore makes it easy to add event handlers to your view, using the `on:*`
-directive. For example, the following code adds an event handler to the `click`
+Sycamore makes it easy to add event handlers to your view, using the `on_<event>`
+attribute. For example, the following code adds an event handler to the `click`
 event and increments the counter by 1.
 
 ```rust
 view! {
-    button(on:click=move |_| counter.set(counter.get() + 1)) { "Increment" }
+    button(on_click=move |_| counter.set(counter.get() + 1)) { "Increment" }
     p { "Count: " (counter) }
 }
 ```
@@ -214,7 +214,7 @@ the event handler into a local variable:
 ```rust
 let increment = move |_| counter.set(counter.get() + 1);
 view! {
-    button(on:click=increment) { "Increment" }
+    button(on_click=increment) { "Increment" }
 }
 ```
 
@@ -239,7 +239,7 @@ fn App() -> View {
     let increment = move |_| counter += 1;
 
     view! {
-        button(on:click=increment) { "Increment" }
+        button(on_click=increment) { "Increment" }
         p { "Count:" (counter) }
         p { "Doubled: " (doubled) }
     }
@@ -263,15 +263,11 @@ of the UI depending on whether some reactive condition is fulfilled.
 let show = create_signal(true);
 
 view! {
-    (if show.get() {
-        view! {
-            p { "Now you see me" }
-        }
+    if show.get() {
+        p { "Now you see me" }
     } else {
-        view! {
-            p { "Now you don't" }
-        }
-    })
+        p { "Now you don't" }
+    }
 }
 ```
 
@@ -283,7 +279,7 @@ can we pass reactive state to components? Simple! Just wrap the prop inside a
 component). For example, we can write:
 
 ```rust
-#[component(inline_props)]
+#[component]
 fn CounterDisplay(value: ReadSignal<i32>) -> View {
     view! {
         div {
@@ -304,8 +300,8 @@ but we cannot pass, for instance, a simple derived closure. To fix this
 limitation, you can use the `MaybeDyn<T>` prop instead.
 
 ```rust
-// `#[prop(setter(into))]` let's us use anything that implements `Into<MaybeDyn<T>>`.
+// `#[prop(into)]` let's us use anything that implements `Into<MaybeDyn<T>>`.
 // This includes both `Signal` and `ReadSignal` as well as functions.
-#[component(inline_props)]
-fn CounterDisplay(#[prop(setter(into))] value: MaybeDyn<i32>) -> View { ... }
+#[component]
+fn CounterDisplay(#[prop(into)] value: MaybeDyn<i32>) -> View { ... }
 ```

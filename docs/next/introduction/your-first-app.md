@@ -250,19 +250,13 @@ that is used multiple times in your app.
 Components really shine with component props. These are arguments to the
 component that can affect what is rendered.
 
-To have a component take props, we need to first create a struct representing
-the props type.
+To have a component take props, simply add an argument to the function.
 
 ```rust
-#[derive(Props)]
-struct HelloProps {
-    name: String,
-}
-
 #[component]
-fn Hello(props: HelloProps) -> View {
+fn Hello(name: String) -> View {
     view! {
-        p { "Hello, " (props.name) "!" }
+        p { "Hello, " (name) "!" }
     }
 }
 ```
@@ -294,16 +288,11 @@ view! {
 There is a special component prop called `children`. This prop allows you to
 nest views inside of a component. For example, suppose we wanted to create a
 component that wraps its content inside a `<div>` element. We can easily do that
-with:
+with
 
 ```rust
-#[derive(Props)]
-struct WrapperProps {
-    children: Children,
-}
-
 #[component]
-fn Wrapper(props: WrapperProps) -> View {
+fn Wrapper(children: Children) -> View {
     view! {
         div {
             (props.children)
@@ -320,34 +309,3 @@ fn App() -> View {
     }
 }
 ```
-
-### Inline props
-
-Creating a new struct every time we want to have a component accept props can
-quickly get tedious. To solve this, we can use inline props. If we replace
-`#[component]` with `#[component(inline_props)]`, we can write our props
-directly as parameters of our component function.
-
-This following example is equivalent to our previous example. What inline props
-does behind the hood, in fact, is simply generate the struct for us so that we
-don't have to write it out explicitly.
-
-```rust
-#[component(inline_props)]
-fn Wrapper(children: Children) -> View {
-    view! {
-        div {
-            (children)
-        }
-    }
-}
-```
-
-It will likely turn out that you will almost never use struct props, simply
-because it involves more typing than inline props.
-
-> In the upcoming Sycamore v0.10 release, support for struct props will be
-> removed and inline props will become the default.> See the section on "Inline
-> props" below.
-
-Next, we will see how to add state to our app and make it interactive.

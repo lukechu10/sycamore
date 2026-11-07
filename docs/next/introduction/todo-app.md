@@ -63,7 +63,7 @@ let remove_todo = move |id| todos.update(|todos| todos.retain(|todo| todo.id != 
 Let's start by creating a component for displaying the contents of our list.
 
 ```rust
-#[component(inline_props)]
+#[component]
 fn TodoItem(todo: Todo) -> View {
     // Dispose of nested signals when the todo is removed.
     on_cleanup(move || {
@@ -88,8 +88,8 @@ fn TodoItem(todo: Todo) -> View {
     }
 }
 
-#[component(inline_props)]
-fn TodoList(#[prop(setter(into))] todos: MaybeDyn<Vec<Todo>>) -> View {
+#[component]
+fn TodoList(#[prop(into)] todos: MaybeDyn<Vec<Todo>>) -> View {
     view! {
         ul {
             Keyed(
@@ -112,7 +112,7 @@ todo. This component will accept a callback for adding a todo, which will be
 passed from our `App` component with the `add_todo` closure.
 
 ```rust
-#[component(inline_props)]
+#[component]
 fn TodoInput<F>(add_todo: F) -> View
 where
     F: Fn(String) + 'static,
@@ -130,7 +130,7 @@ where
     view! {
         div {
             "New Todo: "
-            input(bind:value=input, on:keydown=on_keydown)
+            input(bind_value=input, on_keydown=on_keydown)
         }
     }
 }
@@ -176,7 +176,7 @@ which toggles the completed status of the current todo.
 let toggle_completed = move |_| todo.completed.set(!todo.completed.get());
 view! {
     li {
-        span(style=style, on:click=toggle_completed) { (todo.task) }
+        span(style=style, on_click=toggle_completed) { (todo.task) }
     }
 }
 ```
@@ -192,7 +192,7 @@ need to accept a callback that can remove a todo from the list. Change the
 `TodoItem` function to have the following signature:
 
 ```rust
-#[component(inline_props)]
+#[component]
 fn TodoItem<F>(todo: Todo, remove_todo: F) -> View
 where
     F: Fn(u32) + Copy + 'static,
@@ -203,8 +203,8 @@ Of course, since `TodoItem` is called from `TodoList`, we also need `TodoList`
 to accept a closure as a prop so we will need to modify `TodoList`:
 
 ```rust
-#[component(inline_props)]
-fn TodoList<F>(#[prop(setter(into))] todos: MaybeDyn<Vec<Todo>>, remove_todo: F) -> View
+#[component]
+fn TodoList<F>(#[prop(into)] todos: MaybeDyn<Vec<Todo>>, remove_todo: F) -> View
 where
     F: Fn(u32) + Copy + 'static,
 {
@@ -235,10 +235,10 @@ let remove_todo = move |_| remove_todo(todo.id);
 
 view! {
     li {
-        span(style=style, on:click=toggle_completed) {
+        span(style=style, on_click=toggle_completed) {
             (todo.task)
         }
-        button(on:click=remove_todo) { "Remove" }
+        button(on_click=remove_todo) { "Remove" }
     }
 }
 ```
@@ -270,15 +270,15 @@ let on_keydown = move |ev: KeyboardEvent| {
 
 view! {
     li {
-        span(style=style, on:click=toggle_completed) {
+        span(style=style, on_click=toggle_completed) {
             (if is_editing.get() {
-                view! { input(bind:value=todo.task, on:keydown=on_keydown) }
+                view! { input(bind:value=todo.task, on_keydown=on_keydown) }
             } else {
                 view! { (todo.task) }
             })
         }
-        button(on:click=start_editing, disabled=is_editing.get()) { "Edit Task" }
-        button(on:click=remove_todo) { "Remove" }
+        button(on_click=start_editing, disabled=is_editing.get()) { "Edit Task" }
+        button(on_click=remove_todo) { "Remove" }
     }
 }
 ```
@@ -365,7 +365,7 @@ struct Todo {
     id: u32,
 }
 
-#[component(inline_props)]
+#[component]
 fn TodoItem<F>(todo: Todo, remove_todo: F) -> View
 where
     F: Fn(u32) + Copy + 'static,
@@ -398,20 +398,20 @@ where
 
     view! {
         li {
-            span(style=style, on:click=toggle_completed) {
+            span(style=style, on_click=toggle_completed) {
                 (if is_editing.get() {
-                    view! { input(bind:value=todo.task, on:keydown=on_keydown) }
+                    view! { input(bind:value=todo.task, on_keydown=on_keydown) }
                 } else {
                     view! { (todo.task) }
                 })
             }
-            button(on:click=start_editing, disabled=is_editing.get()) { "Edit Task" }
-            button(on:click=remove_todo) { "Remove" }
+            button(on_click=start_editing, disabled=is_editing.get()) { "Edit Task" }
+            button(on_click=remove_todo) { "Remove" }
         }
     }
 }
 
-#[component(inline_props)]
+#[component]
 fn TodoList<F>(#[prop(setter(into))] todos: MaybeDyn<Vec<Todo>>, remove_todo: F) -> View
 where
     F: Fn(u32) + Copy + 'static,
@@ -427,7 +427,7 @@ where
     }
 }
 
-#[component(inline_props)]
+#[component]
 fn TodoInput<F>(add_todo: F) -> View
 where
     F: Fn(String) + 'static,
@@ -444,7 +444,7 @@ where
     view! {
         div {
             "New Todo: "
-            input(bind:value=input, on:keydown=on_keydown)
+            input(bind_value=input, on_keydown=on_keydown)
         }
     }
 }
