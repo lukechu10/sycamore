@@ -1,4 +1,4 @@
-use sycamore::web::Portal2;
+use sycamore::web::Portal;
 
 use super::*;
 
@@ -19,7 +19,7 @@ fn test_portal() {
             move || {
                 view! {
                     if switch.get() {
-                        Portal2(selector="#portal-target") { "Hello from the other side!" }
+                        Portal(selector="#portal-target") { "Hello from the other side!" }
                     }
                 }
             },
