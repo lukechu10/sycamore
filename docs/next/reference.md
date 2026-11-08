@@ -2,7 +2,7 @@
 title: Reference
 subsections:
   - reactive-graph
-  - derive-props
+  - builder-macro
 ---
 
 # Reference
