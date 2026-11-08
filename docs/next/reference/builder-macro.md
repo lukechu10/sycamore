@@ -1,5 +1,5 @@
 ---
-title: The builder macro
+title: The Builder Macro
 ---
 
 # The `#[builder]` macro

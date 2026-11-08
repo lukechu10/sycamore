@@ -37,7 +37,7 @@ let dark_mode = DarkMode(create_signal(false));
 provide_context(dark_mode);
 ```
 
-## Using contexts.
+## Using contexts
 
 Once the context has been provided, it can be used in any nested scope including
 from the same scope where the context value was provided.
