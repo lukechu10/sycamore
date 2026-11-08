@@ -176,10 +176,16 @@ fn to_tokens(args: Punctuated<Macro, Comma>, mut f: ItemFn) -> TokenStream {
                 #[allow(non_snake_case)]
                 #inner_sig #block
 
-                ::sycamore::rt::wrap_async_component(move || #inner_ident(#(#args),*))
+                ::sycamore::rt::component_scope(move || {
+                    ::sycamore::rt::wrap_async_component(move || #inner_ident(#(#args),*))
+                })
             }
         }
     } else {
+        f.block = Box::new(parse_quote!({
+            ::sycamore::rt::component_scope(move || #block)
+        }));
+
         // If the builder macro failed to expand, change the `#[builder]` attribute in the error
         // message back to `#[prop]` so that the user can see the original attribute that caused
         // the error.

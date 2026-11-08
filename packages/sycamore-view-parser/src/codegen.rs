@@ -228,13 +228,11 @@ impl Codegen {
         let call = quote_spanned!(ident.span()=> #ident());
         let build = quote_spanned!(ident.span()=> .build());
         quote! {{
-            ::sycamore::rt::component_scope(move || {
-                #call
-                    #(.#plain_names(#plain_values))*
-                    #(#other_attributes)*
-                    #children_quoted
-                    #build
-            })
+            #call
+                #(.#plain_names(#plain_values))*
+                #(#other_attributes)*
+                #children_quoted
+                #build
         }}
     }
 }

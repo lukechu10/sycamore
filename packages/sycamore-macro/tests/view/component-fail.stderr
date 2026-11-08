@@ -43,7 +43,7 @@ error[E0277]: required field `prop` of type `&'static str` is missing
 40 |             PropsComponent {}
    |             ^^^^^^^^^^^^^^ set `prop` before calling `.build()`
    |
-   = help: the trait `FieldValue<prop, &'static str>` is not implemented for `Missing`
+   = help: the trait `sycamore::rt::FieldValue<prop, &'static str>` is not implemented for `sycamore::rt::Missing`
 note: required by a bound in `__builder_PropsComponent::<__BuilderField0>::build`
   --> tests/view/component-fail.rs:3:1
    |
@@ -57,7 +57,7 @@ error[E0277]: required field `prop` of type `&'static str` is missing
 43 |             PropsComponent {}
    |             ^^^^^^^^^^^^^^ set `prop` before calling `.build()`
    |
-   = help: the trait `FieldValue<prop, &'static str>` is not implemented for `Missing`
+   = help: the trait `sycamore::rt::FieldValue<prop, &'static str>` is not implemented for `sycamore::rt::Missing`
 note: required by a bound in `__builder_PropsComponent::<__BuilderField0>::build`
   --> tests/view/component-fail.rs:3:1
    |
@@ -85,12 +85,12 @@ error[E0277]: the trait bound `MaybeDyn<Option<Cow<'static, str>>>: From<{intege
 51 |             AttributesComponent(class=123)
    |                                       ^^^ the trait `From<{integer}>` is not implemented for `MaybeDyn<Option<Cow<'static, str>>>`
    |
-   = help: the following other types implement trait `From<T>`:
-             `MaybeDyn<Option<Cow<'_, str>>>` implements `From<&str>`
-             `MaybeDyn<Option<Cow<'_, str>>>` implements `From<Cow<'_, str>>`
-             `MaybeDyn<Option<Cow<'_, str>>>` implements `From<Option<&str>>`
-             `MaybeDyn<Option<Cow<'_, str>>>` implements `From<Option<String>>`
-             `MaybeDyn<Option<Cow<'_, str>>>` implements `From<String>`
+   = help: `MaybeDyn<Option<Cow<'_, str>>>` implements trait `From<T>`:
+             From<&str>
+             From<Cow<'_, str>>
+             From<Option<&str>>
+             From<Option<String>>
+             From<String>
    = note: required for `{integer}` to implement `Into<MaybeDyn<Option<Cow<'static, str>>>>`
 note: required by a bound in `sycamore::web::HtmlGlobalAttributes::class`
   --> $WORKSPACE/packages/sycamore-web/src/elements.rs

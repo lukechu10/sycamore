@@ -72,7 +72,7 @@ These will eventually be moved into a different crate.
 #### `sycamore-macro`
 
 This crate contains all the proc-macro logic for `view!`, `#[component]`, and
-`#[derive(Props)]`.
+`#[builder]`.
 
 We use [syn](https://docs.rs/syn/latest/syn/),
 [quote](https://docs.rs/quote/latest/quote/) and
@@ -218,10 +218,10 @@ flag.
 
 The proc-macro crates have additional tests for ensuring that we have good
 diagnostics for common errors. For this, you will need to install the MSRV
-version of Rust (currently 1.94).
+version of Rust (currently 1.99).
 
 ```bash
-rustup toolchain add 1.94
+rustup toolchain add 1.99
 ```
 
 The macro tests are disabled by default since when running on other versions of
@@ -231,7 +231,7 @@ you want to overwrite the existing snapshot, set the `TRYBUILD` env variable to
 `overwrite`. The final command would look something like:
 
 ```bash
-RUN_UI_TESTS=true TRYBUILD=overwrite cargo +1.94 test
+RUN_UI_TESTS=true TRYBUILD=overwrite cargo +1.99 test
 ```
 
 ## Adding an example

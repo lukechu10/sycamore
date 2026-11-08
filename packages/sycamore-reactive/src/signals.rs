@@ -344,6 +344,10 @@ impl<T> ReadSignal<T> {
     /// Track the signal in the current reactive scope. This is done automatically when calling
     /// [`ReadSignal::get`] and other similar methods.
     ///
+    /// If outside of a reactive scope, this function prints a warning to stderr (or the browser's
+    /// console) and does nothing. If you want this to panic instead, you can enable the `strict`
+    /// feature on the `sycamore-reactive` crate.
+    ///
     /// # Example
     /// ```
     /// # use sycamore_reactive::*;
@@ -356,9 +360,10 @@ impl<T> ReadSignal<T> {
     /// state.set(1); // Prints "Yipee!"
     /// # });
     /// ```
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn track(self) {
         if let Some(tracker) = &mut *self.root.tracker.borrow_mut() {
-            tracker.dependencies.push(self.id);
+            tracker.track_node(self.id);
         }
     }
 }

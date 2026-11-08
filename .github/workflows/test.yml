@@ -16,7 +16,7 @@ jobs:
     strategy:
       matrix:
         rust:
-          - 1.94
+          - 1.99
           - stable
           - nightly
         os:
@@ -51,8 +51,8 @@ jobs:
         # Only run tests for sycamore to prevent stray feature flags from other tests.
         run: cd packages/sycamore && cargo test
 
-      - name: Run tests (with UI tests) on 1.94
-        if: matrix.rust == '1.94'
+      - name: Run tests (with UI tests) on 1.99
+        if: matrix.rust == '1.99'
         env:
           RUN_UI_TESTS: true
         run: cargo test

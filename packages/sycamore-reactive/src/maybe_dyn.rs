@@ -36,6 +36,7 @@ where
 impl<T: Into<Self> + 'static> MaybeDyn<T> {
     /// Get the value by consuming itself. Unlike [`get_clone`](Self::get_clone), this method avoids
     /// a clone if we are just storing a static value.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn evaluate(self) -> T
     where
         T: Clone,

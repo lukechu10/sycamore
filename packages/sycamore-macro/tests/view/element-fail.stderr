@@ -44,11 +44,11 @@ error: expected a valid node
 18 |         let _: View = view! { * };
    |                               ^
 
-error[E0425]: cannot find function `unknownelement` in module `sycamore::rt::tags`
+error[E0425]: cannot find function `unknownelement` in module `::sycamore::rt::tags`
   --> tests/view/element-fail.rs:12:13
    |
 12 |             unknownelement {}
-   |             ^^^^^^^^^^^^^^ not found in `sycamore::rt::tags`
+   |             ^^^^^^^^^^^^^^ not found in `::sycamore::rt::tags`
 
 error[E0425]: cannot find value `unknown_attributes` in this scope
   --> tests/view/element-fail.rs:15:19

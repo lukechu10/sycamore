@@ -15,6 +15,15 @@
 //! });
 //! ```
 //!
+//! # Strict mode
+//!
+//! By default, a signal that is accessed outside of a tracking scope will emit an warning. This is
+//! to prevent cases where a signal should be accessed reactively but is not, leading to bugs.
+//!
+//! Strict mode changes this behavior to panic instead of warning. This can be useful for testing
+//! and debugging, as it will immediately alert you to any reactive access issues. Enable strict
+//! mode by adding the `strict` feature to `sycamore-reactive` or to `sycamore`.
+//!
 //! # A note on `nightly`
 //!
 //! If you are using rust `nightly`, you can enable the `nightly` feature to enable the more terse

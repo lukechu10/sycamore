@@ -13,6 +13,10 @@
 //! - `serde` - Enables serializing and deserializing `Signal`s and other wrapper types using
 //!   `serde`.
 //!
+//! - `strict` - Enables strict mode for `sycamore-reactive`. This means that signals will panic if
+//!   they are accessed at the top-level of a component. The default behavior is to warn instead of
+//!   panic.
+//!
 //! - `suspense` - Enables suspense and resources. Also enables wrappers around `js_sys::futures` to
 //!   make it easier to extend a reactive scope into an `async` function.
 //!

@@ -55,7 +55,7 @@ default-members = [
 
 [workspace.package]
 edition = "2024"
-rust-version = "1.94"
+rust-version = "1.99"
 license = "MIT"
 readme = "README.md"
 repository = "https://github.com/sycamore-rs/sycamore"

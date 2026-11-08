@@ -451,7 +451,7 @@ mod tests {
             view! {
                 StaticRouter(
                     route=route,
-                    view=|route: ReadSignal<Routes>| match route.get() {
+                    view=|route: ReadSignal<Routes>| match route.get_untracked() {
                         Routes::Home => view! {
                             "Home"
                         },

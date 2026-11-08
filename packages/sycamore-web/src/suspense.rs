@@ -305,7 +305,7 @@ pub fn use_suspense_key() -> NonZeroU32 {
     let global_scope = use_global_scope();
     let counter = global_scope.run_in(|| use_context_or_else(SuspenseCounter::new));
 
-    let next = counter.next.get();
+    let next = counter.next.get_untracked();
     counter.next.set(next.checked_add(1).unwrap());
     next
 }

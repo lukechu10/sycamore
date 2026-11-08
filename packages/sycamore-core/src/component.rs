@@ -6,12 +6,11 @@ use sycamore_reactive::*;
 
 use crate::Build;
 
-/// Runs the given closure inside a new component scope. In other words, this does the following:
-/// * Create a new untracked scope (see [`untrack`]).
-/// * Call the closure `f` passed to this function.
+/// Runs the given closure inside a new component scope. In particular, it does the following:
+/// * Create a new trapping tracked scope (see [`trapping_scope`]).
 #[doc(hidden)]
 pub fn component_scope<T>(f: impl FnOnce() -> T) -> T {
-    untrack(f)
+    trapping_scope(f)
 }
 
 /// A special property type to allow the component to accept children.
