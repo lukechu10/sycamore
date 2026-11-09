@@ -271,13 +271,13 @@ let on_keydown = move |ev: KeyboardEvent| {
 view! {
     li {
         span(style=style, on_click=toggle_completed) {
-            (if is_editing.get() {
-                view! { input(bind:value=todo.task, on_keydown=on_keydown) }
+            if is_editing.get() {
+                input(bind_value=todo.task, on_keydown=on_keydown)
             } else {
-                view! { (todo.task) }
-            })
+                (todo.task)
+            }
         }
-        button(on_click=start_editing, disabled=is_editing.get()) { "Edit Task" }
+        button(on_click=start_editing, disabled=move || is_editing.get()) { "Edit Task" }
         button(on_click=remove_todo) { "Remove" }
     }
 }
@@ -399,13 +399,13 @@ where
     view! {
         li {
             span(style=style, on_click=toggle_completed) {
-                (if is_editing.get() {
-                    view! { input(bind:value=todo.task, on_keydown=on_keydown) }
+                if is_editing.get() {
+                    input(bind_value=todo.task, on_keydown=on_keydown)
                 } else {
-                    view! { (todo.task) }
-                })
+                    (todo.task)
+                }
             }
-            button(on_click=start_editing, disabled=is_editing.get()) { "Edit Task" }
+            button(on_click=start_editing, disabled=move || is_editing.get()) { "Edit Task" }
             button(on_click=remove_todo) { "Remove" }
         }
     }

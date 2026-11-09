@@ -71,13 +71,12 @@ view! {
 Attributes are still fully type checked and will cause compile errors for
 unknown attributes or wrong types.
 
-> Note: There is actually a subtle different between how attributes are set on a
-> component versus on an element. The `view!` macro will automatically wrap
-> attributes in a closure if it is dynamic. For components, however, this will
-> never happen and you will need to provide a closure manually.
->
-> We are currently finding a way to resolve this discrepancy. Of course, if you
-> use the builder API, this isn't a problem to begin with!
+For attributes applied to an element, pass static values directly and use an
+explicit closure for reactive expressions, for example
+`button(disabled=move || is_disabled.get(), ..attributes)`. Attribute values
+passed to a component are ordinary component props: they are not automatically
+wrapped in closures, so provide a closure when the receiving prop expects a
+dynamic value.
 
 ## Intercepting attributes
 

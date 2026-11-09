@@ -51,8 +51,10 @@ be used. This includes strings, numbers, signals, functions that return these
 types, and other views.
 
 When converting a function into a view, it automatically becomes a dynamic view.
-The `view!` macro, however, will do this automatically for you by wrapping any
-complex expression in a closure.
+For child expressions, the `view!` macro automatically wraps complex
+expressions in a closure, so they update when their reactive dependencies
+change. This automatic wrapping applies to child expressions, not element
+attributes or properties; see [Attributes](#attributes) below.
 
 ```rust
 let value = 123;
@@ -85,7 +87,8 @@ let outer_view = view! {
 ## Control flow
 
 The `view!` macro supports using `if`/`else` and `match` statements directly
-inside the DSL.
+inside the DSL. Conditions and match expressions automatically track reactive
+dependencies, just like child expressions.
 
 ```rust
 view! {
@@ -103,12 +106,17 @@ view! {
 
 ## Attributes
 
-Attributes (including classes and ids) can also be specified.
+Attributes (including classes and ids) can also be specified. Static values are
+passed directly. To make an attribute or property reactive, pass a closure
+explicitly; unlike child expressions, the macro does not automatically wrap
+attribute or property expressions in a closure.
 
 ```rust
+let disabled = create_signal(false);
+
 view! {
     p(class="my-class", id="my-paragraph", aria-label="My paragraph", "custom_attribute"="foo")
-    button(disabled=true) {
+    button(disabled=move || disabled.get()) {
        "My button"
     }
 }

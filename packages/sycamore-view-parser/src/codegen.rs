@@ -153,27 +153,23 @@ impl Codegen {
     }
 
     pub fn attribute(&self, attr: &Prop) -> TokenStream {
+        // Like component props, element attributes are passed as-is. Reactivity is
+        // opt-in via an explicit closure (or a reactive value such as a signal).
         let value = &attr.value;
-        let is_dynamic = is_dyn(value);
-        let dyn_value = if is_dynamic {
-            quote! { move || #value }
-        } else {
-            quote! { #value }
-        };
         match &attr.ty {
             PropType::Plain { ident } => {
-                quote! { .#ident(#dyn_value) }
+                quote! { .#ident(#value) }
             }
             PropType::PlainHyphenated { ident } => {
-                quote! { .attr(#ident, #dyn_value) }
+                quote! { .attr(#ident, #value) }
             }
             PropType::PlainQuoted { ident } => {
-                quote! { .attr(#ident, #dyn_value) }
+                quote! { .attr(#ident, #value) }
             }
             PropType::Directive { dir, ident } => match dir.to_string().as_str() {
                 "prop" => {
                     let ident = ident.to_string();
-                    quote! { .prop(#ident, #dyn_value) }
+                    quote! { .prop(#ident, #value) }
                 }
                 _ => syn::Error::new(dir.span(), format!("unknown directive `{dir}`"))
                     .to_compile_error(),
@@ -357,4 +353,40 @@ fn is_dyn_block(block: &syn::Block) -> bool {
         }
         syn::Stmt::Item(_) => false,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn attribute_expressions_are_passed_directly() {
+        for value in [quote! { signal.get() }, quote! { move || signal.get() }] {
+            let value: Expr = syn::parse2(value).unwrap();
+            let root: Root = syn::parse2(quote! {
+                input(
+                    value=#value,
+                    data-value=#value,
+                    "quoted-value"=#value,
+                    prop:value=#value,
+                )
+            })
+            .unwrap();
+            let Node::Tag(tag) = &root.0[0] else {
+                panic!("expected element");
+            };
+            let actual: TokenStream = tag
+                .props
+                .iter()
+                .map(|prop| Codegen {}.attribute(prop))
+                .collect();
+            let expected = quote! {
+                .value(#value)
+                .attr("data-value", #value)
+                .attr("quoted-value", #value)
+                .prop("value", #value)
+            };
+            assert_eq!(actual.to_string(), expected.to_string());
+        }
+    }
 }

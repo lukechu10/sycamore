@@ -34,8 +34,8 @@ fn Tweened() -> View {
                 }
                 "#
             }
-            progress(prop:value=progress.get()[0])
-            progress(prop:value=progress.get()[1])
+            progress(prop:value=move || progress.get()[0])
+            progress(prop:value=move || progress.get()[1])
 
             button(on_click=move |_| progress.set([0.0, 1.0])) { "0%" }
             button(on_click=move |_| progress.set([0.25, 0.75])) { "25%" }

@@ -170,7 +170,7 @@ fn App() -> View {
                                 row.label.dispose();
                             });
                             view! {
-                                tr(class=if is_selected.get() { "danger" } else { "" }) {
+                                tr(class=move || if is_selected.get() { "danger" } else { "" }) {
                                     td(class="col-md-1") { (row.id) }
                                     td(class="col-md-4") { a(on_click=handle_click) { (row.label) } }
                                     td(class="col-md-1") {

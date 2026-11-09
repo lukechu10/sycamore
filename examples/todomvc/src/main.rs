@@ -267,7 +267,7 @@ pub fn Item(todo: Signal<Todo>) -> View {
     };
 
     view! {
-        li(class=class()) {
+        li(class=move || class()) {
             div(class="view") {
                 input(
                     class="toggle",
@@ -353,7 +353,7 @@ pub fn TodoFilter(filter: Filter) -> View {
     view! {
         li {
             a(
-                class=if selected() { "selected" } else { "" },
+                class=move || if selected() { "selected" } else { "" },
                 href=filter.url(),
                 on_click=move |_| set_filter(filter),
             ) { (format!("{filter:?}")) }
