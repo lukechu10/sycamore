@@ -40,8 +40,15 @@ impl Codegen {
                     self.element(tag)
                 }
             }
-            Node::Text(TextNode { value }) => quote! {
-                ::sycamore::rt::Build::<::sycamore::rt::View>::build(#value)
+            Node::Text(TextNode { value, format_args }) => match format_args {
+                Some(args) => quote! {
+                    ::sycamore::rt::View::from_dynamic(move || {
+                        ::std::format!(#value #(, #args)*)
+                    })
+                },
+                None => quote! {
+                    ::sycamore::rt::Build::<::sycamore::rt::View>::build(#value)
+                },
             },
             Node::Dyn(DynNode { value }) => {
                 let is_dynamic = is_dyn(value);

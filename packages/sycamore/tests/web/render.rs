@@ -1,6 +1,24 @@
 use super::*;
 
 #[wasm_bindgen_test]
+fn interpolated_text() {
+    let _ = create_root(|| {
+        let name = create_signal("world");
+        let value = create_signal(1.0);
+        let width = 6;
+        let node = view! {
+            p { "hello {name} {value:>width$.1} / {value.get():.1}" }
+        };
+        sycamore::render_in_scope(|| node, &test_container());
+        assert_text_content!(query("p"), "hello world    1.0 / 1.0");
+
+        name.set("Sycamore");
+        value.set(12.5);
+        assert_text_content!(query("p"), "hello Sycamore   12.5 / 12.5");
+    });
+}
+
+#[wasm_bindgen_test]
 fn dyn_view_static() {
     let _ = create_root(|| {
         let node: View = View::from_dynamic(move || {

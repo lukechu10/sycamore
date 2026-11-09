@@ -55,7 +55,7 @@ fn App() -> View {
         }
         div {
             style {
-                "span { width: 1%; height: 10px; background-color: red; display: inline-block; }"
+                "span {{ width: 1%; height: 10px; background-color: red; display: inline-block; }}"
             }
             Indexed(
                 list=(0..100).collect::<Vec<_>>(),
@@ -116,7 +116,7 @@ pub fn Main() -> View {
                         crossorigin="",
                     )
                     script(r#type="module") {
-                        "import init from '/dist/ssr-streaming.js'; const wasm = await init({});"
+                        "import init from '/dist/ssr-streaming.js'; const wasm = await init({{}});"
                     }
                 }
             }

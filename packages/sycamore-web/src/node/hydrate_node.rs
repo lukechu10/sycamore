@@ -113,7 +113,7 @@ impl ViewNode for HydrateNode {
         }
     }
 
-    fn create_dynamic_view<U: Into<View<Self>> + 'static>(
+    fn create_dynamic_view<U: Build<View<Self>> + 'static>(
         f: impl FnMut() -> U + 'static,
     ) -> View<Self> {
         _create_dynamic_view(f)

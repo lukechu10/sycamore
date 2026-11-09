@@ -21,7 +21,7 @@ impl ViewNode for DomNode {
         self.raw.append_child(&child.raw).unwrap();
     }
 
-    fn create_dynamic_view<U: Into<View<Self>> + 'static>(
+    fn create_dynamic_view<U: Build<View<Self>> + 'static>(
         f: impl FnMut() -> U + 'static,
     ) -> View<Self> {
         _create_dynamic_view(f)
@@ -29,7 +29,7 @@ impl ViewNode for DomNode {
 }
 
 /// Internal implementation that is shared between `DomNode` and `HydrateNode`.
-pub(crate) fn _create_dynamic_view<T: ViewHtmlNode, U: Into<View<T>> + 'static>(
+pub(crate) fn _create_dynamic_view<T: ViewHtmlNode, U: Build<View<T>> + 'static>(
     mut f: impl FnMut() -> U + 'static,
 ) -> View<T> {
     // If `view` is just a single text node, we can just return this node and set up an
@@ -60,10 +60,10 @@ pub(crate) fn _create_dynamic_view<T: ViewHtmlNode, U: Into<View<T>> + 'static>(
         let end = T::create_marker_node();
         let end_node = end.as_web_sys().clone();
         let view = create_effect_initial(move || {
-            let view = f().into();
+            let view = f().build();
             (
                 Box::new(move || {
-                    let new = f().into();
+                    let new = f().build();
                     if let Some(parent) = start_node.parent_node() {
                         // Clear all the old nodes away.
                         let old = utils::get_nodes_between(&start_node, &end_node);

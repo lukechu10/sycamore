@@ -43,9 +43,9 @@ impl<T> View<T> {
         }
     }
 
-    /// Create a new view from a function that returns a view. An alias to
-    /// [`ViewNode::create_dynamic_view`].
-    pub fn from_dynamic<U: Into<Self> + 'static>(f: impl FnMut() -> U + 'static) -> Self
+    /// Create a reactive view from a function returning any value that implements [`Build`]
+    /// for this view. An alias to [`ViewNode::create_dynamic_view`].
+    pub fn from_dynamic<U: Build<Self> + 'static>(f: impl FnMut() -> U + 'static) -> Self
     where
         T: ViewNode,
     {
@@ -153,7 +153,7 @@ impl_build_with_to_string!(
     i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize, f32, f64
 );
 
-// Implement `From` for all tuples of types that implement `Into<View<U>>`.
+// Implement `Build<View<U>>` for tuples of types that implement `Build<View<U>>`.
 macro_rules! impl_build_from_tuple {
     ($($name:ident),*) => {
         paste::paste! {
@@ -205,16 +205,17 @@ pub trait ViewNode: Build<View<Self>> + Sized + 'static {
         }
     }
 
-    /// Create a dynamic view from a function that returns a view.
+    /// Create a dynamic view from a function returning a value that implements
+    /// [`Build<View<Self>>`]. Each result is built into a view; backends can specialize
+    /// common return types such as [`String`] to update a text node in place.
     ///
-    /// The returned view will no longer be a function and can be treated as a normal view and,
-    /// e.g., appended as a child to another node.
-    ///
-    /// Some render backends may not support dynamic views (e.g. `SsrNode`). In that case, the
-    /// default behavior is to simply evaluate the function as a static view.
-    fn create_dynamic_view<U: Into<View<Self>> + 'static>(
+    /// The returned view can be treated as a normal view and, e.g., appended as a child
+    /// to another node. Backends with reactive support rerun the function when its
+    /// dependencies change. The default implementation evaluates the function once
+    /// and builds its result into a static view.
+    fn create_dynamic_view<U: Build<View<Self>> + 'static>(
         mut f: impl FnMut() -> U + 'static,
     ) -> View<Self> {
-        f().into()
+        f().build()
     }
 }

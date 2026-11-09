@@ -170,9 +170,7 @@ impl Parse for PropType {
 
 impl Parse for TextNode {
     fn parse(input: ParseStream) -> Result<Self> {
-        Ok(Self {
-            value: input.parse()?,
-        })
+        crate::interpolation::parse(input.parse()?)
     }
 }
 

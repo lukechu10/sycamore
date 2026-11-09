@@ -49,7 +49,7 @@ impl ViewNode for SsrNode {
         }
     }
 
-    fn create_dynamic_view<U: Into<View<Self>> + 'static>(
+    fn create_dynamic_view<U: Build<View<Self>> + 'static>(
         mut f: impl FnMut() -> U + 'static,
     ) -> View<Self> {
         // If `view` is just a single text node, we can just return this node since text nodes are
@@ -77,7 +77,7 @@ impl ViewNode for SsrNode {
                 let view = view.clone();
                 move || {
                     let value = f();
-                    *view.lock().unwrap() = value.into();
+                    *view.lock().unwrap() = value.build();
                 }
             });
             (start, Self::Dynamic { view }, end).build()

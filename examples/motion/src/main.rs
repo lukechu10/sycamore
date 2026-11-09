@@ -28,10 +28,10 @@ fn Tweened() -> View {
         div {
             style {
                 r#"
-                progress {
+                progress {{
                     display: block;
                     width: 100%;
-                }
+                }}
                 "#
             }
             progress(prop:value=move || progress.get()[0])

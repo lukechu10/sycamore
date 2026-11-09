@@ -69,6 +69,8 @@ pub enum PropType {
 
 pub struct TextNode {
     pub value: LitStr,
+    /// Format arguments, or `None` for a static text node.
+    pub format_args: Option<Vec<Expr>>,
 }
 
 pub struct DynNode {

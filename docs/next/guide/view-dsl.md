@@ -71,6 +71,60 @@ view! {
 }
 ```
 
+### Interpolated strings
+
+Text nodes can also interpolate values directly inside a string literal. These
+strings automatically become reactive: expressions are evaluated again whenever
+the signals they read change.
+
+```rust
+let name = create_signal("world");
+let count = create_signal(0);
+
+view! {
+    p { "Hello, {name}! Count: {count}" }
+}
+```
+
+Unlike `format!`, placeholders can contain arbitrary Rust expressions, including
+field access, method calls, indexing, and arithmetic:
+
+```rust
+view! {
+    p { "Hello, {item.name}! Next: {count.get() + 1}" }
+}
+```
+
+Rust's standard format options are supported, including debug formatting,
+alignment, width, and precision. Width and precision can reference local `usize`
+variables using the usual `$` syntax:
+
+```rust
+let width = 20;
+let precision = 2;
+
+view! {
+    p { "Price: {price:.2}" }
+    p { "{item.name:>width$}" }
+    p { "{price:.precision$} {unit}" }
+}
+```
+
+Only inline expressions are supported: you cannot pass additional positional or
+named arguments after the string. Each placeholder must contain an expression;
+use `{value}` rather than `{}`.
+
+Expressions are evaluated inside a reactive `move` closure, which owns the
+values it captures. Signals implement `Display`, so `{name}` formats the signal's
+current value and tracks it automatically; `.get()` is only needed when using
+the value in a larger expression.
+
+Use `{{` and `}}` for literal braces in text nodes. Strings without placeholders
+remain static. This syntax applies only to text nodes, not string literals in
+attributes or component props. Rust string escapes are decoded before parsing
+interpolations; use a raw string when an expression itself contains escapes,
+for example `r#"First line: {text.split('\n').next().unwrap()}"#`.
+
 Here is another example where we interpolate views.
 
 ```rust
