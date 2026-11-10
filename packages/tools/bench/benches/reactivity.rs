@@ -112,9 +112,9 @@ pub fn bench(c: &mut Criterion) {
                 let mut memos = Vec::<ReadSignal<usize>>::new();
                 for _ in 0..1000usize {
                     if let Some(prev) = memos.last().copied() {
-                        memos.push(create_memo(move || prev.get() + 1));
+                        memos.push(*create_memo(move || prev.get() + 1));
                     } else {
-                        memos.push(create_memo(move || signal.get() + 1));
+                        memos.push(*create_memo(move || signal.get() + 1));
                     }
                 }
             });

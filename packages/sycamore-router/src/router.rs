@@ -216,7 +216,7 @@ where
         }
     }));
     let route_signal = create_memo(move || pathname.with(|pathname| route.match_path(pathname)));
-    let view = view(route_signal);
+    let view = view(*route_signal);
     let nodes = view.as_web_sys();
     on_mount(move || {
         for node in nodes {
@@ -337,7 +337,7 @@ pub fn refresh() {
 
 /// Creates a ReadSignal that tracks the url query provided.
 pub fn use_search_query(query: &'static str) -> ReadSignal<Option<String>> {
-    PATHNAME.with(|pathname| {
+    *PATHNAME.with(|pathname| {
         assert!(
             pathname.get().is_some(),
             "cannot get query outside of a Router",
@@ -357,7 +357,7 @@ pub fn use_search_query(query: &'static str) -> ReadSignal<Option<String>> {
 
 /// Creates a ReadSignal that tracks the url query string.
 pub fn use_search_queries() -> ReadSignal<HashMap<String, String>> {
-    PATHNAME.with(|pathname| {
+    *PATHNAME.with(|pathname| {
         assert!(
             pathname.get().is_some(),
             "cannot get query outside of a Router",
@@ -387,7 +387,7 @@ pub fn use_search_queries() -> ReadSignal<HashMap<String, String>> {
 
 /// Creates a ReadSignal that tracks the url fragment.
 pub fn use_location_hash() -> ReadSignal<String> {
-    PATHNAME.with(|pathname| {
+    *PATHNAME.with(|pathname| {
         assert!(
             pathname.get().is_some(),
             "cannot get hash outside of a Router"
