@@ -176,7 +176,7 @@ where
         mapped.clone()
     };
     let scope = use_current_scope();
-    create_memo(on(list, move || scope.run_in(&mut update)))
+    *create_memo(on(list, move || scope.run_in(&mut update)))
 }
 
 /// Function that maps a `Vec` to another `Vec` via a map function.
@@ -269,7 +269,7 @@ where
         mapped.clone()
     };
     let scope = use_current_scope();
-    create_memo(on(list, move || scope.run_in(&mut update)))
+    *create_memo(on(list, move || scope.run_in(&mut update)))
 }
 
 #[cfg(test)]

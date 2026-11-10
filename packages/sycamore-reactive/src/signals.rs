@@ -323,7 +323,8 @@ impl<T> ReadSignal<T> {
     }
 
     /// Creates a new [memo](create_memo) from this signal and a function. The resulting memo will
-    /// be created in the current reactive scope.
+    /// be created in the current reactive scope. It can be written to directly, with the same
+    /// semantics as [`create_memo`]; writes do not modify the source signal.
     ///
     /// # Example
     /// ```
@@ -337,7 +338,7 @@ impl<T> ReadSignal<T> {
     /// # });
     /// ```
     #[cfg_attr(debug_assertions, track_caller)]
-    pub fn map<U>(self, mut f: impl FnMut(&T) -> U + 'static) -> ReadSignal<U> {
+    pub fn map<U>(self, mut f: impl FnMut(&T) -> U + 'static) -> Signal<U> {
         create_memo(move || self.with(&mut f))
     }
 

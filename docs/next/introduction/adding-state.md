@@ -138,9 +138,42 @@ let bar = derived.get();
 signal.set(2);
 ```
 
-The `create_memo` hook returns a `ReadSignal<T>` which is a signal that can only
-be read, not written to. The `Signal` type automatically dereferences to a
-`ReadSignal` so you can use a `Signal` wherever a `ReadSignal` is expected.
+The `create_memo` hook returns a writable `Signal<T>`. You can override its
+stored value with methods such as `.set()` and `.update()`, just like any other
+signal. These writes notify dependents but do not change the source signals.
+The next dependency-triggered recomputation may overwrite the manual value:
+
+```rust
+let signal = create_signal(2);
+let doubled = create_memo(move || signal.get() * 2);
+
+doubled.set(100);
+assert_eq!(doubled.get(), 100);
+assert_eq!(signal.get(), 2);
+
+signal.set(3);
+assert_eq!(doubled.get(), 6);
+```
+
+If you only want to expose read access, dereference the signal to obtain a
+`ReadSignal<T>`. This is also necessary when passing it by value to a function
+or component prop that expects a `ReadSignal<T>`:
+
+```rust
+let readonly: ReadSignal<i32> = *doubled;
+// Or obtain a read-only handle when creating the memo:
+let readonly = *create_memo(move || signal.get() * 2);
+```
+
+The related `create_selector`, `create_selector_with`, and signal `.map()` APIs
+also return writable signals. Selectors avoid notifying dependents when a
+recomputed result compares equal to the current stored value, including any
+manual override. Direct writes still use ordinary signal notification behavior
+and do not check the selector's comparator.
+
+When using `batch`, a pending dependency-triggered recomputation can overwrite a
+manual write at the end of the batch, even if the manual write came after the
+dependency update.
 
 > Effects are actually implemented using memos. Semantically speaking, this is
 > not really correct since we use effects for creating side-effects and memos

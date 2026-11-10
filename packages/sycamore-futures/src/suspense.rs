@@ -62,7 +62,7 @@ impl SuspenseScope {
     ///
     /// Implementation for the [`use_is_loading`] hook.
     pub fn is_loading(self) -> ReadSignal<bool> {
-        create_selector(move || self._is_loading())
+        *create_selector(move || self._is_loading())
     }
 
     /// Returns a future that resolves once the scope is no longer loading.
