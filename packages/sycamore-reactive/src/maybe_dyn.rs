@@ -28,7 +28,7 @@ where
     /// A static value.
     Static(T),
     /// A dynamic value backed by a signal.
-    Signal(ReadSignal<T>),
+    Signal(Signal<T>),
     /// A derived dynamic value.
     Derived(Rc<dyn Fn() -> Self>),
 }
@@ -95,14 +95,14 @@ impl<T: Into<Self> + 'static> MaybeDyn<T> {
     }
 }
 
-impl<T: Into<Self>, U: Into<MaybeDyn<T>> + Clone> From<ReadSignal<U>> for MaybeDyn<T> {
-    fn from(val: ReadSignal<U>) -> Self {
-        // Check if U == T, i.e. ReadSignal<U> is actually a ReadSignal<T>.
+impl<T: Into<Self>, U: Into<MaybeDyn<T>> + Clone> From<Signal<U>> for MaybeDyn<T> {
+    fn from(val: Signal<U>) -> Self {
+        // Check if U == T, i.e. Signal<U> is actually a Signal<T>.
         //
         // If so, we use a trick to convert the generic type to the concrete type. This should be
         // optimized out by the compiler to be zero-cost.
         if let Some(val) =
-            (&mut Some(val) as &mut dyn std::any::Any).downcast_mut::<Option<ReadSignal<T>>>()
+            (&mut Some(val) as &mut dyn std::any::Any).downcast_mut::<Option<Signal<T>>>()
         {
             MaybeDyn::Signal(val.unwrap())
         } else {
@@ -111,8 +111,8 @@ impl<T: Into<Self>, U: Into<MaybeDyn<T>> + Clone> From<ReadSignal<U>> for MaybeD
     }
 }
 
-impl<T: Into<Self>, U: Into<MaybeDyn<T>> + Clone> From<Signal<U>> for MaybeDyn<T> {
-    fn from(val: Signal<U>) -> Self {
+impl<T: Into<Self>, U: Into<MaybeDyn<T>> + Clone> From<MutSignal<U>> for MaybeDyn<T> {
+    fn from(val: MutSignal<U>) -> Self {
         Self::from(*val)
     }
 }

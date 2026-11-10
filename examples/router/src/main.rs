@@ -23,7 +23,7 @@ fn App() -> View {
         div {
             Router(
                 integration=HistoryIntegration::new(),
-                view=|route: ReadSignal<AppRoutes>| {
+                view=|route: Signal<AppRoutes>| {
                     view! {
                         nav {
                             a(href="/") { "Home" }

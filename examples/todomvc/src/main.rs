@@ -41,8 +41,8 @@ impl Filter {
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct AppState {
-    pub todos: Signal<Vec<Signal<Todo>>>,
-    pub filter: Signal<Filter>,
+    pub todos: MutSignal<Vec<MutSignal<Todo>>>,
+    pub filter: MutSignal<Filter>,
 }
 
 impl AppState {
@@ -205,7 +205,7 @@ pub fn Header() -> View {
 }
 
 #[component]
-pub fn Item(todo: Signal<Todo>) -> View {
+pub fn Item(todo: MutSignal<Todo>) -> View {
     let app_state = use_context::<AppState>();
 
     let title = move || todo.with(|todo| todo.title.clone());

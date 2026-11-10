@@ -6,7 +6,11 @@ use std::rc::Rc;
 use crate::reactive::*;
 
 /// Type returned by [`create_raf`] and [`create_raf_loop`].
-type RafState = (Signal<bool>, Rc<dyn Fn() + 'static>, Rc<dyn Fn() + 'static>);
+type RafState = (
+    MutSignal<bool>,
+    Rc<dyn Fn() + 'static>,
+    Rc<dyn Fn() + 'static>,
+);
 
 /// Schedule a callback to be called on each animation frame.
 /// Does nothing if not on `wasm32` target.
@@ -149,7 +153,7 @@ impl<T: Lerp + Clone, const N: usize> Lerp for [T; N] {
 }
 
 /// A state that is interpolated when it is set.
-pub struct Tweened<T: Lerp + Clone + 'static>(Signal<TweenedInner<T>>);
+pub struct Tweened<T: Lerp + Clone + 'static>(MutSignal<TweenedInner<T>>);
 impl<T: Lerp + Clone> std::fmt::Debug for Tweened<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Tweened").finish()
@@ -157,8 +161,8 @@ impl<T: Lerp + Clone> std::fmt::Debug for Tweened<T> {
 }
 
 struct TweenedInner<T: Lerp + Clone + 'static> {
-    value: Signal<T>,
-    is_tweening: Signal<bool>,
+    value: MutSignal<T>,
+    is_tweening: MutSignal<bool>,
     raf_state: Option<RafState>,
     transition_duration_ms: f32,
     easing_fn: Rc<dyn Fn(f32) -> f32>,
@@ -252,7 +256,7 @@ impl<T: Lerp + Clone> Tweened<T> {
     }
 
     /// Get the inner signal backing the state.
-    pub fn signal(&self) -> Signal<T> {
+    pub fn signal(&self) -> MutSignal<T> {
         self.0.with(|this| this.value)
     }
 

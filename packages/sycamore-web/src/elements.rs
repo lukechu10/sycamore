@@ -1149,7 +1149,7 @@ pub trait GlobalAttributes: SetAttribute + Sized {
         self,
         event: &'static str,
         prop: &'static str,
-        signal: Signal<T>,
+        signal: MutSignal<T>,
         from_js: impl Fn(&JsValue) -> T + 'static,
     ) -> Self {
         self.add_event_handler(event, move |ev: web_sys::Event| {

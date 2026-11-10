@@ -15,18 +15,18 @@ use crate::*;
 /// A read-only reactive value.
 ///
 /// Unlike the difference between Rust's shared and mutable-references (`&T` and `&mut`), the
-/// underlying data is not immutable. The data can be updated with the corresponding [`Signal`]
-/// (which has mutable access) and will show up in the `ReadSignal` as well.
+/// underlying data is not immutable. The data can be updated with the corresponding [`MutSignal`]
+/// (which has mutable access) and will show up in the `Signal` as well.
 ///
-/// A `ReadSignal` can be simply obtained by dereferencing a [`Signal`]. In fact, every [`Signal`]
-/// is a `ReadSignal` with additional write abilities!
+/// A `Signal` can be simply obtained by dereferencing a [`MutSignal`]. In fact, every [`MutSignal`]
+/// is a `Signal` with additional write abilities!
 ///
 /// # Example
 /// ```
 /// # use sycamore_reactive::*;
 /// # create_root(|| {
-/// let signal: Signal<i32> = create_signal(123);
-/// let read_signal: ReadSignal<i32> = *signal;
+/// let signal: MutSignal<i32> = create_signal(123);
+/// let read_signal: Signal<i32> = *signal;
 /// assert_eq!(read_signal.get(), 123);
 /// signal.set(456);
 /// assert_eq!(read_signal.get(), 456);
@@ -35,7 +35,7 @@ use crate::*;
 /// ```
 ///
 /// See [`create_signal`] for more information.
-pub struct ReadSignal<T: 'static> {
+pub struct Signal<T: 'static> {
     pub(crate) id: NodeId,
     root: &'static Root,
     /// Keep track of where the signal was created for diagnostics.
@@ -48,21 +48,23 @@ pub struct ReadSignal<T: 'static> {
 
 /// A reactive value that can be read and written to.
 ///
-/// This is the writable version of [`ReadSignal`].
+/// This is the writable version of [`Signal`]. Like [`Signal`], this is a [`Copy`]
+/// handle. It provides shared write access through interior mutability, not an exclusive
+/// mutable borrow. Dereference it to obtain a read-only [`Signal`] handle.
 ///
 /// See [`create_signal`] for more information.
-pub struct Signal<T: 'static>(pub(crate) ReadSignal<T>);
+pub struct MutSignal<T: 'static>(pub(crate) Signal<T>);
 
-/// Create a new [`Signal`].
+/// Create a new [`MutSignal`].
 ///
 /// Signals are reactive atoms, pieces of state that can be read and written to and which will
 /// automatically update anything which depend on them.
 ///
 /// # Usage
-/// The simplest way to use a signal is by using [`.get()`](ReadSignal::get) and
-/// [`.set(...)`](Signal::set). However, this only works if the value implements [`Copy`]. If
+/// The simplest way to use a signal is by using [`.get()`](Signal::get) and
+/// [`.set(...)`](MutSignal::set). However, this only works if the value implements [`Copy`]. If
 /// we wanted to store something that doesn't implement [`Copy`] but implements [`Clone`] instead,
-/// say a [`String`], we can use [`.get_clone()`](ReadSignal::get_clone) which will automatically
+/// say a [`String`], we can use [`.get_clone()`](Signal::get_clone) which will automatically
 /// clone the value for us.
 ///
 /// ```rust
@@ -76,7 +78,7 @@ pub struct Signal<T: 'static>(pub(crate) ReadSignal<T>);
 /// ```
 ///
 /// There are many other ways of getting and setting signals, such as
-/// [`.with(...)`](ReadSignal::with) and [`.update(...)`](Signal::update) which can access the
+/// [`.with(...)`](Signal::with) and [`.update(...)`](MutSignal::update) which can access the
 /// signal even if it does not implement [`Clone`] or if you simply don't want to pay the
 /// performance overhead of cloning your value every time you read it.
 ///
@@ -112,15 +114,15 @@ pub struct Signal<T: 'static>(pub(crate) ReadSignal<T>);
 /// This is why in the above example, we could access `signal` even after it was moved in to the
 /// closure of the `create_memo`.
 #[cfg_attr(debug_assertions, track_caller)]
-pub fn create_signal<T>(value: T) -> Signal<T> {
+pub fn create_signal<T>(value: T) -> MutSignal<T> {
     let signal = create_empty_signal();
     signal.get_mut().value = Some(Box::new(value));
     signal
 }
 
-/// Creates a new [`Signal`] with the `value` field set to `None`.
+/// Creates a new [`MutSignal`] with the `value` field set to `None`.
 #[cfg_attr(debug_assertions, track_caller)]
-pub(crate) fn create_empty_signal<T>() -> Signal<T> {
+pub(crate) fn create_empty_signal<T>() -> MutSignal<T> {
     let root = Root::global();
     let id = root.nodes.borrow_mut().insert(ReactiveNode {
         value: None,
@@ -142,7 +144,7 @@ pub(crate) fn create_empty_signal<T>() -> Signal<T> {
         root.nodes.borrow_mut()[current_node].children.push(id);
     }
 
-    Signal(ReadSignal {
+    MutSignal(Signal {
         id,
         root,
         #[cfg(debug_assertions)]
@@ -151,7 +153,7 @@ pub(crate) fn create_empty_signal<T>() -> Signal<T> {
     })
 }
 
-impl<T> ReadSignal<T> {
+impl<T> Signal<T> {
     /// Get a immutable reference to the underlying node.
     #[cfg_attr(debug_assertions, track_caller)]
     pub(crate) fn get_ref(self) -> Ref<'static, ReactiveNode> {
@@ -202,7 +204,7 @@ impl<T> ReadSignal<T> {
     }
 
     /// Get the value of the signal without tracking it. The type must implement [`Copy`]. If this
-    /// is not the case, use [`ReadSignal::get_clone_untracked`] or [`ReadSignal::with_untracked`]
+    /// is not the case, use [`Signal::get_clone_untracked`] or [`Signal::with_untracked`]
     /// instead.
     ///
     /// # Example
@@ -227,7 +229,7 @@ impl<T> ReadSignal<T> {
 
     /// Get the value of the signal without tracking it. The type is [`Clone`]-ed automatically.
     ///
-    /// This is the cloned equivalent of [`ReadSignal::get_untracked`].
+    /// This is the cloned equivalent of [`Signal::get_untracked`].
     #[cfg_attr(debug_assertions, track_caller)]
     pub fn get_clone_untracked(self) -> T
     where
@@ -237,7 +239,7 @@ impl<T> ReadSignal<T> {
     }
 
     /// Get the value of the signal. The type must implement [`Copy`]. If this is not the case, use
-    /// [`ReadSignal::get_clone_untracked`] or [`ReadSignal::with_untracked`] instead.
+    /// [`Signal::get_clone_untracked`] or [`Signal::with_untracked`] instead.
     ///
     /// When called inside a reactive scope, the signal will be automatically tracked.
     ///
@@ -268,7 +270,7 @@ impl<T> ReadSignal<T> {
     ///
     /// When called inside a reactive scope, the signal will be automatically tracked.
     ///
-    /// If the value implements [`Copy`], you should use [`ReadSignal::get`] instead.
+    /// If the value implements [`Copy`], you should use [`Signal::get`] instead.
     ///
     /// # Example
     /// ```
@@ -338,12 +340,12 @@ impl<T> ReadSignal<T> {
     /// # });
     /// ```
     #[cfg_attr(debug_assertions, track_caller)]
-    pub fn map<U>(self, mut f: impl FnMut(&T) -> U + 'static) -> Signal<U> {
+    pub fn map<U>(self, mut f: impl FnMut(&T) -> U + 'static) -> MutSignal<U> {
         create_memo(move || self.with(&mut f))
     }
 
     /// Track the signal in the current reactive scope. This is done automatically when calling
-    /// [`ReadSignal::get`] and other similar methods.
+    /// [`Signal::get`] and other similar methods.
     ///
     /// If outside of a reactive scope, this function prints a warning to stderr (or the browser's
     /// console) and does nothing. If you want this to panic instead, you can enable the `strict`
@@ -369,7 +371,7 @@ impl<T> ReadSignal<T> {
     }
 }
 
-impl<T> Signal<T> {
+impl<T> MutSignal<T> {
     /// Silently set a new value for the signal. This will not trigger any updates in dependent
     /// signals. As such, this is generally not recommended as it can easily lead to state
     /// inconsistencies.
@@ -410,7 +412,7 @@ impl<T> Signal<T> {
 
     /// Silently set a new value for the signal and return the previous value.
     ///
-    /// This is the silent version of [`Signal::replace`].
+    /// This is the silent version of [`MutSignal::replace`].
     #[cfg_attr(debug_assertions, track_caller)]
     pub fn replace_silent(self, new: T) -> T {
         self.update_silent(|val| std::mem::replace(val, new))
@@ -435,7 +437,7 @@ impl<T> Signal<T> {
 
     /// Silently gets the value of the signal and sets the new value to the default value.
     ///
-    /// This is the silent version of [`Signal::take`].
+    /// This is the silent version of [`MutSignal::take`].
     #[cfg_attr(debug_assertions, track_caller)]
     pub fn take_silent(self) -> T
     where
@@ -468,7 +470,7 @@ impl<T> Signal<T> {
     /// signals. As such, this is generally not recommended as it can easily lead to state
     /// inconsistencies.
     ///
-    /// This is the silent version of [`Signal::update`].
+    /// This is the silent version of [`MutSignal::update`].
     #[cfg_attr(debug_assertions, track_caller)]
     pub fn update_silent<U>(self, f: impl FnOnce(&mut T) -> U) -> U {
         let mut value = self
@@ -505,7 +507,7 @@ impl<T> Signal<T> {
 
     /// Use a function to produce a new value and sets the value silently.
     ///
-    /// This is the silent version of [`Signal::set_fn`].
+    /// This is the silent version of [`MutSignal::set_fn`].
     #[cfg_attr(debug_assertions, track_caller)]
     pub fn set_fn_silent(self, f: impl FnOnce(&T) -> T) {
         self.update_silent(move |val| *val = f(val));
@@ -539,19 +541,12 @@ impl<T> Signal<T> {
     /// assert_eq!(read_signal.get(), 1);
     /// # });
     /// ```
-    pub fn split(self) -> (ReadSignal<T>, impl Fn(T) -> T) {
+    pub fn split(self) -> (Signal<T>, impl Fn(T) -> T) {
         (*self, move |value| self.replace(value))
     }
 }
 
-/// We manually implement `Clone` + `Copy` for `Signal` so that we don't get extra bounds on `T`.
-impl<T> Clone for ReadSignal<T> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-impl<T> Copy for ReadSignal<T> {}
-
+// Manually implement `Clone` + `Copy` for both signal types to avoid extra bounds on `T`.
 impl<T> Clone for Signal<T> {
     fn clone(&self) -> Self {
         *self
@@ -559,46 +554,27 @@ impl<T> Clone for Signal<T> {
 }
 impl<T> Copy for Signal<T> {}
 
-// Implement `Default` for `ReadSignal` and `Signal`.
-impl<T: Default> Default for ReadSignal<T> {
+impl<T> Clone for MutSignal<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+impl<T> Copy for MutSignal<T> {}
+
+// Implement `Default` for `Signal` and `MutSignal`.
+impl<T: Default> Default for Signal<T> {
     fn default() -> Self {
         *create_signal(Default::default())
     }
 }
-impl<T: Default> Default for Signal<T> {
+impl<T: Default> Default for MutSignal<T> {
     fn default() -> Self {
         create_signal(Default::default())
     }
 }
 
 // Forward `PartialEq`, `Eq`, `PartialOrd`, `Ord`, `Hash` from inner type.
-impl<T: PartialEq> PartialEq for ReadSignal<T> {
-    fn eq(&self, other: &Self) -> bool {
-        self.with(|value| other.with(|other| value == other))
-    }
-}
-impl<T: Eq> Eq for ReadSignal<T> {}
-impl<T: PartialOrd> PartialOrd for ReadSignal<T> {
-    #[cfg_attr(debug_assertions, track_caller)]
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.with(|value| other.with(|other| value.partial_cmp(other)))
-    }
-}
-impl<T: Ord> Ord for ReadSignal<T> {
-    #[cfg_attr(debug_assertions, track_caller)]
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.with(|value| other.with(|other| value.cmp(other)))
-    }
-}
-impl<T: Hash> Hash for ReadSignal<T> {
-    #[cfg_attr(debug_assertions, track_caller)]
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.with(|value| value.hash(state))
-    }
-}
-
 impl<T: PartialEq> PartialEq for Signal<T> {
-    #[cfg_attr(debug_assertions, track_caller)]
     fn eq(&self, other: &Self) -> bool {
         self.with(|value| other.with(|other| value == other))
     }
@@ -623,54 +599,68 @@ impl<T: Hash> Hash for Signal<T> {
     }
 }
 
-impl<T> Deref for Signal<T> {
-    type Target = ReadSignal<T>;
+impl<T: PartialEq> PartialEq for MutSignal<T> {
+    #[cfg_attr(debug_assertions, track_caller)]
+    fn eq(&self, other: &Self) -> bool {
+        self.with(|value| other.with(|other| value == other))
+    }
+}
+impl<T: Eq> Eq for MutSignal<T> {}
+impl<T: PartialOrd> PartialOrd for MutSignal<T> {
+    #[cfg_attr(debug_assertions, track_caller)]
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.with(|value| other.with(|other| value.partial_cmp(other)))
+    }
+}
+impl<T: Ord> Ord for MutSignal<T> {
+    #[cfg_attr(debug_assertions, track_caller)]
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.with(|value| other.with(|other| value.cmp(other)))
+    }
+}
+impl<T: Hash> Hash for MutSignal<T> {
+    #[cfg_attr(debug_assertions, track_caller)]
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.with(|value| value.hash(state))
+    }
+}
+
+impl<T> Deref for MutSignal<T> {
+    type Target = Signal<T>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-// Formatting implementations for `ReadSignal` and `Signal`.
-impl<T: fmt::Debug> fmt::Debug for ReadSignal<T> {
-    #[cfg_attr(debug_assertions, track_caller)]
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        self.with(|value| value.fmt(f))
-    }
-}
+// Formatting implementations for `Signal` and `MutSignal`.
 impl<T: fmt::Debug> fmt::Debug for Signal<T> {
     #[cfg_attr(debug_assertions, track_caller)]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         self.with(|value| value.fmt(f))
     }
 }
-
-impl<T: fmt::Display> fmt::Display for ReadSignal<T> {
+impl<T: fmt::Debug> fmt::Debug for MutSignal<T> {
     #[cfg_attr(debug_assertions, track_caller)]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         self.with(|value| value.fmt(f))
     }
 }
+
 impl<T: fmt::Display> fmt::Display for Signal<T> {
     #[cfg_attr(debug_assertions, track_caller)]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         self.with(|value| value.fmt(f))
     }
 }
+impl<T: fmt::Display> fmt::Display for MutSignal<T> {
+    #[cfg_attr(debug_assertions, track_caller)]
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        self.with(|value| value.fmt(f))
+    }
+}
 
-// Serde implementations for `ReadSignal` and `Signal`.
-#[cfg(feature = "serde")]
-impl<T: serde::Serialize> serde::Serialize for ReadSignal<T> {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        self.with(|value| value.serialize(serializer))
-    }
-}
-#[cfg(feature = "serde")]
-impl<'de, T: serde::Deserialize<'de>> serde::Deserialize<'de> for ReadSignal<T> {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        Ok(*create_signal(T::deserialize(deserializer)?))
-    }
-}
+// Serde implementations for `Signal` and `MutSignal`.
 #[cfg(feature = "serde")]
 impl<T: serde::Serialize> serde::Serialize for Signal<T> {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
@@ -680,47 +670,22 @@ impl<T: serde::Serialize> serde::Serialize for Signal<T> {
 #[cfg(feature = "serde")]
 impl<'de, T: serde::Deserialize<'de>> serde::Deserialize<'de> for Signal<T> {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Ok(*create_signal(T::deserialize(deserializer)?))
+    }
+}
+#[cfg(feature = "serde")]
+impl<T: serde::Serialize> serde::Serialize for MutSignal<T> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.with(|value| value.serialize(serializer))
+    }
+}
+#[cfg(feature = "serde")]
+impl<'de, T: serde::Deserialize<'de>> serde::Deserialize<'de> for MutSignal<T> {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         Ok(create_signal(T::deserialize(deserializer)?))
     }
 }
 
-#[cfg(feature = "nightly")]
-impl<T: Copy> FnOnce<()> for ReadSignal<T> {
-    type Output = T;
-
-    extern "rust-call" fn call_once(self, _args: ()) -> Self::Output {
-        self.get()
-    }
-}
-
-impl<T: AddAssign<Rhs>, Rhs> AddAssign<Rhs> for Signal<T> {
-    fn add_assign(&mut self, rhs: Rhs) {
-        self.update(|this| *this += rhs);
-    }
-}
-impl<T: SubAssign<Rhs>, Rhs> SubAssign<Rhs> for Signal<T> {
-    fn sub_assign(&mut self, rhs: Rhs) {
-        self.update(|this| *this -= rhs);
-    }
-}
-impl<T: MulAssign<Rhs>, Rhs> MulAssign<Rhs> for Signal<T> {
-    fn mul_assign(&mut self, rhs: Rhs) {
-        self.update(|this| *this *= rhs);
-    }
-}
-impl<T: DivAssign<Rhs>, Rhs> DivAssign<Rhs> for Signal<T> {
-    fn div_assign(&mut self, rhs: Rhs) {
-        self.update(|this| *this /= rhs);
-    }
-}
-impl<T: RemAssign<Rhs>, Rhs> RemAssign<Rhs> for Signal<T> {
-    fn rem_assign(&mut self, rhs: Rhs) {
-        self.update(|this| *this %= rhs);
-    }
-}
-
-// We need to implement this again for `Signal` despite `Signal` deref-ing to `ReadSignal` since
-// we also have another implementation of `FnOnce` for `Signal`.
 #[cfg(feature = "nightly")]
 impl<T: Copy> FnOnce<()> for Signal<T> {
     type Output = T;
@@ -730,8 +695,45 @@ impl<T: Copy> FnOnce<()> for Signal<T> {
     }
 }
 
+impl<T: AddAssign<Rhs>, Rhs> AddAssign<Rhs> for MutSignal<T> {
+    fn add_assign(&mut self, rhs: Rhs) {
+        self.update(|this| *this += rhs);
+    }
+}
+impl<T: SubAssign<Rhs>, Rhs> SubAssign<Rhs> for MutSignal<T> {
+    fn sub_assign(&mut self, rhs: Rhs) {
+        self.update(|this| *this -= rhs);
+    }
+}
+impl<T: MulAssign<Rhs>, Rhs> MulAssign<Rhs> for MutSignal<T> {
+    fn mul_assign(&mut self, rhs: Rhs) {
+        self.update(|this| *this *= rhs);
+    }
+}
+impl<T: DivAssign<Rhs>, Rhs> DivAssign<Rhs> for MutSignal<T> {
+    fn div_assign(&mut self, rhs: Rhs) {
+        self.update(|this| *this /= rhs);
+    }
+}
+impl<T: RemAssign<Rhs>, Rhs> RemAssign<Rhs> for MutSignal<T> {
+    fn rem_assign(&mut self, rhs: Rhs) {
+        self.update(|this| *this %= rhs);
+    }
+}
+
+// We need to implement this again for `MutSignal` despite `MutSignal` deref-ing to `Signal` since
+// we also have another implementation of `FnOnce` for `MutSignal`.
 #[cfg(feature = "nightly")]
-impl<T: Copy> FnOnce<(T,)> for Signal<T> {
+impl<T: Copy> FnOnce<()> for MutSignal<T> {
+    type Output = T;
+
+    extern "rust-call" fn call_once(self, _args: ()) -> Self::Output {
+        self.get()
+    }
+}
+
+#[cfg(feature = "nightly")]
+impl<T: Copy> FnOnce<(T,)> for MutSignal<T> {
     type Output = T;
 
     extern "rust-call" fn call_once(self, (val,): (T,)) -> Self::Output {
@@ -788,7 +790,7 @@ mod tests {
     fn read_signal() {
         let _ = create_root(|| {
             let state = create_signal(0);
-            let readonly: ReadSignal<i32> = *state;
+            let readonly: Signal<i32> = *state;
 
             assert_eq!(readonly.get(), 0);
             state.set(1);
@@ -848,7 +850,7 @@ mod tests {
         let _ = create_root(|| {
             let signal = create_signal(0);
             assert_eq!(format!("{signal}"), "0");
-            let read_signal: ReadSignal<_> = *signal;
+            let read_signal: Signal<_> = *signal;
             assert_eq!(format!("{read_signal}"), "0");
             let memo = create_memo(|| 0);
             assert_eq!(format!("{memo}"), "0");
@@ -860,7 +862,7 @@ mod tests {
         let _ = create_root(|| {
             let signal = create_signal(0);
             assert_eq!(format!("{signal:?}"), "0");
-            let read_signal: ReadSignal<_> = *signal;
+            let read_signal: Signal<_> = *signal;
             assert_eq!(format!("{read_signal:?}"), "0");
             let memo = create_memo(|| 0);
             assert_eq!(format!("{memo:?}"), "0");

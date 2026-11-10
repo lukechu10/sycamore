@@ -115,7 +115,7 @@ We might therefore want to change our `Todo` struct to look like:
 ```rust
 #[derive(Clone, PartialEq, Eq)]
 struct Todo {
-    task: Signal<String>,
+    task: MutSignal<String>,
     id: u32,
 }
 ```
@@ -126,7 +126,7 @@ We can then update the list like so:
 let todos = create_signal(vec![...]);
 
 let new_task = "Cook Dinner".to_string();
-// Signal::update is similar to Signal::set but gives you a &mut.
+// MutSignal::update is similar to MutSignal::set but gives you a &mut.
 // This allows us to avoid cloning the entire Vec.
 todos.update(|todos| todos.push(Todo {
     task: create_signal(new_task),

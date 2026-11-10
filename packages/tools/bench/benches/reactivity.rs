@@ -93,7 +93,7 @@ pub fn bench(c: &mut Criterion) {
                     create_nested_child_scopes(100, || {
                         create_effect(move || {
                             trigger.track();
-                            let state: Signal<i32> = use_context();
+                            let state: MutSignal<i32> = use_context();
                             std::hint::black_box(state);
                         });
                     });
@@ -109,7 +109,7 @@ pub fn bench(c: &mut Criterion) {
         b.iter(|| {
             let d = create_root(|| {
                 let signal = create_signal(0);
-                let mut memos = Vec::<ReadSignal<usize>>::new();
+                let mut memos = Vec::<Signal<usize>>::new();
                 for _ in 0..1000usize {
                     if let Some(prev) = memos.last().copied() {
                         memos.push(*create_memo(move || prev.get() + 1));

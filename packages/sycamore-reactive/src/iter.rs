@@ -15,7 +15,7 @@ use crate::*;
 /// This function is the underlying utility behind `Keyed`.
 ///
 /// # Params
-/// * `list` - The list to be mapped. The list must be a [`ReadSignal`] (obtained from a [`Signal`])
+/// * `list` - The list to be mapped. The list must be a [`Signal`] (obtained from a [`MutSignal`])
 ///   and therefore reactive.
 /// * `map_fn` - A closure that maps from the input type to the output type.
 /// * `key_fn` - A closure that returns an _unique_ key to each entry.
@@ -25,7 +25,7 @@ pub fn map_keyed<T, K, U>(
     list: impl Into<MaybeDyn<Vec<T>>> + 'static,
     mut map_fn: impl FnMut(T) -> U + 'static,
     key_fn: impl Fn(&T) -> K + 'static,
-) -> ReadSignal<Vec<U>>
+) -> Signal<Vec<U>>
 where
     T: PartialEq + Clone + 'static,
     K: Eq + Hash,
@@ -191,13 +191,13 @@ where
 /// This function is the underlying utility behind `Indexed`.
 ///
 /// # Params
-/// * `list` - The list to be mapped. The list must be a [`ReadSignal`] (obtained from a [`Signal`])
+/// * `list` - The list to be mapped. The list must be a [`Signal`] (obtained from a [`MutSignal`])
 ///   and therefore reactive.
 /// * `map_fn` - A closure that maps from the input type to the output type.
 pub fn map_indexed<T, U>(
     list: impl Into<MaybeDyn<Vec<T>>> + 'static,
     mut map_fn: impl FnMut(T) -> U + 'static,
-) -> ReadSignal<Vec<U>>
+) -> Signal<Vec<U>>
 where
     T: PartialEq + Clone + 'static,
     U: Clone,

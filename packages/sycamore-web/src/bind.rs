@@ -5,7 +5,7 @@ use crate::*;
 macro_rules! impl_bind {
     ($name:ident: $event:ident, $value_ty:ty, $prop:expr, $fn:expr) => {
         paste::paste! {
-            fn [<bind_ $name>](self, signal: Signal<$value_ty>) -> Self {
+            fn [<bind_ $name>](self, signal: MutSignal<$value_ty>) -> Self {
                 self.bind_prop(stringify!($event), $prop, signal, $fn)
             }
         }

@@ -108,12 +108,12 @@ impl<T> Build<View<T>> for Children<View<T>> {
     }
 }
 
-impl<T: ViewNode, U: Clone + Build<View<T>>> Build<View<T>> for ReadSignal<U> {
+impl<T: ViewNode, U: Clone + Build<View<T>>> Build<View<T>> for Signal<U> {
     fn build(self) -> View<T> {
         (move || self.get_clone()).build()
     }
 }
-impl<T: ViewNode, U: Clone + Build<View<T>>> Build<View<T>> for Signal<U> {
+impl<T: ViewNode, U: Clone + Build<View<T>>> Build<View<T>> for MutSignal<U> {
     fn build(self) -> View<T> {
         (*self).build()
     }

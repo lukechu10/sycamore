@@ -214,7 +214,7 @@ To display content based on the route that matches, we can use a `Router`.
 view! {
     Router(
         integration=HistoryIntegration::new(),
-        view=|route: ReadSignal<AppRoutes>| {
+        view=|route: Signal<AppRoutes>| {
             view! {
                 div(class="app") {
                     (match route.get_clone() {
@@ -236,7 +236,7 @@ view! {
 ```
 
 `Router` is just a component like any other. The props accept a closure taking a
-`ReadSignal` of the matched route as a parameter and an "integration". The
+`Signal` of the matched route as a parameter and an "integration". The
 integration is for adapting the router to different environments (e.g.
 server-side rendering). The `HistoryIntegration` is a built-in integration that
 uses the
@@ -264,7 +264,7 @@ let route = AppRoutes::match_path(path);
 view! {
     StaticRouter(
         route=route,
-        view=|route: ReadSignal<AppRoutes>| {
+        view=|route: Signal<AppRoutes>| {
             view! {
                 div(class="app") {
                     (match route.get_clone() {

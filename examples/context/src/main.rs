@@ -2,7 +2,7 @@ use sycamore::prelude::*;
 
 #[component]
 fn Counter() -> View {
-    let counter = use_context::<Signal<i32>>();
+    let counter = use_context::<MutSignal<i32>>();
 
     view! {
         p(class="value") { "Value: " (counter) }
@@ -11,7 +11,7 @@ fn Counter() -> View {
 
 #[component]
 pub fn Controls() -> View {
-    let mut state = use_context::<Signal<i32>>();
+    let mut state = use_context::<MutSignal<i32>>();
     let increment = move |_| state += 1;
     let decrement = move |_| state -= 1;
     let reset = move |_| state.set(0);

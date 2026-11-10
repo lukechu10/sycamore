@@ -1,7 +1,7 @@
 use sycamore::prelude::*;
 
 #[component]
-fn MyComponent(value: ReadSignal<i32>) -> View {
+fn MyComponent(value: Signal<i32>) -> View {
     view! {
         div(class="my-component") {
             "My component"

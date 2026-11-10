@@ -86,7 +86,7 @@ pub fn is_hydrating() -> bool {
 /// A struct for keeping track of state used for hydration.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct HydrationRegistry {
-    next_key: Signal<HydrationKey>,
+    next_key: MutSignal<HydrationKey>,
 }
 
 // This is only used when hydrating.

@@ -28,10 +28,10 @@ let signal = create_signal(123);
 > `create_*` or `use_*` and are called "hooks". We will see many other examples
 > of such hooks soon.
 
-The value inside a signal can be read or written. By default, the `Signal::get`
+The value inside a signal can be read or written. By default, the `MutSignal::get`
 method will copy the value inside the signal so that the wrapped type must
 implement `Copy`. If you have a non copyable type, you can use
-`Signal::get_clone` instead.
+`MutSignal::get_clone` instead.
 
 ```rust
 let signal = create_signal(123);
@@ -43,7 +43,7 @@ signal.set(456);
 
 // Should print `456`.
 console_log!("{}", signal.get());
-// `Signal<T>` also implements `Display` so this is the same as the above.
+// `MutSignal<T>` also implements `Display` so this is the same as the above.
 console_log!("{signal}");
 ```
 
@@ -54,7 +54,7 @@ console_log!("{signal}");
 > JavaScript console.
 
 Signals are also examples of a cell-type in Rust that provides
-interior-mutability. What this means concretely is that `Signal::set` just takes
+interior-mutability. What this means concretely is that `MutSignal::set` just takes
 a normal (immutable) reference instead of a mutable reference. This allows us to
 bypass Rust's XOR mutability restriction so that we can update the signal from
 multiple places in our code.
@@ -62,7 +62,7 @@ multiple places in our code.
 ### Effects
 
 Suppose we want to print the signal every time the value changes. A simple way
-to do this would be to add a `println!` every time we call `Signal::set`.
+to do this would be to add a `println!` every time we call `MutSignal::set`.
 However, this quickly becomes tedious and error-prone. Instead, we can use
 **effects**. Effects are functions that get called every time one of its
 dependencies is updated. Dependencies are automatically tracked whenever they
@@ -90,9 +90,9 @@ This prints the following to the terminal:
 ```
 
 Notice how we used the `move` keyword to move our signal into the effect closure
-but we can still use it from outside the effect. This is because `Signal<T>`
+but we can still use it from outside the effect. This is because `MutSignal<T>`
 implements `Copy`, even when `T` is not `Copy`. Internally, signals are
-allocated on an arena-like structure which stores the value and the `Signal<T>`
+allocated on an arena-like structure which stores the value and the `MutSignal<T>`
 type is simply an id into this arena, which allows it be `Copy`. The benefit of
 this should be obvious: if signals were not copyable, we would need to clone
 them every time we used them from inside a closure.
@@ -138,7 +138,7 @@ let bar = derived.get();
 signal.set(2);
 ```
 
-The `create_memo` hook returns a writable `Signal<T>`. You can override its
+The `create_memo` hook returns a writable `MutSignal<T>`. You can override its
 stored value with methods such as `.set()` and `.update()`, just like any other
 signal. These writes notify dependents but do not change the source signals.
 The next dependency-triggered recomputation may overwrite the manual value:
@@ -156,11 +156,11 @@ assert_eq!(doubled.get(), 6);
 ```
 
 If you only want to expose read access, dereference the signal to obtain a
-`ReadSignal<T>`. This is also necessary when passing it by value to a function
-or component prop that expects a `ReadSignal<T>`:
+`Signal<T>`. This is also necessary when passing it by value to a function
+or component prop that expects a `Signal<T>`:
 
 ```rust
-let readonly: ReadSignal<i32> = *doubled;
+let readonly: Signal<i32> = *doubled;
 // Or obtain a read-only handle when creating the memo:
 let readonly = *create_memo(move || signal.get() * 2);
 ```
@@ -251,7 +251,7 @@ view! {
 }
 ```
 
-A nice trick is that `Signal` actually implements `std::ops::AddAssign` which
+A nice trick is that `MutSignal` actually implements `std::ops::AddAssign` which
 lets us write:
 
 ```rust
@@ -308,12 +308,12 @@ view! {
 
 As we saw before, components in Sycamore are just regular Rust functions. How
 can we pass reactive state to components? Simple! Just wrap the prop inside a
-`ReadSignal` (or a `Signal` if you need to mutate the value inside the
+`Signal` (or a `MutSignal` if you need to mutate the value inside the
 component). For example, we can write:
 
 ```rust
 #[component]
-fn CounterDisplay(value: ReadSignal<i32>) -> View {
+fn CounterDisplay(value: Signal<i32>) -> View {
     view! {
         div {
             p { "Counter value: " (value) }
@@ -334,7 +334,7 @@ limitation, you can use the `MaybeDyn<T>` prop instead.
 
 ```rust
 // `#[prop(into)]` let's us use anything that implements `Into<MaybeDyn<T>>`.
-// This includes both `Signal` and `ReadSignal` as well as functions.
+// This includes both `MutSignal` and `Signal` as well as functions.
 #[component]
 fn CounterDisplay(#[prop(into)] value: MaybeDyn<i32>) -> View { ... }
 ```

@@ -15,18 +15,18 @@ use crate::*;
 /// This is useful for figuring out when all suspense tasks are completed on the page.
 #[derive(Copy, Clone, Debug, Default)]
 struct AllTasksRemaining {
-    all_tasks_remaining: Signal<Vec<Signal<u32>>>,
+    all_tasks_remaining: MutSignal<Vec<MutSignal<u32>>>,
 }
 
 /// Represents a new suspense scope. This is created by a call to [`create_suspense_scope`].
 #[derive(Copy, Clone, Debug)]
 pub struct SuspenseScope {
-    tasks_remaining: Signal<u32>,
+    tasks_remaining: MutSignal<u32>,
     /// The parent suspense scope of the current scope, if it exists.
-    pub parent: Option<Signal<SuspenseScope>>,
+    pub parent: Option<MutSignal<SuspenseScope>>,
     /// Signal that is set to `true` when the view is rendered and streamed into the buffer.
     /// This is unused on the client side.
-    pub sent: Signal<bool>,
+    pub sent: MutSignal<bool>,
 }
 
 impl SuspenseScope {
@@ -61,7 +61,7 @@ impl SuspenseScope {
     /// Returns a signal representing whether we are currently loading this suspense or not.
     ///
     /// Implementation for the [`use_is_loading`] hook.
-    pub fn is_loading(self) -> ReadSignal<bool> {
+    pub fn is_loading(self) -> Signal<bool> {
         *create_selector(move || self._is_loading())
     }
 
@@ -198,7 +198,7 @@ pub async fn await_suspense_current() {
 ///
 /// This function is also reactive and so the loading state can be tracked. If it is called outside
 /// of a suspense scope, the signal will always be `false`.
-pub fn use_is_loading() -> ReadSignal<bool> {
+pub fn use_is_loading() -> Signal<bool> {
     try_use_context::<SuspenseScope>().map_or(*create_signal(false), |scope| scope.is_loading())
 }
 

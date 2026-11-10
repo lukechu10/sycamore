@@ -4,7 +4,7 @@ title: Data Binding
 
 # Data Binding
 
-You can bind your `Signal` to a JavaScript property with the `bind:` directive.
+You can bind your `MutSignal` to a JavaScript property with the `bind:` directive.
 This will cause your signal value to be synchronised with the property at all
 times.
 

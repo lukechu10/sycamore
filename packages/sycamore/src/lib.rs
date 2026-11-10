@@ -10,7 +10,7 @@
 //! - `hydrate` - Enables hydration support in DOM nodes. By default, hydration is disabled to
 //!   reduce binary size.
 //!
-//! - `serde` - Enables serializing and deserializing `Signal`s and other wrapper types using
+//! - `serde` - Enables serializing and deserializing `MutSignal`s and other wrapper types using
 //!   `serde`.
 //!
 //! - `strict` - Enables strict mode for `sycamore-reactive`. This means that signals will panic if

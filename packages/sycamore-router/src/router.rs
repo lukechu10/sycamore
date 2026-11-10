@@ -23,8 +23,8 @@ pub trait Integration {
 }
 
 thread_local! {
-    static PATHNAME: Cell<Option<Signal<String>>> = const { Cell::new(None) };
-    static QUERY: Cell<Option<Signal<()>>> = const { Cell::new(None) };
+    static PATHNAME: Cell<Option<MutSignal<String>>> = const { Cell::new(None) };
+    static QUERY: Cell<Option<MutSignal<()>>> = const { Cell::new(None) };
 }
 
 /// A router integration that uses the
@@ -161,7 +161,7 @@ fn base_pathname() -> String {
 pub fn Router<R, F, I>(view: F, integration: I) -> View
 where
     R: Route + 'static,
-    F: FnOnce(ReadSignal<R>) -> View + 'static,
+    F: FnOnce(Signal<R>) -> View + 'static,
     I: Integration + 'static,
 {
     view! {
@@ -182,7 +182,7 @@ where
 pub fn RouterBase<R, F, I>(view: F, integration: I, route: R) -> View
 where
     R: Route + 'static,
-    F: FnOnce(ReadSignal<R>) -> View + 'static,
+    F: FnOnce(Signal<R>) -> View + 'static,
     I: Integration + 'static,
 {
     let integration = Rc::new(integration);
@@ -238,7 +238,7 @@ where
 pub fn StaticRouter<R, F>(view: F, route: R) -> View
 where
     R: Route + 'static,
-    F: Fn(ReadSignal<R>) -> View + 'static,
+    F: Fn(Signal<R>) -> View + 'static,
 {
     view! {
         StaticRouterBase(view=view, route=route)
@@ -251,7 +251,7 @@ where
 fn StaticRouterBase<R, F>(view: F, route: R) -> View
 where
     R: Route + 'static,
-    F: Fn(ReadSignal<R>) -> View + 'static,
+    F: Fn(Signal<R>) -> View + 'static,
 {
     view(*create_signal(route))
 }
@@ -335,8 +335,8 @@ pub fn refresh() {
     });
 }
 
-/// Creates a ReadSignal that tracks the url query provided.
-pub fn use_search_query(query: &'static str) -> ReadSignal<Option<String>> {
+/// Creates a Signal that tracks the url query provided.
+pub fn use_search_query(query: &'static str) -> Signal<Option<String>> {
     *PATHNAME.with(|pathname| {
         assert!(
             pathname.get().is_some(),
@@ -355,8 +355,8 @@ pub fn use_search_query(query: &'static str) -> ReadSignal<Option<String>> {
     })
 }
 
-/// Creates a ReadSignal that tracks the url query string.
-pub fn use_search_queries() -> ReadSignal<HashMap<String, String>> {
+/// Creates a Signal that tracks the url query string.
+pub fn use_search_queries() -> Signal<HashMap<String, String>> {
     *PATHNAME.with(|pathname| {
         assert!(
             pathname.get().is_some(),
@@ -385,8 +385,8 @@ pub fn use_search_queries() -> ReadSignal<HashMap<String, String>> {
     })
 }
 
-/// Creates a ReadSignal that tracks the url fragment.
-pub fn use_location_hash() -> ReadSignal<String> {
+/// Creates a Signal that tracks the url fragment.
+pub fn use_location_hash() -> Signal<String> {
     *PATHNAME.with(|pathname| {
         assert!(
             pathname.get().is_some(),
@@ -451,7 +451,7 @@ mod tests {
             view! {
                 StaticRouter(
                     route=route,
-                    view=|route: ReadSignal<Routes>| match route.get_untracked() {
+                    view=|route: Signal<Routes>| match route.get_untracked() {
                         Routes::Home => view! {
                             "Home"
                         },

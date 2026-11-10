@@ -8,7 +8,7 @@ error[E0308]: mismatched types
   --> tests/view/control-flow-fail.rs:14:20
    |
 14 |                 if bool_signal {
-   |                    ^^^^^^^^^^^ expected `bool`, found `Signal<bool>`
+   |                    ^^^^^^^^^^^ expected `bool`, found `MutSignal<bool>`
    |
    = note: expected type `bool`
-            found struct `sycamore::reactive::Signal<bool>`
+            found struct `sycamore::reactive::MutSignal<bool>`
