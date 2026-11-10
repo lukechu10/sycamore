@@ -28,10 +28,10 @@ let signal = create_signal(123);
 > `create_*` or `use_*` and are called "hooks". We will see many other examples
 > of such hooks soon.
 
-The value inside a signal can be read or written. By default, the `MutSignal::get`
+The value inside a signal can be read or written. By default, the `Signal::get`
 method will copy the value inside the signal so that the wrapped type must
 implement `Copy`. If you have a non copyable type, you can use
-`MutSignal::get_clone` instead.
+`Signal::get_clone` instead.
 
 ```rust
 let signal = create_signal(123);

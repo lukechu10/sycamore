@@ -16,7 +16,7 @@ use crate::*;
 ///
 /// Unlike the difference between Rust's shared and mutable-references (`&T` and `&mut`), the
 /// underlying data is not immutable. The data can be updated with the corresponding [`MutSignal`]
-/// (which has mutable access) and will show up in the `Signal` as well.
+/// (which has write access) and will show up in the `Signal` as well.
 ///
 /// A `Signal` can be simply obtained by dereferencing a [`MutSignal`]. In fact, every [`MutSignal`]
 /// is a `Signal` with additional write abilities!

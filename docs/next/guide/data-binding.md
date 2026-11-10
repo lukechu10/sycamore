@@ -29,7 +29,7 @@ to the property. For instance, `value` uses the `on:input` event.
 
 Below is a table of supported properties and events that are listened to.
 
-| Property        | Event name | Signal type |
+| Property        | Event name | Value type  |
 | :-------------- | :--------- | :---------- |
 | `value`         | `input`    | `String`    |
 | `valueAsNumber` | `input`    | `f64`       |
