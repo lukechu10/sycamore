@@ -15,16 +15,16 @@ pub struct Resource<T: 'static> {
     ///
     /// This will initially be `None` while the resource is first fetched. For subsequent fetches,
     /// the resource will still contain the previous value while the new value is fetched.
-    value: Signal<Option<T>>,
+    value: MutSignal<Option<T>>,
     /// Whether the resource is currently loading or not.
-    is_loading: Signal<bool>,
+    is_loading: MutSignal<bool>,
     /// The function that fetches the resource.
     #[allow(clippy::complexity)]
-    refetch: Signal<Box<dyn FnMut() -> LocalBoxFuture<'static, T>>>,
+    refetch: MutSignal<Box<dyn FnMut() -> LocalBoxFuture<'static, T>>>,
     /// A list of all the suspense scopes in which the resource is accessed.
-    scopes: Signal<Vec<SuspenseScope>>,
+    scopes: MutSignal<Vec<SuspenseScope>>,
     /// A list of suspense guards that are currently active.
-    guards: Signal<Vec<SuspenseTaskGuard>>,
+    guards: MutSignal<Vec<SuspenseTaskGuard>>,
 }
 
 impl<T: 'static> Resource<T> {
@@ -77,7 +77,7 @@ impl<T: 'static> Resource<T> {
 
 /// Hijack deref so that we can track where the resource is being accessed.
 impl<T: 'static> Deref for Resource<T> {
-    type Target = ReadSignal<Option<T>>;
+    type Target = Signal<Option<T>>;
 
     fn deref(&self) -> &Self::Target {
         // If we are already loading, add a new suspense guard. Otherwise, register the scope so

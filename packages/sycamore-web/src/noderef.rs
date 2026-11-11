@@ -23,7 +23,7 @@ use crate::*;
 /// }
 /// ```
 #[derive(PartialEq, Eq, Clone, Copy)]
-pub struct NodeRef(Signal<Option<web_sys::Node>>);
+pub struct NodeRef(MutSignal<Option<web_sys::Node>>);
 
 impl NodeRef {
     /// Alias to [`create_node_ref`].

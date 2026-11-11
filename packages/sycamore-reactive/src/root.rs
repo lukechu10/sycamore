@@ -113,7 +113,7 @@ impl Root {
     /// Ensure that the node is clean. If it is dirty, then we need to update the node first before
     /// we can safely access its value.
     ///
-    /// This is used in [`ReadSignal::get`] to ensure that the value is up-to-date before returning
+    /// This is used in [`Signal::get`] to ensure that the value is up-to-date before returning
     /// it. This will also recursively ensure that all the dependencies of the node are clean as
     /// well.
     ///
@@ -509,7 +509,7 @@ pub fn batch<T>(f: impl FnOnce() -> T) -> T {
 
 /// Run the passed closure inside an untracked dependency scope.
 ///
-/// See also [`ReadSignal::get_untracked`].
+/// See also [`Signal::get_untracked`].
 ///
 /// # Example
 ///

@@ -14,7 +14,7 @@ state. We could then define the following `DarkMode` struct.
 
 ```rust
 #[derive(Clone, Copy, PartialEq, Eq)]
-struct DarkMode(Signal<bool>);
+struct DarkMode(MutSignal<bool>);
 
 impl DarkMode {
     fn is_enabled(self) -> bool {

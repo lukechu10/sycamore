@@ -2,7 +2,7 @@
 
 use std::cell::RefCell;
 
-use crate::{Root, Signal, create_empty_signal, create_signal};
+use crate::{MutSignal, Root, create_empty_signal, create_signal};
 
 /// Creates a memoized value from some signals.
 /// Unlike [`create_memo`], this function will not notify dependents of a
@@ -16,12 +16,12 @@ use crate::{Root, Signal, create_empty_signal, create_signal};
 ///
 /// Like [`create_memo`], the returned signal can be written to directly. The comparison function
 /// is used only during recomputation and compares the new result with the current stored value,
-/// including any manual writes. Direct writes use ordinary [`Signal`] notification behavior.
+/// including any manual writes. Direct writes use ordinary [`MutSignal`] notification behavior.
 #[cfg_attr(debug_assertions, track_caller)]
 pub fn create_selector_with<T>(
     mut f: impl FnMut() -> T + 'static,
     mut eq: impl FnMut(&T, &T) -> bool + 'static,
-) -> Signal<T> {
+) -> MutSignal<T> {
     let root = Root::global();
     let signal = create_empty_signal();
     let prev = root.current_node.replace(signal.id);
@@ -54,7 +54,7 @@ pub fn create_selector_with<T>(
 /// The returned signal can also be written to directly. Writes notify dependents without changing
 /// the source signals. The next dependency-triggered recomputation may overwrite the manually
 /// written value, including when a dependency is updated in the same [`crate::batch`].
-/// Dereference the returned signal to obtain a read-only [`ReadSignal`](crate::ReadSignal):
+/// Dereference the returned signal to obtain a read-only [`Signal`](crate::Signal):
 ///
 /// ```
 /// # use sycamore_reactive::*;
@@ -66,7 +66,7 @@ pub fn create_selector_with<T>(
 /// assert_eq!(source.get(), 2);
 /// source.set(3);
 /// assert_eq!(memo.get(), 6);
-/// let readonly: ReadSignal<i32> = *memo;
+/// let readonly: Signal<i32> = *memo;
 /// # });
 /// ```
 ///
@@ -109,7 +109,7 @@ pub fn create_selector_with<T>(
 /// # });
 /// ```
 #[cfg_attr(debug_assertions, track_caller)]
-pub fn create_memo<T>(f: impl FnMut() -> T + 'static) -> Signal<T> {
+pub fn create_memo<T>(f: impl FnMut() -> T + 'static) -> MutSignal<T> {
     create_selector_with(f, |_, _| false)
 }
 
@@ -122,7 +122,7 @@ pub fn create_memo<T>(f: impl FnMut() -> T + 'static) -> Signal<T> {
 ///
 /// Like [`create_memo`], the returned signal can be written to directly. During recomputation,
 /// the new result is compared with the current stored value, including any manual writes.
-/// Direct writes use ordinary [`Signal`] notification behavior and do not check equality.
+/// Direct writes use ordinary [`MutSignal`] notification behavior and do not check equality.
 ///
 /// # Example
 /// ```
@@ -142,7 +142,7 @@ pub fn create_memo<T>(f: impl FnMut() -> T + 'static) -> Signal<T> {
 /// # });
 /// ```
 #[cfg_attr(debug_assertions, track_caller)]
-pub fn create_selector<T>(f: impl FnMut() -> T + 'static) -> Signal<T>
+pub fn create_selector<T>(f: impl FnMut() -> T + 'static) -> MutSignal<T>
 where
     T: PartialEq,
 {
@@ -155,10 +155,10 @@ where
 /// It uses a reducer function that takes the previous value and a message and returns the next
 /// value.
 ///
-/// Returns a writable [`Signal`] and a dispatch function to send messages to the reducer.
+/// Returns a writable [`MutSignal`] and a dispatch function to send messages to the reducer.
 /// Direct writes notify dependents without calling the reducer. Subsequent dispatches use the
 /// current value, including any direct writes. To expose only read access and require mutations
-/// through dispatch, dereference the returned signal to obtain a [`ReadSignal`](crate::ReadSignal).
+/// through dispatch, dereference the returned signal to obtain a [`Signal`](crate::Signal).
 ///
 /// # Params
 /// * `initial` - The initial value of the state.
@@ -189,7 +189,7 @@ where
 pub fn create_reducer<T, Msg>(
     initial: T,
     reduce: impl FnMut(&T, Msg) -> T,
-) -> (Signal<T>, impl Fn(Msg)) {
+) -> (MutSignal<T>, impl Fn(Msg)) {
     let reduce = RefCell::new(reduce);
     let signal = create_signal(initial);
     let dispatch = move |msg| signal.update(|value| *value = reduce.borrow_mut()(value, msg));
@@ -216,7 +216,7 @@ mod tests {
 
     #[test]
     fn writable_memos() {
-        let constructors: [fn(Signal<i32>) -> Signal<i32>; 4] = [
+        let constructors: [fn(MutSignal<i32>) -> MutSignal<i32>; 4] = [
             |source| create_memo(move || source.get() * 2),
             |source| create_selector(move || source.get() * 2),
             |source| create_selector_with(move || source.get() * 2, PartialEq::eq),
@@ -226,7 +226,7 @@ mod tests {
             let _ = create_root(|| {
                 let source = create_signal(2);
                 let memo = constructor(source);
-                let readonly: ReadSignal<i32> = *memo;
+                let readonly: Signal<i32> = *memo;
                 let observed = create_signal(0);
                 create_effect(move || observed.set(readonly.get()));
 
@@ -457,7 +457,7 @@ mod tests {
                 reducer_calls.update(|calls| *calls += 1);
                 state + delta
             });
-            let readonly: ReadSignal<i32> = *state;
+            let readonly: Signal<i32> = *state;
             let observed = create_signal(0);
             create_effect(move || observed.set(readonly.get()));
 

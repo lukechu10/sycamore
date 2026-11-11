@@ -29,7 +29,7 @@ async fn fetch_data() -> Data {
 let resource = create_isomorphic_resource(fetch_data);
 ```
 
-A `Resource<T>` is a wrapper around a `Signal<Option<T>>`. The value is
+A `Resource<T>` dereferences to a read-only `Signal<Option<T>>`. The value is
 initially set to `None` while the data is loading. It is then set to `Some(...)`
 containing the value of the loaded data. This makes it convenient to display the
 data in your view.

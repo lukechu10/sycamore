@@ -110,7 +110,7 @@ mod top_level_fragment {
 
 mod dynamic {
     use super::*;
-    fn v(state: ReadSignal<i32>) -> View {
+    fn v(state: Signal<i32>) -> View {
         p().children(move || state.get()).build()
     }
     static EXPECT: Expect = expect![[r#"<p data-hk="0.0"><!--/-->0<!--/--></p>"#]];
@@ -142,7 +142,7 @@ mod dynamic {
 
 mod dynamic_with_siblings {
     use super::*;
-    fn v(state: ReadSignal<i32>) -> View {
+    fn v(state: Signal<i32>) -> View {
         p().children(("Value: ", move || state.get(), "!")).build()
     }
     static EXPECT: Expect = expect![[r#"<p data-hk="0.0">Value: <!--/-->0<!--/-->!</p>"#]];
@@ -172,7 +172,7 @@ mod dynamic_with_siblings {
 
 mod top_level_dynamic_with_siblings {
     use super::*;
-    fn v(state: ReadSignal<i32>) -> View {
+    fn v(state: Signal<i32>) -> View {
         ("Value: ", move || state.get(), "!").build()
     }
     static EXPECT: Expect = expect!["Value: <!--/-->0<!--/-->!"];
@@ -199,7 +199,7 @@ mod top_level_dynamic_with_siblings {
 
 mod keyed_list {
     use super::*;
-    fn v(state: ReadSignal<Vec<i32>>) -> View {
+    fn v(state: Signal<Vec<i32>>) -> View {
         view! {
             ul {
                 Keyed(
@@ -238,7 +238,7 @@ mod keyed_list {
 
 mod indexed_list {
     use super::*;
-    fn v(state: ReadSignal<Vec<i32>>) -> View {
+    fn v(state: Signal<Vec<i32>>) -> View {
         view! {
             ul {
                 Indexed(
@@ -276,7 +276,7 @@ mod indexed_list {
 
 mod portal {
     use super::*;
-    fn v(state: ReadSignal<bool>) -> View {
+    fn v(state: Signal<bool>) -> View {
         view! {
             div(id="target")
             Portal(selector="#target") {

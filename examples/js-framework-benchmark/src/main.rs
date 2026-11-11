@@ -58,7 +58,7 @@ fn Button(id: &'static str, text: &'static str, callback: Box<dyn Fn()>) -> View
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct RowData {
     id: usize,
-    label: Signal<String>,
+    label: MutSignal<String>,
 }
 
 static ID_COUNTER: AtomicUsize = AtomicUsize::new(1);

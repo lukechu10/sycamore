@@ -2,7 +2,7 @@
 
 use crate::*;
 
-/// A trait that is implemented for reactive data that can be tracked, such as [`Signal`].
+/// A trait that is implemented for reactive data that can be tracked, such as [`MutSignal`].
 ///
 /// Also implemented for tuples containing `Trackable`s.
 pub trait Trackable {
@@ -10,13 +10,13 @@ pub trait Trackable {
     fn _track(&self);
 }
 
-impl<T> Trackable for Signal<T> {
+impl<T> Trackable for MutSignal<T> {
     fn _track(&self) {
         self.track();
     }
 }
 
-impl<T> Trackable for ReadSignal<T> {
+impl<T> Trackable for Signal<T> {
     fn _track(&self) {
         self.track();
     }

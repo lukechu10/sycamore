@@ -289,7 +289,7 @@ pub(crate) struct SuspenseStream {
 /// Global counter for providing suspense key.
 #[derive(Debug, Clone, Copy)]
 struct SuspenseCounter {
-    next: Signal<NonZeroU32>,
+    next: MutSignal<NonZeroU32>,
 }
 
 impl SuspenseCounter {

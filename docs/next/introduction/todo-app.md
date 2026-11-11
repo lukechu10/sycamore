@@ -14,8 +14,8 @@ Let's start by defining what our data looks like.
 ```rust
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Todo {
-    task: Signal<String>,
-    completed: Signal<bool>,
+    task: MutSignal<String>,
+    completed: MutSignal<bool>,
     id: u32,
 }
 ```
@@ -300,7 +300,7 @@ can only store strings. We must therefore serialize our state, and deseralize it
 on initialization. Start by adding some more dependencies: `serde` and
 `serde_json` for serialization and deserialization, and `web-sys` for accessing
 the local storage API. We'll also want to enable the `serde` flag on `sycamore`
-so that we can easily serialize `Signal`s.
+so that we can easily serialize `MutSignal`s.
 
 ```bash
 cargo add serde -F derive
@@ -318,7 +318,7 @@ let local_storage = window()
     .unwrap()
     .expect("user has not enabled localStorage");
 
-let todos: Signal<Vec<Todo>> = if let Ok(Some(app_state)) = local_storage.get_item("todos") {
+let todos: MutSignal<Vec<Todo>> = if let Ok(Some(app_state)) = local_storage.get_item("todos") {
     serde_json::from_str(&app_state).unwrap_or_default()
 } else {
     Default::default()
@@ -360,8 +360,8 @@ use web_sys::KeyboardEvent;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct Todo {
-    task: Signal<String>,
-    completed: Signal<bool>,
+    task: MutSignal<String>,
+    completed: MutSignal<bool>,
     id: u32,
 }
 
@@ -457,7 +457,7 @@ fn App() -> View {
         .unwrap()
         .expect("user has not enabled localStorage");
 
-    let todos: Signal<Vec<Todo>> = if let Ok(Some(app_state)) = local_storage.get_item("todos") {
+    let todos: MutSignal<Vec<Todo>> = if let Ok(Some(app_state)) = local_storage.get_item("todos") {
         serde_json::from_str(&app_state).unwrap_or_default()
     } else {
         Default::default()
