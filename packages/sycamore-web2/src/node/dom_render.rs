@@ -30,10 +30,8 @@ pub fn render_in_scope(view: impl Into<Children>, parent: &web_sys::Node) {
         panic!("`render_in_scope` is not available in SSR mode");
     } else {
         IS_HYDRATING.set(false);
-        let nodes = view.into().call().nodes;
-        for node in nodes {
-            parent.append_child(node.as_web_sys()).unwrap();
-        }
+        let mut node = HtmlNode::from_web_sys(parent.clone());
+        node.append_view(view.into().call());
     }
 }
 

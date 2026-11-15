@@ -207,18 +207,6 @@ macro_rules! cfg_not_ssr_item {
     };
 }
 
-/// A type alias for the rendering backend.
-#[cfg_ssr]
-pub type HtmlNode = SsrNode;
-/// A type alias for the rendering backend.
-#[cfg_not_ssr]
-#[cfg(not(feature = "hydrate"))]
-pub type HtmlNode = DomNode;
-/// A type alias for the rendering backend.
-#[cfg_not_ssr]
-#[cfg(feature = "hydrate")]
-pub type HtmlNode = HydrateNode;
-
 /// A type alias for [`Children`](sycamore_core::Children) automatically selecting the correct node
 /// type.
 pub type Children = sycamore_core::Children<View>;

@@ -6,36 +6,41 @@ use crate::*;
 
 /// A utility component that only renders its children when a condition is satisfied.
 #[component]
-pub fn Show(#[prop(into)] when: MaybeDyn<bool>, children: Children) -> View {
-    let mut children = children.call();
-    let when = create_selector(move || when.get());
-
-    if is_ssr!() {
-        View::from_dynamic(move || {
-            if when.get() {
-                std::mem::take(&mut children)
-            } else {
-                view! {}
-            }
-        })
-    } else {
-        View::from_dynamic(move || {
-            let cloned = utils::clone_nodes_via_web_sys(&children);
-
-            if when.get() {
-                // Do not set `children` to the document fragment since the document fragment will
-                // be emptied when it is appended.
-                children = utils::unwrap_from_document_fragment(cloned);
-
-                utils::clone_nodes_via_web_sys(&children)
-            } else {
-                // Wrap children inside a document fragment so that it can still be dynamically
-                // updated even though it is not mounted.
-                children = utils::wrap_in_document_fragment(cloned);
-                view! {}
-            }
-        })
-    }
+#[deprecated(
+    since = "0.10.0",
+    note = "Use `if`/`else` instead of `Show` for conditional rendering."
+)]
+pub fn Show(#[prop(into)] _when: MaybeDyn<bool>, _children: Children) -> View {
+    unimplemented!("Show should be replaced with if/else")
+    // let mut children = children.call();
+    // let when = create_selector(move || when.get());
+    //
+    // if is_ssr!() {
+    //     View::from_dynamic(move || {
+    //         if when.get() {
+    //             std::mem::take(&mut children)
+    //         } else {
+    //             view! {}
+    //         }
+    //     })
+    // } else {
+    //     View::from_dynamic(move || {
+    //         let cloned = utils::clone_nodes_via_web_sys(&children);
+    //
+    //         if when.get() {
+    //             // Do not set `children` to the document fragment since the document fragment
+    // will             // be emptied when it is appended.
+    //             children = utils::unwrap_from_document_fragment(cloned);
+    //
+    //             utils::clone_nodes_via_web_sys(&children)
+    //         } else {
+    //             // Wrap children inside a document fragment so that it can still be dynamically
+    //             // updated even though it is not mounted.
+    //             children = utils::wrap_in_document_fragment(cloned);
+    //             view! {}
+    //         }
+    //     })
+    // }
 }
 
 /// Component that is only renders its children on the client side.

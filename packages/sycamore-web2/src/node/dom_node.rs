@@ -1,5 +1,3 @@
-use std::any::{Any, TypeId};
-
 use sycamore_core::Build;
 use wasm_bindgen::intern;
 
@@ -10,81 +8,9 @@ pub struct DomNode {
     pub(crate) raw: web_sys::Node,
 }
 
-impl Build<View<DomNode>> for DomNode {
-    fn build(self) -> View<DomNode> {
+impl Build<View> for DomNode {
+    fn build(self) -> View {
         View::from_node(self)
-    }
-}
-
-impl ViewNode for DomNode {
-    fn append_child(&mut self, child: Self) {
-        self.raw.append_child(&child.raw).unwrap();
-    }
-
-    fn create_dynamic_view<U: Build<View<Self>> + 'static>(
-        f: impl FnMut() -> U + 'static,
-    ) -> View<Self> {
-        _create_dynamic_view(f)
-    }
-}
-
-/// Internal implementation that is shared between `DomNode` and `HydrateNode`.
-pub(crate) fn _create_dynamic_view<T: ViewHtmlNode, U: Build<View<T>> + 'static>(
-    mut f: impl FnMut() -> U + 'static,
-) -> View<T> {
-    // If `view` is just a single text node, we can just return this node and set up an
-    // effect to update its text value without ever creating more nodes.
-    if TypeId::of::<U>() == TypeId::of::<String>() {
-        create_effect_initial(move || {
-            let mut value = Some(f());
-            let text: &mut Option<String> = (&mut value as &mut dyn Any).downcast_mut().unwrap();
-            let view = View::from_node(T::create_dynamic_text_node(text.take().unwrap().into()));
-            debug_assert_eq!(
-                view.nodes.len(),
-                1,
-                "dynamic text view should have exactly one text node"
-            );
-            let node = view.nodes[0].as_web_sys().clone();
-            (
-                Box::new(move || {
-                    let text = f();
-                    let text = (&text as &dyn Any).downcast_ref::<String>().unwrap();
-                    node.set_text_content(Some(text));
-                }),
-                view,
-            )
-        })
-    } else {
-        let start = T::create_marker_node();
-        let start_node = start.as_web_sys().clone();
-        let end = T::create_marker_node();
-        let end_node = end.as_web_sys().clone();
-        let view = create_effect_initial(move || {
-            let view = f().build();
-            (
-                Box::new(move || {
-                    let new = f().build();
-                    if let Some(parent) = start_node.parent_node() {
-                        // Clear all the old nodes away.
-                        let old = utils::get_nodes_between(&start_node, &end_node);
-                        for node in old {
-                            parent.remove_child(&node).unwrap();
-                        }
-                        // Insert the new nodes in their place.
-                        for node in new.nodes {
-                            parent
-                                .insert_before(node.as_web_sys(), Some(&end_node))
-                                .unwrap();
-                        }
-                    } else if cfg!(debug_assertions) {
-                        console_warn!("cannot update a dynamic view if it is not mounted");
-                    }
-                }),
-                view,
-            )
-        });
-
-        View::from((start, view, end))
     }
 }
 
@@ -198,4 +124,98 @@ impl ViewHtmlNode for DomNode {
     fn from_web_sys(node: web_sys::Node) -> Self {
         Self { raw: node }
     }
+
+    fn append_view(&mut self, view: View) {
+        insert_view(&self.raw, &view, None);
+    }
+}
+
+/// Insert a view into the DOM before the `before` node.
+///
+/// If `before` is `None`, the view will be appended to the end of the parent node.
+///
+/// # Panics
+/// - Panics if `before` is not a child of `parent`.
+/// - Panics if `parent` is a text node.
+fn insert_view(parent: &web_sys::Node, view: &View, before: Option<&web_sys::Node>) {
+    for part in &view.parts {
+        match part {
+            ViewPart::Node(node) => {
+                if let Some(before) = before {
+                    parent
+                        .insert_before(node.as_web_sys(), Some(before))
+                        .unwrap();
+                } else {
+                    parent.append_child(node.as_web_sys()).unwrap();
+                }
+            }
+            ViewPart::Dynamic(signal) => {
+                let start = HtmlNode::create_marker_node();
+                let end = HtmlNode::create_marker_node();
+                if let Some(before) = before {
+                    parent
+                        .insert_before(start.as_web_sys(), Some(before))
+                        .unwrap();
+                    parent
+                        .insert_before(end.as_web_sys(), Some(before))
+                        .unwrap();
+                } else {
+                    parent.append_child(start.as_web_sys()).unwrap();
+                    parent.append_child(end.as_web_sys()).unwrap();
+                }
+
+                insert_dynamic_view(parent, start.as_web_sys(), *signal, end.as_web_sys());
+            }
+        }
+    }
+}
+
+/// Insert a dynamic view into the DOM. This will create an effect that will update the view
+/// whenever the signal changes.
+///
+/// The view will be inserted into the DOM in between the `before` and `after` nodes.
+///
+/// # Panics
+/// - Panics if the `before` and `after` nodes are not initially siblings in the DOM.
+/// - Panics if `before` and `after` are not children of `parent`.
+/// - Panics if `parent` is a text node.
+fn insert_dynamic_view(
+    parent: &web_sys::Node,
+    start: &web_sys::Node,
+    content: Signal<View>,
+    end: &web_sys::Node,
+) {
+    debug_assert!(
+        &start.parent_node().unwrap() == parent,
+        "`start` node is not a child of `parent`"
+    );
+    debug_assert!(
+        &end.parent_node().unwrap() == parent,
+        "`end` node is not a child of `parent`"
+    );
+    debug_assert!(
+        &start.next_sibling().unwrap() == end,
+        "`start` and `end` nodes are not siblings"
+    );
+
+    let parent = parent.clone();
+    let start = start.clone();
+    let end = end.clone();
+    create_effect_initial(move || {
+        content.with(|view| insert_view(&parent, view, Some(&end)));
+        (
+            Box::new(move || {
+                // Clean up the old nodes before inserting the new ones.
+                let mut next = start.next_sibling().unwrap();
+                while &next != &end {
+                    let tmp = next.next_sibling().unwrap();
+                    parent.remove_child(&next).unwrap();
+                    next = tmp;
+                }
+
+                content.with(|view| insert_view(&parent, view, Some(&end)));
+            }),
+            (),
+        )
+    })
 }

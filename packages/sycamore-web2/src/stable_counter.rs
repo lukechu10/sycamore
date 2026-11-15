@@ -3,11 +3,11 @@
 //!
 //! This works internally by using the context API to store the current value of the counter.
 
-use sycamore_reactive::{Signal, use_context_or_else, use_global_scope};
+use sycamore_reactive::{MutSignal, use_context_or_else, use_global_scope};
 
 #[derive(Debug, Default, Clone, Copy)]
 struct CounterValue {
-    next: Signal<u32>,
+    next: MutSignal<u32>,
 }
 
 /// Get the next counter value. This is stable across client and server side.

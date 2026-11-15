@@ -1,4 +1,3 @@
-use std::any::{Any, TypeId};
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
@@ -12,7 +11,7 @@ pub enum SsrNode {
         tag: Cow<'static, str>,
         attributes: Vec<(Cow<'static, str>, Cow<'static, str>)>,
         bool_attributes: Vec<(Cow<'static, str>, bool)>,
-        children: Vec<Self>,
+        children: Vec<View>,
         // NOTE: This field is boxed to avoid allocating memory for a field that is rarely used.
         inner_html: Option<Box<Cow<'static, str>>>,
         hk_key: Option<HydrationKey>,
@@ -29,59 +28,13 @@ pub enum SsrNode {
     ///
     /// This is used for updating the view with suspense content once it is resolved.
     Dynamic {
-        view: Arc<Mutex<View<Self>>>,
+        view: Arc<Mutex<View>>,
     },
 }
 
-impl Build<View<SsrNode>> for SsrNode {
-    fn build(self) -> View<SsrNode> {
+impl Build<View> for SsrNode {
+    fn build(self) -> View {
         View::from_node(self)
-    }
-}
-
-impl ViewNode for SsrNode {
-    fn append_child(&mut self, child: Self) {
-        match self {
-            Self::Element { children, .. } => {
-                children.push(child);
-            }
-            _ => panic!("can only append child to an element"),
-        }
-    }
-
-    fn create_dynamic_view<U: Build<View<Self>> + 'static>(
-        mut f: impl FnMut() -> U + 'static,
-    ) -> View<Self> {
-        // If `view` is just a single text node, we can just return this node since text nodes are
-        // specialized. Otherwise, we must create two marker nodes to represent start and end
-        // respectively.
-        if TypeId::of::<U>() == TypeId::of::<String>() {
-            // TODO: Once the reactive graph is sync, we can replace this with a signal.
-            let text = Arc::new(Mutex::new(String::new()));
-            create_effect({
-                let text = text.clone();
-                move || {
-                    let mut value = Some(f());
-                    let value: &mut Option<String> =
-                        (&mut value as &mut dyn Any).downcast_mut().unwrap();
-                    *text.lock().unwrap() = value.take().unwrap();
-                }
-            });
-            SsrNode::TextDynamic { text }.build()
-        } else {
-            let start = Self::create_marker_node();
-            let end = Self::create_marker_node();
-            // TODO: Once the reactive graph is sync, we can replace this with a signal.
-            let view = Arc::new(Mutex::new(View::new()));
-            create_effect({
-                let view = view.clone();
-                move || {
-                    let value = f();
-                    *view.lock().unwrap() = value.build();
-                }
-            });
-            (start, Self::Dynamic { view }, end).build()
-        }
     }
 }
 
@@ -170,6 +123,15 @@ impl ViewHtmlNode for SsrNode {
     fn from_web_sys(_node: web_sys::Node) -> Self {
         panic!("`from_web_sys()` is not supported in SSR mode")
     }
+
+    fn append_view(&mut self, view: View) {
+        match self {
+            Self::Element { children, .. } => {
+                children.push(view);
+            }
+            _ => panic!("can only append view to an element"),
+        }
+    }
 }
 
 /// A list of all the void HTML elements. We need this to know how to render them to a string.
@@ -233,7 +195,7 @@ pub(crate) fn render_recursive(node: &SsrNode, buf: &mut String) {
                 buf.push_str(inner_html);
             } else {
                 for child in children {
-                    render_recursive(child, buf);
+                    render_recursive_view(child, buf);
                 }
             }
 
@@ -262,8 +224,13 @@ pub(crate) fn render_recursive(node: &SsrNode, buf: &mut String) {
 
 /// Recursively render a [`View`] to a string by calling `render_recursive` on each node.
 pub(crate) fn render_recursive_view(view: &View, buf: &mut String) {
-    for node in &view.nodes {
-        render_recursive(node, buf);
+    for part in &view.parts {
+        match part {
+            ViewPart::Node(node) => render_recursive(node, buf),
+            ViewPart::Dynamic(signal) => {
+                signal.with_untracked(|v| render_recursive_view(&v, buf));
+            }
+        }
     }
 }
 

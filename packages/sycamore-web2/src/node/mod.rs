@@ -16,12 +16,6 @@ is_ssr!(
 mod dom_render;
 mod ssr_render;
 
-// We add this so that we get IDE support in Rust Analyzer.
-#[cfg(rust_analyzer)]
-mod dom_node;
-#[cfg(rust_analyzer)]
-mod hydrate_node;
-
 #[cfg_not_ssr]
 pub use dom_node::*;
 pub use dom_render::*;
@@ -32,8 +26,20 @@ pub use hydrate_node::*;
 pub use ssr_node::*;
 pub use ssr_render::*;
 
+/// A type alias for the rendering backend.
+#[cfg_ssr]
+pub type HtmlNode = SsrNode;
+/// A type alias for the rendering backend.
+#[cfg_not_ssr]
+#[cfg(not(feature = "hydrate"))]
+pub type HtmlNode = DomNode;
+/// A type alias for the rendering backend.
+#[cfg_not_ssr]
+#[cfg(feature = "hydrate")]
+pub type HtmlNode = HydrateNode;
+
 /// A trait that should be implemented for anything that represents an HTML node.
-pub trait ViewHtmlNode: ViewNode {
+pub trait ViewHtmlNode: Sized {
     /// Create a new HTML element.
     fn create_element(tag: Cow<'static, str>) -> Self;
     /// Create a new HTML element with a XML namespace.
@@ -66,6 +72,12 @@ pub trait ViewHtmlNode: ViewNode {
     fn as_web_sys(&self) -> &web_sys::Node;
     /// Wrap a raw web-sys node.
     fn from_web_sys(node: web_sys::Node) -> Self;
+
+    /// Append a [`View`] to this node.
+    /// This view could contain a single node, or multiple nodes, some which are dynamic.
+    ///
+    /// This method should also handle reactive updates to the view in the case of dynamic parts.
+    fn append_view(&mut self, view: View);
 }
 
 /// A trait for unwrapping a type into an `HtmlNode`.
@@ -86,7 +98,7 @@ pub fn is_hydrating() -> bool {
 /// A struct for keeping track of state used for hydration.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct HydrationRegistry {
-    next_key: Signal<HydrationKey>,
+    next_key: MutSignal<HydrationKey>,
 }
 
 // This is only used when hydrating.
