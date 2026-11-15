@@ -10,8 +10,9 @@ use crate::*;
     since = "0.10.0",
     note = "Use `if`/`else` instead of `Show` for conditional rendering."
 )]
-pub fn Show(#[prop(into)] _when: MaybeDyn<bool>, _children: Children) -> View {
-    unimplemented!("Show should be replaced with if/else")
+pub fn Show(#[prop(into)] when: MaybeDyn<bool>, children: Children) -> View {
+    let _ = (when, children);
+    unimplemented!("Show should be replaced with if/else");
     // let mut children = children.call();
     // let when = create_selector(move || when.get());
     //

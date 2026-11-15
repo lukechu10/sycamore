@@ -669,6 +669,7 @@ impl<T: serde::Serialize> serde::Serialize for Signal<T> {
 }
 #[cfg(feature = "serde")]
 impl<'de, T: serde::Deserialize<'de>> serde::Deserialize<'de> for Signal<T> {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         Ok(*create_signal(T::deserialize(deserializer)?))
     }
@@ -681,6 +682,7 @@ impl<T: serde::Serialize> serde::Serialize for MutSignal<T> {
 }
 #[cfg(feature = "serde")]
 impl<'de, T: serde::Deserialize<'de>> serde::Deserialize<'de> for MutSignal<T> {
+    #[cfg_attr(debug_assertions, track_caller)]
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         Ok(create_signal(T::deserialize(deserializer)?))
     }
