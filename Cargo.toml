@@ -11,7 +11,6 @@ members = [
 	"packages/sycamore-router-macro",
 	"packages/sycamore-view-parser",
 	"packages/sycamore-web",
-	"packages/sycamore-web2",
 
 	# Examples
 	"examples/components",
@@ -52,7 +51,6 @@ default-members = [
 	"packages/sycamore-router-macro",
 	"packages/sycamore-view-parser",
 	"packages/sycamore-web",
-	"packages/sycamore-web2",
 ]
 
 [workspace.package]
