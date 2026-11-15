@@ -210,7 +210,7 @@ pub fn Item(todo: MutSignal<Todo>) -> View {
 
     let title = move || todo.with(|todo| todo.title.clone());
     let completed = create_selector(move || todo.with(|todo| todo.completed));
-    let id = todo.with(|todo| todo.id);
+    let id = todo.with_untracked(|todo| todo.id);
 
     let is_editing = create_signal(false);
     let input_ref = create_node_ref();
