@@ -9,34 +9,31 @@ is_not_ssr!(
     mod dom_node;
     #[cfg(feature = "hydrate")]
     mod hydrate_node;
+
+    pub use dom_node::*;
+    #[cfg(feature = "hydrate")]
+    pub use hydrate_node::*;
+
+    /// A type alias for the rendering backend.
+    #[cfg(not(feature = "hydrate"))]
+    pub type HtmlNode = DomNode;
+
+    /// A type alias for the rendering backend.
+    #[cfg(feature = "hydrate")]
+    pub type HtmlNode = HydrateNode;
 );
 is_ssr!(
     mod ssr_node;
+    pub use ssr_node::*;
+    /// A type alias for the rendering backend.
+    pub type HtmlNode = SsrNode;
 );
+
 mod dom_render;
 mod ssr_render;
 
-#[cfg_not_ssr]
-pub use dom_node::*;
 pub use dom_render::*;
-#[cfg_not_ssr]
-#[cfg(feature = "hydrate")]
-pub use hydrate_node::*;
-#[cfg_ssr]
-pub use ssr_node::*;
 pub use ssr_render::*;
-
-/// A type alias for the rendering backend.
-#[cfg_ssr]
-pub type HtmlNode = SsrNode;
-/// A type alias for the rendering backend.
-#[cfg_not_ssr]
-#[cfg(not(feature = "hydrate"))]
-pub type HtmlNode = DomNode;
-/// A type alias for the rendering backend.
-#[cfg_not_ssr]
-#[cfg(feature = "hydrate")]
-pub type HtmlNode = HydrateNode;
 
 /// A trait that should be implemented for anything that represents an HTML node.
 pub trait ViewHtmlNode: Sized {
