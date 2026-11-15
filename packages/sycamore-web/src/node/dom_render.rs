@@ -30,8 +30,8 @@ pub fn render_in_scope(view: impl Into<Children>, parent: &web_sys::Node) {
         panic!("`render_in_scope` is not available in SSR mode");
     } else {
         IS_HYDRATING.set(false);
-        let mut node = HtmlNode::from_web_sys(parent.clone());
-        node.append_view(view.into().call());
+        let mut parent = HtmlNode::from_web_sys(parent.clone());
+        parent.append_view(view.into().call());
     }
 }
 
@@ -105,13 +105,9 @@ pub fn hydrate_in_scope(view: impl Into<Children>, parent: &web_sys::Node) {
         IS_HYDRATING.set(true);
         provide_context(mode);
         provide_context(HydrationRegistry::new());
-        let nodes = view.into().call().nodes;
-        // We need to append `nodes` to the `parent` so that the top level nodes also get properly
-        // hydrated.
-        let mut parent = HydrateNode::from_web_sys(parent.clone());
-        for node in nodes {
-            parent.append_child(node);
-        }
+
+        let mut parent = HtmlNode::from_web_sys(parent.clone());
+        parent.append_view(view.into().call());
 
         // Wait until suspense is resolved before setting `IS_HYDRATING` to `false`.
         #[cfg(not(feature = "suspense"))]

@@ -51,72 +51,9 @@ impl NodeState {
     }
 }
 
-impl Build<View<HydrateNode>> for HydrateNode {
-    fn build(self) -> View<HydrateNode> {
+impl Build<View> for HydrateNode {
+    fn build(self) -> View {
         View::from_node(self)
-    }
-}
-
-impl ViewNode for HydrateNode {
-    fn append_child(&mut self, child: Self) {
-        if IS_HYDRATING.get() {
-            match child.0 {
-                NodeState::Hydrated(_) => {
-                    // Noop for hydration since node is already in right place.
-                }
-                NodeState::TextDynamic(node) => {
-                    // Search self for an empty comment node. Once found, the next node should be
-                    // the text node. Hydrate the text node and remove the comment node.
-                    let mut next = self.as_web_sys().first_child();
-                    while let Some(current) = next {
-                        if current.node_type() == web_sys::Node::COMMENT_NODE {
-                            let comment = current.unchecked_ref::<web_sys::Comment>();
-                            if comment.text_content().unwrap() == "t" {
-                                let text_node = comment.next_sibling().unwrap();
-                                self.as_web_sys()
-                                    .replace_child(&node.as_web_sys(), &text_node)
-                                    .unwrap();
-                                self.as_web_sys().remove_child(&comment).unwrap();
-                                return;
-                            }
-                        }
-                        next = current.next_sibling();
-                    }
-                    panic!("text node not found during hydration");
-                }
-                NodeState::TextStatic => {
-                    // Noop for hydration.
-                }
-                NodeState::Marker(node) => {
-                    // Search self for a comment node with content '/'. Once found, this is the
-                    // marker node. Hydrate the marker node and change content to '#' to indicate
-                    // that it is hydrated.
-                    let mut next = self.as_web_sys().first_child();
-                    while let Some(current) = next {
-                        if current.node_type() == web_sys::Node::COMMENT_NODE {
-                            let comment = current.unchecked_ref::<web_sys::Comment>();
-                            if comment.text_content().unwrap() == "/" {
-                                self.as_web_sys()
-                                    .replace_child(&node.as_web_sys(), &current)
-                                    .unwrap();
-                                node.as_web_sys().set_text_content(Some("#"));
-                                return;
-                            }
-                        }
-                        next = current.next_sibling();
-                    }
-                    panic!("hydration marker node not found");
-                }
-            }
-        } else {
-            self.0.unwrap_mut().append_child(child.0.unwrap());
-        }
-    }
-
-    fn create_dynamic_view<U: Build<View<Self>> + 'static>(
-        f: impl FnMut() -> U + 'static,
-    ) -> View<Self> {
-        _create_dynamic_view(f)
     }
 }
 
@@ -273,6 +210,10 @@ impl ViewHtmlNode for HydrateNode {
 
     fn from_web_sys(node: web_sys::Node) -> Self {
         Self(NodeState::Hydrated(DomNode::from_web_sys(node)))
+    }
+
+    fn append_view(&mut self, view: View) {
+        self.0.unwrap_mut().append_view(view);
     }
 }
 

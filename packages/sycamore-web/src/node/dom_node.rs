@@ -10,7 +10,10 @@ pub struct DomNode {
 
 impl Build<View> for DomNode {
     fn build(self) -> View {
-        View::from_node(self)
+        cfg_select! {
+            not(feature = "hydrate") => View::from_node(self),
+            feature = "hydrate" => View::from_node(HydrateNode::from_web_sys(self.raw)),
+        }
     }
 }
 
