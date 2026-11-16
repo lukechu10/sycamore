@@ -18,9 +18,9 @@ pub fn Portal(selector: impl AsRef<str>, children: Children) -> View {
 
         // Do this in an `on_mount` so that we don't try to hydrate the portal contents.
         on_mount(move || {
-            let start = HtmlNode::create_marker_node();
+            let start = HtmlNode::create_start_marker();
             let start_node = start.as_web_sys().clone();
-            let end = HtmlNode::create_marker_node();
+            let end = HtmlNode::create_start_marker();
             let end_node = end.as_web_sys().clone();
             let children: View = (start, children, end).build();
 

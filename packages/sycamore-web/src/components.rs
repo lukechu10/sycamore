@@ -83,12 +83,9 @@ pub fn NoSsr(children: Children) -> View {
 #[component]
 pub fn NoHydrate(children: Children) -> View {
     if is_ssr!() {
-        let is_hydrating = IS_HYDRATING.replace(false);
-        let children = children.call();
-        IS_HYDRATING.set(is_hydrating);
-        children
-    } else if IS_HYDRATING.get() {
-        view! {}
+        provide_context_in_new_scope(ConstructionMode::Create, move || children.call())
+    } else if ConstructionMode::current().is_hydrating() {
+        View::new()
     } else {
         children.call()
     }

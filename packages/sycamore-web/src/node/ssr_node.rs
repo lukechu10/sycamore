@@ -22,7 +22,8 @@ pub enum SsrNode {
     TextStatic {
         text: Cow<'static, str>,
     },
-    Marker,
+    StartMarker,
+    EndMarker,
     /// SSR by default does not update to any dynamic changes in the view. This special node allows
     /// dynamically changing the view tree before it is rendered.
     ///
@@ -71,8 +72,12 @@ impl ViewHtmlNode for SsrNode {
         }
     }
 
-    fn create_marker_node() -> Self {
-        Self::Marker
+    fn create_start_marker() -> Self {
+        Self::StartMarker
+    }
+
+    fn create_end_marker() -> Self {
+        Self::EndMarker
     }
 
     fn set_attribute(&mut self, name: Cow<'static, str>, value: StringAttribute) {
@@ -213,8 +218,11 @@ pub(crate) fn render_recursive(node: &SsrNode, buf: &mut String) {
         SsrNode::TextStatic { text } => {
             html_escape::encode_text_to_string(text, buf);
         }
-        SsrNode::Marker => {
-            buf.push_str("<!--/-->");
+        SsrNode::StartMarker => {
+            buf.push_str("<!--[-->");
+        }
+        SsrNode::EndMarker => {
+            buf.push_str("<!--]-->");
         }
         SsrNode::Dynamic { view } => {
             render_recursive_view(&view.lock().unwrap(), buf);

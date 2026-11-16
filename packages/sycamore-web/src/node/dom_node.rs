@@ -6,42 +6,119 @@ use crate::*;
 /// View backend for rendering to the browser DOM.
 pub struct DomNode {
     pub(crate) raw: web_sys::Node,
+
+    #[cfg(feature = "hydrate")]
+    origin: NodeOrigin,
+}
+
+/// Where the DOM node came from.
+#[cfg(feature = "hydrate")]
+enum NodeOrigin {
+    /// Created from scratch.
+    Fresh,
+    /// Adopted from the server-rendered HTML.
+    Adopted,
+    /// A text node that was created on the server and has not been hydrated yet.
+    /// Text nodes are handled specially because they cannot carry hydration keys.
+    PendingHydrationText,
 }
 
 impl Build<View> for DomNode {
     fn build(self) -> View {
-        cfg_select! {
-            not(feature = "hydrate") => View::from_node(self),
-            feature = "hydrate" => View::from_node(HydrateNode::from_web_sys(self.raw)),
+        View::from_node(self)
+    }
+}
+
+impl DomNode {
+    /// Create a new `DomNode` from a raw web-sys node.
+    fn fresh(raw: web_sys::Node) -> Self {
+        Self {
+            raw,
+            #[cfg(feature = "hydrate")]
+            origin: NodeOrigin::Fresh,
+        }
+    }
+
+    fn adopt(raw: web_sys::Node) -> Self {
+        Self {
+            raw,
+            #[cfg(feature = "hydrate")]
+            origin: NodeOrigin::Adopted,
+        }
+    }
+
+    fn validate_element(existing: &web_sys::Element, tag: &str) {
+        if cfg!(debug_assertions) {
+            let existing_tag = existing.tag_name().to_lowercase();
+            if existing_tag != tag {
+                panic!(
+                    "expected element with tag `{tag}`, but found element with tag `{existing_tag}`"
+                );
+            }
         }
     }
 }
 
 impl ViewHtmlNode for DomNode {
     fn create_element(tag: Cow<'static, str>) -> Self {
-        Self {
-            raw: document().create_element(intern(&tag)).unwrap().into(),
+        match ConstructionMode::current() {
+            ConstructionMode::Create => {
+                Self::fresh(document().create_element(intern(&tag)).unwrap().into())
+            }
+            ConstructionMode::Hydrate(session) => {
+                let key = session.next_key();
+                let element = session
+                    .claim_element(key)
+                    .expect("could not find element with hydration key");
+                Self::validate_element(&element, &tag);
+                Self::adopt(element.into())
+            }
         }
     }
 
     fn create_element_ns(namespace: &'static str, tag: Cow<'static, str>) -> Self {
-        Self {
-            raw: document()
-                .create_element_ns(Some(namespace), intern(&tag))
-                .unwrap()
-                .into(),
+        match ConstructionMode::current() {
+            ConstructionMode::Create => Self::fresh(
+                document()
+                    .create_element_ns(Some(namespace), intern(&tag))
+                    .unwrap()
+                    .into(),
+            ),
+            ConstructionMode::Hydrate(session) => {
+                let key = session.next_key();
+                let element = session
+                    .claim_element(key)
+                    .expect("could not find element with hydration key");
+                Self::validate_element(&element, &tag);
+                Self::adopt(element.into())
+            }
         }
     }
 
     fn create_text_node(text: Cow<'static, str>) -> Self {
-        Self {
-            raw: document().create_text_node(&text).into(),
+        match ConstructionMode::current() {
+            ConstructionMode::Create => Self::fresh(document().create_text_node(&text).into()),
+            ConstructionMode::Hydrate(_session) => Self {
+                raw: document().create_text_node(&text).into(),
+                #[cfg(feature = "hydrate")]
+                origin: NodeOrigin::PendingHydrationText,
+            },
         }
     }
 
-    fn create_marker_node() -> Self {
+    fn create_start_marker() -> Self {
         Self {
-            raw: document().create_comment("").into(),
+            raw: document().create_comment("[").into(),
+            #[cfg(feature = "hydrate")]
+            origin: NodeOrigin::Fresh,
+        }
+    }
+
+    fn create_end_marker() -> Self {
+        Self {
+            raw: document().create_comment("]").into(),
+            #[cfg(feature = "hydrate")]
+            origin: NodeOrigin::Fresh,
         }
     }
 
@@ -125,11 +202,18 @@ impl ViewHtmlNode for DomNode {
     }
 
     fn from_web_sys(node: web_sys::Node) -> Self {
-        Self { raw: node }
+        Self {
+            raw: node,
+            #[cfg(feature = "hydrate")]
+            origin: NodeOrigin::Fresh,
+        }
     }
 
     fn append_view(&mut self, view: View) {
-        insert_view(&self.raw, &view, None);
+        match ConstructionMode::current() {
+            ConstructionMode::Create => insert_view(&self.raw, &view, None),
+            ConstructionMode::Hydrate(_session) => hydrate_view(&self.raw, &view),
+        }
     }
 }
 
@@ -153,8 +237,8 @@ fn insert_view(parent: &web_sys::Node, view: &View, before: Option<&web_sys::Nod
                 }
             }
             ViewPart::Dynamic(signal) => {
-                let start = HtmlNode::create_marker_node();
-                let end = HtmlNode::create_marker_node();
+                let start = HtmlNode::create_start_marker();
+                let end = HtmlNode::create_end_marker();
                 if let Some(before) = before {
                     parent
                         .insert_before(start.as_web_sys(), Some(before))
@@ -221,4 +305,8 @@ fn insert_dynamic_view(
             (),
         )
     })
+}
+
+fn hydrate_view(parent: &web_sys::Node, view: &View) {
+    todo!()
 }

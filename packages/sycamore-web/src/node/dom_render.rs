@@ -29,7 +29,6 @@ pub fn render_in_scope(view: impl Into<Children>, parent: &web_sys::Node) {
     if is_ssr!() {
         panic!("`render_in_scope` is not available in SSR mode");
     } else {
-        IS_HYDRATING.set(false);
         let mut parent = HtmlNode::from_web_sys(parent.clone());
         parent.append_view(view.into().call());
     }
@@ -84,39 +83,24 @@ pub fn hydrate_in_scope(view: impl Into<Children>, parent: &web_sys::Node) {
             panic!("invalid SSR mode {mode:?}")
         };
 
-        // Get all nodes with `data-hk` attribute.
-        let existing_nodes = parent
-            .unchecked_ref::<web_sys::Element>()
-            .query_selector_all("[data-hk]")
-            .unwrap();
+        let construction_mode = ConstructionMode::Hydrate(HydrationSession::new(parent.clone()));
 
-        HYDRATE_NODES.with(|nodes| {
-            let mut nodes = nodes.borrow_mut();
-            let len = existing_nodes.length();
-            for i in 0..len {
-                let node = existing_nodes.get(i).unwrap();
-                let hk = node.unchecked_ref::<web_sys::Element>().get_attribute("data-hk").unwrap();
-                let key = HydrationKey::parse(&hk).expect("could not parse hydration key");
-                let node = HydrateNode::from_web_sys(node);
-                nodes.insert(key, node);
-            }
-        });
-
-        IS_HYDRATING.set(true);
-        provide_context(mode);
-        provide_context(HydrationRegistry::new());
 
         let mut parent = HtmlNode::from_web_sys(parent.clone());
+
+        provide_context(mode);
+        provide_context(construction_mode);
+
         parent.append_view(view.into().call());
 
-        // Wait until suspense is resolved before setting `IS_HYDRATING` to `false`.
-        #[cfg(not(feature = "suspense"))]
-        IS_HYDRATING.set(false);
-        #[cfg(feature = "suspense")]
-        create_effect(|| {
-            if IS_HYDRATING.get() && !sycamore_futures::use_is_loading_global() {
-                IS_HYDRATING.set(false);
-            }
-        });
+        // // Wait until suspense is resolved before setting `IS_HYDRATING` to `false`.
+        // #[cfg(not(feature = "suspense"))]
+        // IS_HYDRATING.set(false);
+        // #[cfg(feature = "suspense")]
+        // create_effect(|| {
+        //     if IS_HYDRATING.get() && !sycamore_futures::use_is_loading_global() {
+        //         IS_HYDRATING.set(false);
+        //     }
+        // });
     }
 }

@@ -69,8 +69,8 @@ where
 {
     if is_ssr!() {
         // In SSR mode, just create a static view.
-        let start = HtmlNode::create_marker_node();
-        let end = HtmlNode::create_marker_node();
+        let start = HtmlNode::create_start_marker();
+        let end = HtmlNode::create_start_marker();
         let list = untrack(|| {
             list.into()
                 .evaluate()
@@ -80,9 +80,9 @@ where
         });
         View::from((start, list, end))
     } else {
-        let start = HtmlNode::create_marker_node();
+        let start = HtmlNode::create_start_marker();
         let start_node = start.as_web_sys().clone();
-        let end = HtmlNode::create_marker_node();
+        let end = HtmlNode::create_start_marker();
         let end_node = end.as_web_sys().clone();
 
         // Run the initial function in the outer scope, not the effect scope.
@@ -162,8 +162,8 @@ where
 {
     if is_ssr!() {
         // In SSR mode, just create a static view.
-        let start = HtmlNode::create_marker_node();
-        let end = HtmlNode::create_marker_node();
+        let start = HtmlNode::create_start_marker();
+        let end = HtmlNode::create_start_marker();
         let list = untrack(|| {
             list.into()
                 .evaluate()
@@ -173,9 +173,9 @@ where
         });
         View::from((start, list, end))
     } else {
-        let start = HtmlNode::create_marker_node();
+        let start = HtmlNode::create_start_marker();
         let start_node = start.as_web_sys().clone();
-        let end = HtmlNode::create_marker_node();
+        let end = HtmlNode::create_start_marker();
         let end_node = end.as_web_sys().clone();
 
         // Run the initial function in the outer scope, not the effect scope.
