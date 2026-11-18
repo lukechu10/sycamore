@@ -85,7 +85,6 @@ pub fn hydrate_in_scope(view: impl Into<Children>, parent: &web_sys::Node) {
 
         let construction_mode = ConstructionMode::Hydrate(HydrationSession::new(parent.clone()));
 
-
         let mut parent = HtmlNode::from_web_sys(parent.clone());
 
         provide_context(mode);

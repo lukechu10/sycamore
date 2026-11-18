@@ -7,20 +7,11 @@ use crate::*;
 
 is_not_ssr!(
     mod dom_node;
-    #[cfg(feature = "hydrate")]
-    mod hydrate_node;
 
     pub use dom_node::*;
-    #[cfg(feature = "hydrate")]
-    pub use hydrate_node::*;
 
     /// A type alias for the rendering backend.
-    #[cfg(not(feature = "hydrate"))]
     pub type HtmlNode = DomNode;
-
-    /// A type alias for the rendering backend.
-    #[cfg(feature = "hydrate")]
-    pub type HtmlNode = HydrateNode;
 );
 is_ssr!(
     mod ssr_node;

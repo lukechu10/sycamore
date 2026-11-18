@@ -14,7 +14,8 @@ pub enum SsrNode {
         children: Vec<View>,
         // NOTE: This field is boxed to avoid allocating memory for a field that is rarely used.
         inner_html: Option<Box<Cow<'static, str>>>,
-        hk_key: Option<HydrationKey>,
+        /// Hydration key for this element. This is used to match elements during hydration.
+        key: Option<HydrationKey>,
     },
     TextDynamic {
         text: Arc<Mutex<String>>,
@@ -41,19 +42,18 @@ impl Build<View> for SsrNode {
 
 impl ViewHtmlNode for SsrNode {
     fn create_element(tag: Cow<'static, str>) -> Self {
-        let hk_key = if IS_HYDRATING.get() {
-            let reg: HydrationRegistry = use_context();
-            Some(reg.next_key())
-        } else {
-            None
+        let key = match ConstructionMode::current() {
+            ConstructionMode::Create => None,
+            ConstructionMode::Hydrate(session) => Some(session.next_key()),
         };
+
         Self::Element {
             tag,
             attributes: Vec::new(),
             bool_attributes: Vec::new(),
             children: Vec::new(),
             inner_html: None,
-            hk_key,
+            key,
         }
     }
 
@@ -158,7 +158,7 @@ pub(crate) fn render_recursive(node: &SsrNode, buf: &mut String) {
             bool_attributes,
             children,
             inner_html,
-            hk_key,
+            key: hk_key,
         } => {
             buf.push('<');
             buf.push_str(tag);

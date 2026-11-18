@@ -55,12 +55,11 @@ pub fn render_to_string_in_scope(view: impl Into<Children>) -> String {
         let mut buf = String::new();
 
         let handle = create_child_scope(|| {
-            provide_context(HydrationRegistry::new());
+            let construction_mode = ConstructionMode::Hydrate(HydrationSession::new_ssr());
+            provide_context(construction_mode);
             provide_context(SsrMode::Sync);
 
-            let prev = IS_HYDRATING.replace(true);
             let view = view.into().call();
-            IS_HYDRATING.set(prev);
             ssr_node::render_recursive_view(&view, &mut buf);
         });
         handle.dispose();
@@ -111,13 +110,13 @@ pub async fn render_to_string_await_suspense(f: impl Into<Children>) -> String {
         let mut tx = Some(tx);
         let mut view = View::default();
 
-        let is_hydrating = IS_HYDRATING.replace(true);
         provide_executor_scope(async {
             SSR_ROOT.with(|root| {
                 root.dispose();
                 root.run_in(|| {
                     handle = Some(create_child_scope(|| {
-                        provide_context(HydrationRegistry::new());
+                        let construction_mode = ConstructionMode::Hydrate(HydrationSession::new_ssr());
+                        provide_context(construction_mode);
                         provide_context(SsrMode::Blocking);
 
                         view = f.into().call();
@@ -134,7 +133,6 @@ pub async fn render_to_string_await_suspense(f: impl Into<Children>) -> String {
             });
             rx.await.unwrap();
             handle.unwrap().dispose();
-            IS_HYDRATING.set(is_hydrating);
         }).await;
         let mut buf = String::new();
         ssr_node::render_recursive_view(&view, &mut buf);
@@ -220,7 +218,6 @@ pub fn render_to_string_stream(
             /// this function.
             static SSR_ROOT: LazyCell<RootHandle> = LazyCell::new(|| create_root(|| {}));
         }
-        IS_HYDRATING.set(true);
         let mut buf = String::new();
         let futures = Rc::new(RefCell::new(FuturesUnordered::new()));
         let (mut tx, mut rx) = futures::channel::mpsc::unbounded();
@@ -229,7 +226,8 @@ pub fn render_to_string_stream(
             root.dispose();
             root.run_in(|| {
                 // We run this in a new scope so that we can dispose everything after we render it.
-                provide_context(HydrationRegistry::new());
+                let construction_mode = ConstructionMode::Hydrate(HydrationSession::new_ssr());
+                provide_context(construction_mode);
                 provide_context(SsrMode::Streaming);
                 let suspense_state = SuspenseStream { futures: futures.clone() };
 

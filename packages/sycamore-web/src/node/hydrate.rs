@@ -7,6 +7,9 @@ use sycamore_reactive::*;
 use wasm_bindgen::JsCast;
 
 /// Keeps track of whether we are creating new DOM nodes or hydrating existing ones.
+///
+/// This type is intended to be used as a context value, and should be accessed via
+/// [`ConstructionMode::current()`].
 #[derive(Clone, Copy)]
 pub enum ConstructionMode {
     Create,
@@ -41,16 +44,16 @@ pub struct HydrationSession {
 }
 
 impl HydrationSession {
-    /// CLaim an element with the given hydration key. If the element exists, it will be removed
+    /// Claim an element with the given hydration key. If the element exists, it will be removed
     /// from the session and returned. If it does not exist, `None` will be returned.
     pub fn claim_element(&self, key: HydrationKey) -> Option<web_sys::Element> {
         self.elements.update(|elements| elements.remove(&key))
     }
 
-    /// Create a new [`HydrationSession`] from a parent node.
+    /// Create a new [`HydrationSession`] from a parent node for hydration.
     /// This will scan all descendent nodes of the parent node for `data-hk` attributes and store
     /// them in a map.
-    pub fn new(parent: web_sys::Node) -> Self {
+    pub fn new_hydrate(parent: web_sys::Node) -> Self {
         // Get all nodes with `data-hk` attribute.
         let existing_nodes = parent
             .unchecked_ref::<web_sys::Element>()
@@ -71,6 +74,20 @@ impl HydrationSession {
 
         Self {
             elements: create_signal(elements),
+            cursor: create_signal(None),
+            next_key: create_signal(HydrationKey {
+                suspense: 0,
+                element: 0,
+            }),
+        }
+    }
+
+    /// Create a new [`HydrationSession`] for SSR rendering. This will not scan any nodes, and will
+    /// not be able to claim any elements. Instead, this will only be used to generate new hydration
+    /// keys for elements that are created during SSR rendering.
+    pub fn new_ssr() -> Self {
+        Self {
+            elements: create_signal(HashMap::new()),
             cursor: create_signal(None),
             next_key: create_signal(HydrationKey {
                 suspense: 0,
