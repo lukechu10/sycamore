@@ -9,6 +9,7 @@ use sycamore_reactive::Signal;
 use crate::*;
 
 /// Represents a view tree.
+#[derive(Debug)]
 pub struct View {
     pub(crate) parts: SmallVec<[ViewPart; 1]>,
 }
@@ -16,6 +17,15 @@ pub struct View {
 pub(crate) enum ViewPart {
     Node(HtmlNode),
     Dynamic(Signal<View>),
+}
+
+impl fmt::Debug for ViewPart {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ViewPart::Node(_) => write!(f, "Node"),
+            ViewPart::Dynamic(_) => write!(f, "Dynamic"),
+        }
+    }
 }
 
 impl View {
@@ -73,12 +83,6 @@ impl View {
 impl Default for View {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl fmt::Debug for View {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("View").finish()
     }
 }
 

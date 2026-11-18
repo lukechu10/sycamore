@@ -130,6 +130,10 @@ impl ViewHtmlNode for SsrNode {
     }
 
     fn append_view(&mut self, view: View) {
+        // If the view is empty, we don't need to append it.
+        if view.parts.is_empty() {
+            return;
+        }
         match self {
             Self::Element { children, .. } => {
                 children.push(view);
@@ -187,8 +191,12 @@ pub(crate) fn render_recursive(node: &SsrNode, buf: &mut String) {
 
             if is_void {
                 assert!(
-                    children.is_empty() && inner_html.is_none(),
-                    "void elements cannot have children or inner_html"
+                    children.is_empty(),
+                    "<{tag}> is a void element and cannot have children"
+                );
+                assert!(
+                    inner_html.is_none(),
+                    "<{tag}> is a void element and cannot have inner_html"
                 );
                 return;
             }
@@ -230,13 +238,16 @@ pub(crate) fn render_recursive(node: &SsrNode, buf: &mut String) {
     }
 }
 
-/// Recursively render a [`View`] to a string by calling `render_recursive` on each node.
+/// Serialize a [`View`], enclosing each dynamic part in the paired comments the client
+/// uses as range boundaries. Even empty dynamic parts need both anchors for later updates.
 pub(crate) fn render_recursive_view(view: &View, buf: &mut String) {
     for part in &view.parts {
         match part {
             ViewPart::Node(node) => render_recursive(node, buf),
             ViewPart::Dynamic(signal) => {
-                signal.with_untracked(|v| render_recursive_view(&v, buf));
+                render_recursive(&SsrNode::StartMarker, buf);
+                signal.with_untracked(|view| render_recursive_view(view, buf));
+                render_recursive(&SsrNode::EndMarker, buf);
             }
         }
     }
@@ -360,7 +371,7 @@ mod tests {
                 value.set(1);
                 view
             },
-            expect![[r#"<p data-hk="0.0"><!--/-->1<!--/--></p>"#]],
+            expect![[r#"<p data-hk="0.0"><!--[-->1<!--]--></p>"#]],
         );
     }
 }

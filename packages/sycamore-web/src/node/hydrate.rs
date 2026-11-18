@@ -25,7 +25,12 @@ impl ConstructionMode {
         if cfg!(not(feature = "hydrate")) {
             Self::Create
         } else {
-            try_use_context::<Self>().unwrap_or(Self::Create)
+            match try_use_context::<Self>() {
+                Some(Self::Hydrate(session)) if session.active.get_untracked() => {
+                    Self::Hydrate(session)
+                }
+                _ => Self::Create,
+            }
         }
     }
 
@@ -34,12 +39,11 @@ impl ConstructionMode {
     }
 }
 
-/// A hydration session keeps track of all elements that need to be hydrated, as well as the current
-/// position in the hydration process.
+/// A hydration session tracks which elements still need to be claimed and allocates hydration keys.
 #[derive(Clone, Copy)]
 pub struct HydrationSession {
     elements: MutSignal<HashMap<HydrationKey, web_sys::Element>>,
-    cursor: MutSignal<Option<HydrationCursor>>,
+    active: MutSignal<bool>,
     next_key: MutSignal<HydrationKey>,
 }
 
@@ -74,7 +78,7 @@ impl HydrationSession {
 
         Self {
             elements: create_signal(elements),
-            cursor: create_signal(None),
+            active: create_signal(true),
             next_key: create_signal(HydrationKey {
                 suspense: 0,
                 element: 0,
@@ -88,12 +92,20 @@ impl HydrationSession {
     pub fn new_ssr() -> Self {
         Self {
             elements: create_signal(HashMap::new()),
-            cursor: create_signal(None),
+            active: create_signal(true),
             next_key: create_signal(HydrationKey {
                 suspense: 0,
                 element: 0,
             }),
         }
+    }
+
+    /// End the client claim phase without disposing the reactive scopes created during
+    /// hydration. Later construction in those scopes falls back to `Create`.
+    #[cfg(all(feature = "hydrate", target_arch = "wasm32", not(sycamore_force_ssr)))]
+    pub(crate) fn finish(self) {
+        self.active.set_silent(false);
+        self.elements.set_silent(HashMap::new());
     }
 
     /// Get the next hydration key and increment the internal state. This new key will be unique.
@@ -105,18 +117,6 @@ impl HydrationSession {
         });
         key
     }
-}
-
-/// Represents the unconsumed suffix of a child sequence.
-///
-/// ```text
-/// parent:
-///     already consumed | start | ... remaining children ... | end | ...
-/// ```
-pub struct HydrationCursor {
-    parent: web_sys::Node,
-    start: Option<web_sys::Node>,
-    end: Option<web_sys::Node>,
 }
 
 /// A unique key for a node that is used for hydration.

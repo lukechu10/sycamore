@@ -83,23 +83,14 @@ pub fn hydrate_in_scope(view: impl Into<Children>, parent: &web_sys::Node) {
             panic!("invalid SSR mode {mode:?}")
         };
 
-        let construction_mode = ConstructionMode::Hydrate(HydrationSession::new(parent.clone()));
-
+        let session = HydrationSession::new_hydrate(parent.clone());
         let mut parent = HtmlNode::from_web_sys(parent.clone());
 
         provide_context(mode);
-        provide_context(construction_mode);
+        provide_context(ConstructionMode::Hydrate(session));
 
         parent.append_view(view.into().call());
-
-        // // Wait until suspense is resolved before setting `IS_HYDRATING` to `false`.
-        // #[cfg(not(feature = "suspense"))]
-        // IS_HYDRATING.set(false);
-        // #[cfg(feature = "suspense")]
-        // create_effect(|| {
-        //     if IS_HYDRATING.get() && !sycamore_futures::use_is_loading_global() {
-        //         IS_HYDRATING.set(false);
-        //     }
-        // });
+        parent.finish_hydrating_children();
+        session.finish();
     }
 }

@@ -9,17 +9,20 @@ pub struct DomNode {
 
     #[cfg(feature = "hydrate")]
     origin: NodeOrigin,
+    // Builders can call `.children()` repeatedly on the same parent.
+    #[cfg(feature = "hydrate")]
+    hydration_cursor: Option<HydrationCursor>,
 }
 
 /// Where the DOM node came from.
 #[cfg(feature = "hydrate")]
+#[derive(Clone, Copy)]
 enum NodeOrigin {
     /// Created from scratch.
     Fresh,
     /// Adopted from the server-rendered HTML.
     Adopted,
-    /// A text node that was created on the server and has not been hydrated yet.
-    /// Text nodes are handled specially because they cannot carry hydration keys.
+    /// A client text node used to match server text, which cannot carry a hydration key.
     PendingHydrationText,
 }
 
@@ -36,14 +39,25 @@ impl DomNode {
             raw,
             #[cfg(feature = "hydrate")]
             origin: NodeOrigin::Fresh,
+            #[cfg(feature = "hydrate")]
+            hydration_cursor: None,
         }
     }
 
     fn adopt(raw: web_sys::Node) -> Self {
         Self {
-            raw,
             #[cfg(feature = "hydrate")]
             origin: NodeOrigin::Adopted,
+            ..Self::fresh(raw)
+        }
+    }
+
+    /// Validate a complete child sequence. Individual `append_view` calls cannot do this
+    /// because a later `.children()` call may consume the remaining siblings.
+    #[cfg(feature = "hydrate")]
+    pub(crate) fn finish_hydrating_children(&self) {
+        if let Some(cursor) = &self.hydration_cursor {
+            cursor.expect_exhausted();
         }
     }
 
@@ -99,27 +113,19 @@ impl ViewHtmlNode for DomNode {
         match ConstructionMode::current() {
             ConstructionMode::Create => Self::fresh(document().create_text_node(&text).into()),
             ConstructionMode::Hydrate(_session) => Self {
-                raw: document().create_text_node(&text).into(),
                 #[cfg(feature = "hydrate")]
                 origin: NodeOrigin::PendingHydrationText,
+                ..Self::fresh(document().create_text_node(&text).into())
             },
         }
     }
 
     fn create_start_marker() -> Self {
-        Self {
-            raw: document().create_comment("[").into(),
-            #[cfg(feature = "hydrate")]
-            origin: NodeOrigin::Fresh,
-        }
+        Self::fresh(document().create_comment("[").into())
     }
 
     fn create_end_marker() -> Self {
-        Self {
-            raw: document().create_comment("]").into(),
-            #[cfg(feature = "hydrate")]
-            origin: NodeOrigin::Fresh,
-        }
+        Self::fresh(document().create_comment("]").into())
     }
 
     fn set_attribute(&mut self, name: Cow<'static, str>, value: StringAttribute) {
@@ -202,18 +208,20 @@ impl ViewHtmlNode for DomNode {
     }
 
     fn from_web_sys(node: web_sys::Node) -> Self {
-        Self {
-            raw: node,
-            #[cfg(feature = "hydrate")]
-            origin: NodeOrigin::Fresh,
-        }
+        Self::fresh(node)
     }
 
     fn append_view(&mut self, view: View) {
-        match ConstructionMode::current() {
-            ConstructionMode::Create => insert_view(&self.raw, &view, None),
-            ConstructionMode::Hydrate(_session) => hydrate_view(&self.raw, &view),
+        #[cfg(feature = "hydrate")]
+        if ConstructionMode::current().is_hydrating() {
+            let cursor = self
+                .hydration_cursor
+                .get_or_insert_with(|| HydrationCursor::new(self.raw.first_child(), None));
+            hydrate_view(&self.raw, cursor, &view);
+            return;
         }
+
+        insert_view(&self.raw, &view, None);
     }
 }
 
@@ -307,6 +315,258 @@ fn insert_dynamic_view(
     })
 }
 
-fn hydrate_view(parent: &web_sys::Node, view: &View) {
-    todo!()
+/// The unconsumed children of one parent or dynamic range. `end` is exclusive.
+#[cfg(feature = "hydrate")]
+struct HydrationCursor {
+    next: Option<web_sys::Node>,
+    end: Option<web_sys::Node>,
+    /// Byte offset into `next` when the HTML parser merged adjacent text parts.
+    text_offset: usize,
+}
+
+#[cfg(feature = "hydrate")]
+impl HydrationCursor {
+    fn new(next: Option<web_sys::Node>, end: Option<web_sys::Node>) -> Self {
+        Self {
+            next,
+            end,
+            text_offset: 0,
+        }
+    }
+
+    fn current(&self) -> Option<&web_sys::Node> {
+        self.next
+            .as_ref()
+            .filter(|node| Some(*node) != self.end.as_ref())
+    }
+
+    fn mismatch(&self, expected: &str) -> ! {
+        let found = self
+            .current()
+            .map(|node| (node.node_name(), node.node_value()));
+        panic!(
+            "hydration mismatch: expected {expected}, found {found:?} at text offset {}",
+            self.text_offset,
+        );
+    }
+
+    fn expect_exhausted(&self) {
+        if self.next != self.end || self.text_offset != 0 {
+            self.mismatch("the end of the child sequence");
+        }
+    }
+
+    /// Check DOM identity at the current position. Hydration keys choose the element;
+    /// the cursor verifies that it is in the expected sibling order.
+    fn consume_node(&mut self, expected: &web_sys::Node) {
+        if self.text_offset != 0 || self.current() != Some(expected) {
+            self.mismatch(&format!("the existing {} node", expected.node_name()));
+        }
+        self.next = expected.next_sibling();
+    }
+
+    /// Match a logical text part without splitting the server DOM text node. The offset
+    /// survives across appends, so separate `.children()` calls can share one text node.
+    fn consume_text(&mut self, expected: &str) {
+        if expected.is_empty() {
+            return;
+        }
+
+        let Some(node) = self
+            .current()
+            .filter(|node| node.node_type() == web_sys::Node::TEXT_NODE)
+        else {
+            self.mismatch(&format!("text {expected:?}"));
+        };
+        let text = node.node_value().unwrap_or_default();
+        if !text
+            .get(self.text_offset..)
+            .is_some_and(|remaining| remaining.starts_with(expected))
+        {
+            self.mismatch(&format!("text {expected:?}"));
+        }
+
+        let offset = self.text_offset + expected.len();
+        if offset == text.len() {
+            self.next = node.next_sibling();
+            self.text_offset = 0;
+        } else {
+            self.text_offset = offset;
+        }
+    }
+
+    /// Return the server anchors and a cursor bounded by the closing anchor. Match
+    /// nested markers by depth, then advance the outer cursor past the entire range.
+    fn enter_range(&mut self) -> (web_sys::Node, Self, web_sys::Node) {
+        let Some(start) = self
+            .current()
+            .filter(|node| self.text_offset == 0 && marker_value(node).as_deref() == Some("["))
+        else {
+            self.mismatch("a dynamic opening anchor (`<!--[-->`)");
+        };
+        let start = start.clone();
+        let first = start.next_sibling();
+        let mut next = first.clone();
+        let mut depth = 0;
+        while let Some(node) = next {
+            if Some(&node) == self.end.as_ref() {
+                break;
+            }
+            match marker_value(&node).as_deref() {
+                Some("[") => depth += 1,
+                Some("]") if depth == 0 => {
+                    self.next = node.next_sibling();
+                    return (start, Self::new(first, Some(node.clone())), node);
+                }
+                Some("]") => depth -= 1,
+                _ => {}
+            }
+            next = node.next_sibling();
+        }
+        self.mismatch("a matching dynamic closing anchor (`<!--]-->`)");
+    }
+}
+
+#[cfg(feature = "hydrate")]
+fn marker_value(node: &web_sys::Node) -> Option<String> {
+    if node.node_type() == web_sys::Node::COMMENT_NODE {
+        node.node_value()
+    } else {
+        None
+    }
+}
+
+/// Owned handles we can use after releasing the read borrow on a dynamic view.
+#[cfg(feature = "hydrate")]
+enum HydrationPart {
+    Node(web_sys::Node, NodeOrigin),
+    Dynamic(Signal<View>),
+}
+
+/// Copy DOM and signal handles, not DOM contents. Traversal and effect installation can
+/// then run without holding the reactive arena borrow from reading a `Signal<View>`.
+#[cfg(feature = "hydrate")]
+fn snapshot_parts(view: &View) -> Vec<HydrationPart> {
+    view.parts
+        .iter()
+        .map(|part| match part {
+            ViewPart::Node(node) => HydrationPart::Node(node.raw.clone(), node.origin),
+            ViewPart::Dynamic(signal) => HydrationPart::Dynamic(*signal),
+        })
+        .collect()
+}
+
+/// A matched dynamic range waiting for its effect. Nested ranges are recorded in DOM
+/// order so they can later be installed under the enclosing range's reactive scope.
+#[cfg(feature = "hydrate")]
+struct HydratedRange {
+    start: web_sys::Node,
+    end: web_sys::Node,
+    content: Signal<View>,
+    nested: Vec<HydratedRange>,
+}
+
+/// Hydrate one append in two phases: match existing DOM, then subscribe its dynamic
+/// ranges. The caller owns the cursor so a later append can resume where this one stops.
+#[cfg(feature = "hydrate")]
+fn hydrate_view(parent: &web_sys::Node, cursor: &mut HydrationCursor, view: &View) {
+    for range in match_parts(cursor, snapshot_parts(view)) {
+        attach_hydrated_range(parent, range);
+    }
+}
+
+/// Walk one append's parts in sibling order without moving nodes or installing effects.
+/// Each dynamic part must consume its bounded range completely.
+#[cfg(feature = "hydrate")]
+fn match_parts(cursor: &mut HydrationCursor, parts: Vec<HydrationPart>) -> Vec<HydratedRange> {
+    let mut ranges = Vec::new();
+    for part in parts {
+        match part {
+            HydrationPart::Node(node, NodeOrigin::PendingHydrationText) => {
+                cursor.consume_text(&node.node_value().unwrap_or_default());
+            }
+            HydrationPart::Node(node, _) => cursor.consume_node(&node),
+            HydrationPart::Dynamic(content) => {
+                let (start, mut inner, end) = cursor.enter_range();
+                let parts = content.with_untracked(snapshot_parts);
+                let nested = match_parts(&mut inner, parts);
+                inner.expect_exhausted();
+                ranges.push(HydratedRange {
+                    start,
+                    end,
+                    content,
+                    nested,
+                });
+            }
+        }
+    }
+    ranges
+}
+
+#[cfg(feature = "hydrate")]
+fn attach_hydrated_range(parent: &web_sys::Node, range: HydratedRange) {
+    watch_hydrated_range(
+        parent,
+        range.start,
+        range.end,
+        range.content,
+        Some(range.nested),
+    );
+}
+
+/// Keep the anchors stable while replacing only their interior. When `hydrated` is `Some`,
+/// the initial DOM was already matched, so the first run only subscribes and attaches nested
+/// effects. Otherwise the anchors were just created during an update and need initial content.
+///
+/// Nested effects belong to this effect's scope, so they are disposed before this range
+/// replaces its content.
+#[cfg(feature = "hydrate")]
+fn watch_hydrated_range(
+    parent: &web_sys::Node,
+    start: web_sys::Node,
+    end: web_sys::Node,
+    content: Signal<View>,
+    mut hydrated: Option<Vec<HydratedRange>>,
+) {
+    let parent = parent.clone();
+    create_effect(move || {
+        content.track();
+        if let Some(nested) = hydrated.take() {
+            for range in nested {
+                attach_hydrated_range(&parent, range);
+            }
+            return;
+        }
+
+        // Take the snapshot before touching the DOM or installing any new effects.
+        let parts = content.with_untracked(snapshot_parts);
+        assert!(
+            start.parent_node().as_ref() == Some(&parent)
+                && end.parent_node().as_ref() == Some(&parent),
+            "hydrated range anchors no longer belong to their parent",
+        );
+        let mut next = start.next_sibling();
+        while let Some(node) = next {
+            if node == end {
+                break;
+            }
+            next = node.next_sibling();
+            parent.remove_child(&node).unwrap();
+        }
+
+        for part in parts {
+            match part {
+                HydrationPart::Node(node, _) => {
+                    parent.insert_before(&node, Some(&end)).unwrap();
+                }
+                HydrationPart::Dynamic(content) => {
+                    let start = DomNode::create_start_marker().raw;
+                    let close = DomNode::create_end_marker().raw;
+                    parent.insert_before(&start, Some(&end)).unwrap();
+                    parent.insert_before(&close, Some(&end)).unwrap();
+                    watch_hydrated_range(&parent, start, close, content, None);
+                }
+            }
+        }
+    });
 }

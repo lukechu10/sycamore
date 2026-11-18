@@ -50,6 +50,35 @@ mod hydrate_recursive {
     }
 }
 
+mod chained_children {
+    use super::*;
+
+    fn v() -> View {
+        p().children("café").children("").children("!").build()
+    }
+
+    static EXPECT: Expect = expect![[r#"<p data-hk="0.0">café!</p>"#]];
+
+    #[test]
+    fn ssr() {
+        check(v, &EXPECT);
+    }
+
+    #[wasm_bindgen_test]
+    fn test() {
+        let c = test_container();
+        c.set_inner_html(EXPECT.data());
+        let p = query("p");
+        let text = p.first_child().unwrap();
+
+        sycamore::hydrate_to(v, &c);
+
+        assert_eq!(query("p"), p);
+        assert_eq!(p.first_child(), Some(text));
+        assert_text_content!(p, "café!");
+    }
+}
+
 mod multiple_nodes_at_same_depth {
     use super::*;
     fn v() -> View {
@@ -113,7 +142,7 @@ mod dynamic {
     fn v(state: Signal<i32>) -> View {
         p().children(move || state.get()).build()
     }
-    static EXPECT: Expect = expect![[r#"<p data-hk="0.0"><!--/-->0<!--/--></p>"#]];
+    static EXPECT: Expect = expect![[r#"<p data-hk="0.0"><!--[-->0<!--]--></p>"#]];
     #[test]
     fn ssr() {
         check(|| v(*create_signal(0)), &EXPECT);
@@ -145,7 +174,7 @@ mod dynamic_with_siblings {
     fn v(state: Signal<i32>) -> View {
         p().children(("Value: ", move || state.get(), "!")).build()
     }
-    static EXPECT: Expect = expect![[r#"<p data-hk="0.0">Value: <!--/-->0<!--/-->!</p>"#]];
+    static EXPECT: Expect = expect![[r#"<p data-hk="0.0">Value: <!--[-->0<!--]-->!</p>"#]];
     #[test]
     fn ssr() {
         check(|| v(*create_signal(0)), &EXPECT);
@@ -175,7 +204,7 @@ mod top_level_dynamic_with_siblings {
     fn v(state: Signal<i32>) -> View {
         ("Value: ", move || state.get(), "!").build()
     }
-    static EXPECT: Expect = expect!["Value: <!--/-->0<!--/-->!"];
+    static EXPECT: Expect = expect!["Value: <!--[-->0<!--]-->!"];
     #[test]
     fn ssr() {
         check(|| v(*create_signal(0)), &EXPECT);
@@ -193,6 +222,65 @@ mod top_level_dynamic_with_siblings {
             // Reactivity should work normally.
             state.set(1);
             assert_text_content!(c, "Value: 1!");
+        });
+    }
+}
+
+mod nested_dynamic_ranges {
+    use super::*;
+
+    fn v(show_inner: Signal<bool>, state: Signal<i32>) -> View {
+        (
+            "before",
+            View::from_dynamic(move || {
+                if show_inner.get() {
+                    View::from_dynamic(move || match state.get() {
+                        0 => View::new(),
+                        n => n.build(),
+                    })
+                } else {
+                    span().children("new").build()
+                }
+            }),
+            "after",
+        )
+            .build()
+    }
+
+    static EXPECT: Expect = expect!["before<!--[--><!--[--><!--]--><!--]-->after"];
+
+    #[test]
+    fn ssr() {
+        check(|| v(*create_signal(true), *create_signal(0)), &EXPECT);
+    }
+
+    #[wasm_bindgen_test]
+    fn test() {
+        let c = test_container();
+        c.set_inner_html(EXPECT.data());
+        let before = c.first_child();
+        let opening_anchor = before.as_ref().unwrap().next_sibling();
+        let after = c.last_child();
+
+        let _ = create_root(|| {
+            let show_inner = create_signal(true);
+            let state = create_signal(0);
+            sycamore::hydrate_in_scope(move || v(*show_inner, *state), &c);
+
+            assert_eq!(c.inner_html(), EXPECT.data());
+            state.set(1);
+            assert_text_content!(c, "before1after");
+
+            // This branch creates a fresh element instead of claiming a server node.
+            show_inner.set(false);
+            state.set(2);
+            assert_text_content!(c, "beforenewafter");
+            show_inner.set(true);
+            assert_text_content!(c, "before2after");
+
+            assert_eq!(c.first_child(), before);
+            assert_eq!(before.unwrap().next_sibling(), opening_anchor);
+            assert_eq!(c.last_child(), after);
         });
     }
 }
