@@ -2,6 +2,14 @@
 
 use crate::*;
 
+#[cfg(any(feature = "hydrate", not(target_arch = "wasm32"), sycamore_force_ssr))]
+fn is_raw_text_element(tag: &str) -> bool {
+    matches!(
+        tag,
+        "script" | "style" | "xmp" | "iframe" | "noembed" | "noframes" | "noscript" | "plaintext"
+    )
+}
+
 // mod dom_node;
 // pub type HtmlNode = dom_node::DomNode;
 

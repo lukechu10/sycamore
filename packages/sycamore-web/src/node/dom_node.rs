@@ -258,7 +258,18 @@ impl ViewHtmlNode for DomNode {
                 {
                     first = first.and_then(|node| node.next_sibling());
                 }
-                HydrationCursor::new(first, None)
+                let mut cursor = HydrationCursor::new(first, None);
+                if self
+                    .raw
+                    .dyn_ref::<web_sys::Element>()
+                    .is_some_and(|element| {
+                        element.namespace_uri().as_deref() == Some(HTML_NAMESPACE)
+                            && super::is_raw_text_element(&element.local_name())
+                    })
+                {
+                    cursor.raw_text_previous_cr = Some(false);
+                }
+                cursor
             });
             hydrate_view(&self.raw, cursor, &view);
             return;
@@ -360,6 +371,9 @@ struct HydrationCursor {
     end: Option<web_sys::Node>,
     /// Byte offset into `next` when the HTML parser merged adjacent text parts.
     text_offset: usize,
+    /// In raw-text elements, remember if a CR at a part boundary already produced
+    /// the newline for a following LF. Regular HTML preserves CR via references.
+    raw_text_previous_cr: Option<bool>,
 }
 
 #[cfg(feature = "hydrate")]
@@ -369,6 +383,7 @@ impl HydrationCursor {
             next,
             end,
             text_offset: 0,
+            raw_text_previous_cr: None,
         }
     }
 
@@ -401,11 +416,30 @@ impl HydrationCursor {
             self.mismatch(&format!("the existing {} node", expected.node_name()));
         }
         self.next = expected.next_sibling();
+        if let Some(previous_cr) = &mut self.raw_text_previous_cr {
+            *previous_cr = false;
+        }
     }
 
     /// Match a logical text part without splitting the server DOM text node. The offset
     /// survives across appends, so separate `.children()` calls can share one text node.
     fn consume_text(&mut self, expected: &str) {
+        if expected.is_empty() {
+            return;
+        }
+
+        let normalized;
+        let mut expected = expected;
+        if let Some(previous_cr) = &mut self.raw_text_previous_cr {
+            if *previous_cr {
+                expected = expected.strip_prefix('\n').unwrap_or(expected);
+            }
+            *previous_cr = expected.ends_with('\r');
+            if expected.contains('\r') {
+                normalized = expected.replace("\r\n", "\n").replace('\r', "\n");
+                expected = &normalized;
+            }
+        }
         if expected.is_empty() {
             return;
         }

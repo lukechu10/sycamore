@@ -123,6 +123,37 @@ mod html_parser_round_trip {
     }
 }
 
+mod raw_text_newlines {
+    use super::*;
+
+    fn v() -> View {
+        style()
+            .children("/* a\r\nb\r")
+            .children("\nc\rd */")
+            .build()
+    }
+
+    static EXPECT: Expect = expect![["<style data-hk=\"0.0\">/* a\r\nb\r\nc\rd */</style>"]];
+
+    #[test]
+    fn ssr() {
+        check(v, &EXPECT);
+    }
+
+    #[wasm_bindgen_test]
+    fn adopts_browser_normalized_text_across_appends() {
+        let c = test_container();
+        c.set_inner_html(EXPECT.data());
+        let style = c.query_selector("style").unwrap().unwrap();
+        let text = style.first_child().unwrap();
+
+        sycamore::hydrate_to(v, &c);
+
+        assert_eq!(style.first_child(), Some(text));
+        assert_text_content!(style, "/* a\nb\nc\nd */");
+    }
+}
+
 mod nested_children_validation {
     use super::*;
 

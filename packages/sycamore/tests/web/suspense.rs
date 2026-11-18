@@ -241,6 +241,16 @@ async fn nested_stream_fragments_patch_and_hydrate_in_place() {
         "beforeend",
         r#"<template id="sycamore-suspense-1"><!--[--><!--[--><suspense-start data-key="2"></suspense-start>inner fallback<suspense-end data-key="2"></suspense-end><!--]--><!--]--></template>"#,
     ).unwrap();
+    // A malformed marker pair must not remove fallback nodes or lose the queued fragment.
+    let start = c.query_selector("suspense-start").unwrap().unwrap();
+    let end = c.query_selector("suspense-end").unwrap().unwrap();
+    let after = end.next_sibling().unwrap();
+    c.insert_before(&end, Some(&start)).unwrap();
+    script(&c, "__sycamore_suspense(1)");
+    assert_text_content!(c, "outer fallback");
+    assert!(c.query_selector("#sycamore-suspense-1").unwrap().is_some());
+
+    c.insert_before(&end, Some(&after)).unwrap();
     script(&c, "__sycamore_suspense(1)");
     script(&c, "__sycamore_finish_stream()");
     let button = query("button");

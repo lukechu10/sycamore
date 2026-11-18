@@ -228,17 +228,7 @@ fn render_recursive(node: &SsrNode, buf: &mut String, raw_text: bool) {
                     // Supply it ourselves so a leading LF in the view survives parsing.
                     buf.push('\n');
                 }
-                let raw_text = matches!(
-                    tag.as_ref(),
-                    "script"
-                        | "style"
-                        | "xmp"
-                        | "iframe"
-                        | "noembed"
-                        | "noframes"
-                        | "noscript"
-                        | "plaintext"
-                );
+                let raw_text = super::is_raw_text_element(tag);
                 for child in children {
                     render_view_with_context(child, buf, raw_text);
                 }

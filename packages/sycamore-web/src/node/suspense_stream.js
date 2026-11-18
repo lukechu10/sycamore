@@ -9,8 +9,10 @@ function __sycamore_suspense(key) {
         for (const k of __sycamore_pending) {
             const s=document.querySelector(`suspense-start[data-key="${k}"]`);
             const e=document.querySelector(`suspense-end[data-key="${k}"]`);
-            if (!s || !e) continue;
             const t=document.getElementById(`sycamore-suspense-${k}`);
+            // Only patch an ordered pair of siblings. Until then, keep the fragment pending.
+            if (!s || !e || !t || s.parentNode !== e.parentNode ||
+                !(s.compareDocumentPosition(e) & Node.DOCUMENT_POSITION_FOLLOWING)) continue;
             while (s.nextSibling !== e) s.nextSibling.remove();
             s.before(t.content);
             s.remove(); e.remove(); t.remove();
