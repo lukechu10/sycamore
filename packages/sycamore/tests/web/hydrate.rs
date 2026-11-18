@@ -29,6 +29,38 @@ mod hello_world {
     }
 }
 
+mod svg_case_sensitive_names {
+    use super::*;
+
+    fn v() -> View {
+        view! {
+            svg {
+                linearGradient {}
+            }
+        }
+    }
+
+    static EXPECT: Expect =
+        expect![[r#"<svg data-hk="0.0"><linearGradient data-hk="0.1"></linearGradient></svg>"#]];
+
+    #[test]
+    fn ssr() {
+        check(v, &EXPECT);
+    }
+
+    #[wasm_bindgen_test]
+    fn adopts_camel_case_svg_element() {
+        let c = test_container();
+        c.set_inner_html(EXPECT.data());
+        let gradient = c.query_selector("linearGradient").unwrap().unwrap();
+        assert_eq!(gradient.local_name(), "linearGradient");
+
+        sycamore::hydrate_to(v, &c);
+
+        assert_eq!(c.query_selector("linearGradient").unwrap(), Some(gradient));
+    }
+}
+
 mod hydrate_recursive {
     use super::*;
     fn v() -> View {

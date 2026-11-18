@@ -4,6 +4,8 @@ use wasm_bindgen::intern;
 use super::dom_list::mount_list;
 use crate::*;
 
+const HTML_NAMESPACE: &str = "http://www.w3.org/1999/xhtml";
+
 /// View backend for rendering to the browser DOM.
 pub struct DomNode {
     pub(crate) raw: web_sys::Node,
@@ -62,14 +64,21 @@ impl DomNode {
         }
     }
 
-    fn validate_element(existing: &web_sys::Element, tag: &str) {
+    fn validate_element(existing: &web_sys::Element, tag: &str, namespace: &str) {
         if cfg!(debug_assertions) {
-            let existing_tag = existing.tag_name().to_lowercase();
-            if existing_tag != tag {
-                panic!(
-                    "expected element with tag `{tag}`, but found element with tag `{existing_tag}`"
-                );
-            }
+            let existing_tag = existing.tag_name();
+            let existing_namespace = existing.namespace_uri();
+            // HTML tag names are ASCII case-insensitive; SVG names retain their case.
+            let matches_tag = if namespace == HTML_NAMESPACE {
+                existing_tag.eq_ignore_ascii_case(tag)
+            } else {
+                existing_tag == tag
+            };
+            assert!(
+                matches_tag && existing_namespace.as_deref() == Some(namespace),
+                "expected element with tag `{tag}` in namespace `{namespace}`, \
+                 but found `{existing_tag}` in namespace {existing_namespace:?}"
+            );
         }
     }
 }
@@ -85,7 +94,7 @@ impl ViewHtmlNode for DomNode {
                 let element = session
                     .claim_element(key)
                     .expect("could not find element with hydration key");
-                Self::validate_element(&element, &tag);
+                Self::validate_element(&element, &tag, HTML_NAMESPACE);
                 Self::adopt(element.into())
             }
         }
@@ -104,7 +113,7 @@ impl ViewHtmlNode for DomNode {
                 let element = session
                     .claim_element(key)
                     .expect("could not find element with hydration key");
-                Self::validate_element(&element, &tag);
+                Self::validate_element(&element, &tag, namespace);
                 Self::adopt(element.into())
             }
         }
