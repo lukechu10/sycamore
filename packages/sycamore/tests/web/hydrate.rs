@@ -82,6 +82,47 @@ mod hydrate_recursive {
     }
 }
 
+mod html_parser_round_trip {
+    use super::*;
+
+    fn v() -> View {
+        let text = create_signal("\r\n<&\r");
+        view! {
+            p { "Static\r" "\n" (text) }
+            pre { "\nPreformatted" }
+            textarea { "\nInitial value" }
+            table {
+                tbody {
+                    tr { td { "Cell" } }
+                }
+            }
+        }
+    }
+
+    static EXPECT: Expect = expect![[
+        "<p data-hk=\"0.0\">Static&#13;\n<!--[-->&#13;\n&lt;&amp;&#13;<!--]--></p><pre data-hk=\"0.1\">\n\nPreformatted</pre><textarea data-hk=\"0.2\">\n\nInitial value</textarea><table data-hk=\"0.3\"><tbody data-hk=\"0.4\"><tr data-hk=\"0.5\"><td data-hk=\"0.6\">Cell</td></tr></tbody></table>"
+    ]];
+
+    #[test]
+    fn ssr() {
+        check(v, &EXPECT);
+    }
+
+    #[wasm_bindgen_test]
+    fn preserves_text_and_adopts_explicit_table_rows() {
+        let c = test_container();
+        c.set_inner_html(EXPECT.data());
+        let row = query("tr");
+
+        sycamore::hydrate_to(v, &c);
+
+        assert_text_content!(query("p"), "Static\r\n\r\n<&\r");
+        assert_text_content!(c.query_selector("pre").unwrap().unwrap(), "\nPreformatted");
+        assert_text_content!(query("textarea"), "\nInitial value");
+        assert_eq!(query("tr"), row);
+    }
+}
+
 mod nested_children_validation {
     use super::*;
 

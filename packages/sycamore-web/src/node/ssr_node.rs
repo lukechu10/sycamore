@@ -153,8 +153,24 @@ static VOID_ELEMENTS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     .collect()
 });
 
+/// Escape regular HTML text without losing carriage returns to parser normalization.
+fn render_text(text: &str, buf: &mut String, raw_text: bool) {
+    // Raw-text elements such as <style> do not decode character references.
+    if raw_text {
+        html_escape::encode_text_to_string(text, buf);
+        return;
+    }
+
+    let mut parts = text.split('\r');
+    html_escape::encode_text_to_string(parts.next().unwrap(), buf);
+    for part in parts {
+        buf.push_str("&#13;");
+        html_escape::encode_text_to_string(part, buf);
+    }
+}
+
 /// Recursively render `node` by appending to `buf`.
-pub(crate) fn render_recursive(node: &SsrNode, buf: &mut String) {
+fn render_recursive(node: &SsrNode, buf: &mut String, raw_text: bool) {
     match node {
         SsrNode::Element {
             tag,
@@ -207,8 +223,24 @@ pub(crate) fn render_recursive(node: &SsrNode, buf: &mut String) {
                 );
                 buf.push_str(inner_html);
             } else {
+                if !children.is_empty() && matches!(tag.as_ref(), "pre" | "textarea" | "listing") {
+                    // The HTML parser discards one initial LF in these elements.
+                    // Supply it ourselves so a leading LF in the view survives parsing.
+                    buf.push('\n');
+                }
+                let raw_text = matches!(
+                    tag.as_ref(),
+                    "script"
+                        | "style"
+                        | "xmp"
+                        | "iframe"
+                        | "noembed"
+                        | "noframes"
+                        | "noscript"
+                        | "plaintext"
+                );
                 for child in children {
-                    render_recursive_view(child, buf);
+                    render_view_with_context(child, buf, raw_text);
                 }
             }
 
@@ -220,12 +252,10 @@ pub(crate) fn render_recursive(node: &SsrNode, buf: &mut String) {
         }
         SsrNode::TextDynamic { text } => {
             buf.push_str("<!--t-->"); // For dynamic text, add a marker for hydrating it.
-            html_escape::encode_text_to_string(text.lock().unwrap().as_str(), buf);
+            render_text(text.lock().unwrap().as_str(), buf, raw_text);
             buf.push_str("<!-->"); // End of dynamic text.
         }
-        SsrNode::TextStatic { text } => {
-            html_escape::encode_text_to_string(text, buf);
-        }
+        SsrNode::TextStatic { text } => render_text(text, buf, raw_text),
         SsrNode::StartMarker => {
             buf.push_str("<!--[-->");
         }
@@ -233,7 +263,7 @@ pub(crate) fn render_recursive(node: &SsrNode, buf: &mut String) {
             buf.push_str("<!--]-->");
         }
         SsrNode::Dynamic { view } => {
-            render_recursive_view(&view.lock().unwrap(), buf);
+            render_view_with_context(&view.lock().unwrap(), buf, raw_text);
         }
     }
 }
@@ -241,18 +271,22 @@ pub(crate) fn render_recursive(node: &SsrNode, buf: &mut String) {
 /// Serialize a [`View`], enclosing each dynamic part in the paired comments the client
 /// uses as range boundaries. Even empty dynamic parts need both anchors for later updates.
 pub(crate) fn render_recursive_view(view: &View, buf: &mut String) {
+    render_view_with_context(view, buf, false);
+}
+
+fn render_view_with_context(view: &View, buf: &mut String, raw_text: bool) {
     for part in &view.parts {
         match part {
-            ViewPart::Node(node) => render_recursive(node, buf),
+            ViewPart::Node(node) => render_recursive(node, buf, raw_text),
             ViewPart::Dynamic(signal) => {
                 render_anchored(buf, |buf| {
-                    signal.with_untracked(|view| render_recursive_view(view, buf));
+                    signal.with_untracked(|view| render_view_with_context(view, buf, raw_text));
                 });
             }
             ViewPart::List(items) => {
                 render_anchored(buf, |buf| {
                     for item in items {
-                        render_anchored(buf, |buf| render_recursive_view(item, buf));
+                        render_anchored(buf, |buf| render_view_with_context(item, buf, raw_text));
                     }
                 });
             }
@@ -263,7 +297,7 @@ pub(crate) fn render_recursive_view(view: &View, buf: &mut String) {
                     write!(buf, "<!--async:{}-->", deferred.namespace).unwrap();
                     deferred.content.with_untracked(|content| {
                         if let Some(view) = content {
-                            render_recursive_view(view, buf);
+                            render_view_with_context(view, buf, raw_text);
                         }
                     });
                 });
@@ -273,7 +307,7 @@ pub(crate) fn render_recursive_view(view: &View, buf: &mut String) {
                 buf.push_str("<!--");
                 buf.push_str(open);
                 buf.push_str("-->");
-                render_recursive_view(content, buf);
+                render_view_with_context(content, buf, raw_text);
                 buf.push_str("<!--");
                 buf.push_str(close);
                 buf.push_str("-->");
@@ -284,9 +318,9 @@ pub(crate) fn render_recursive_view(view: &View, buf: &mut String) {
 
 /// Lists and their individual rows use the same paired comments as dynamic views.
 fn render_anchored(buf: &mut String, render: impl FnOnce(&mut String)) {
-    render_recursive(&SsrNode::StartMarker, buf);
+    render_recursive(&SsrNode::StartMarker, buf, false);
     render(buf);
-    render_recursive(&SsrNode::EndMarker, buf);
+    render_recursive(&SsrNode::EndMarker, buf, false);
 }
 
 #[cfg(test)]

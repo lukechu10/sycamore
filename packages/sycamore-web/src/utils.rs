@@ -77,8 +77,11 @@ pub fn get_nodes_between(start: &web_sys::Node, end: &web_sys::Node) -> Vec<web_
 //     View::from_nodes(nodes.into_iter().map(HtmlNode::from_web_sys).collect())
 // }
 //
-/// Create a shallow copy of a view by converting the nodes to web-sys and then converting them
-/// back.
+/// Wrap the current nodes returned by [`View::as_web_sys`] in a new view.
+///
+/// This reuses the same DOM nodes; it does not clone them or preserve the
+/// original view's reactive structure. Parts omitted by the snapshot, such as
+/// suspense branches and opaque content, are not carried over.
 pub fn clone_nodes_via_web_sys(view: &View) -> View {
     let nodes = view
         .as_web_sys()
