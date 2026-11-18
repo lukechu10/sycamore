@@ -245,9 +245,16 @@ pub(crate) fn render_recursive_view(view: &View, buf: &mut String) {
         match part {
             ViewPart::Node(node) => render_recursive(node, buf),
             ViewPart::Dynamic(signal) => {
-                render_recursive(&SsrNode::StartMarker, buf);
-                signal.with_untracked(|view| render_recursive_view(view, buf));
-                render_recursive(&SsrNode::EndMarker, buf);
+                render_anchored(buf, |buf| {
+                    signal.with_untracked(|view| render_recursive_view(view, buf));
+                });
+            }
+            ViewPart::List(items) => {
+                render_anchored(buf, |buf| {
+                    for item in items {
+                        render_anchored(buf, |buf| render_recursive_view(item, buf));
+                    }
+                });
             }
             ViewPart::OpaqueRange { content } => {
                 let (open, close) = OPAQUE_RANGE_MARKERS;
@@ -261,6 +268,13 @@ pub(crate) fn render_recursive_view(view: &View, buf: &mut String) {
             }
         }
     }
+}
+
+/// Lists and their individual rows use the same paired comments as dynamic views.
+fn render_anchored(buf: &mut String, render: impl FnOnce(&mut String)) {
+    render_recursive(&SsrNode::StartMarker, buf);
+    render(buf);
+    render_recursive(&SsrNode::EndMarker, buf);
 }
 
 #[cfg(test)]
@@ -329,7 +343,7 @@ mod tests {
                 }
             },
             expect![[
-                r#"<ul data-hk="0.0"><!--/--><li data-hk="0.1">1</li><li data-hk="0.2">2</li><!--/--></ul>"#
+                r#"<ul data-hk="0.0"><!--[--><!--[--><li data-hk="0.1">1</li><!--]--><!--[--><li data-hk="0.2">2</li><!--]--><!--]--></ul>"#
             ]],
         );
     }

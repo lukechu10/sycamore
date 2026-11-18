@@ -17,6 +17,8 @@ pub struct View {
 pub(crate) enum ViewPart {
     Node(HtmlNode),
     Dynamic(Signal<View>),
+    /// A list whose rows are mounted and reconciled as independent DOM ranges.
+    List(ListItems),
     /// A server-rendered range that the hydration cursor skips without adopting its contents.
     OpaqueRange {
         #[cfg(any(not(target_arch = "wasm32"), sycamore_force_ssr))]
@@ -29,6 +31,7 @@ impl fmt::Debug for ViewPart {
         match self {
             ViewPart::Node(_) => write!(f, "Node"),
             ViewPart::Dynamic(_) => write!(f, "Dynamic"),
+            ViewPart::List(_) => write!(f, "List"),
             ViewPart::OpaqueRange { .. } => write!(f, "OpaqueRange"),
         }
     }
@@ -75,6 +78,18 @@ impl View {
                     ViewPart::Node(node) => nodes.push(node.as_web_sys().clone()),
                     ViewPart::Dynamic(signal) => {
                         signal.with(|view| extend_web_sys_nodes(nodes, view))
+                    }
+                    ViewPart::List(items) => {
+                        is_ssr! {
+                            for item in items {
+                                extend_web_sys_nodes(nodes, item);
+                            }
+                        }
+                        is_not_ssr! {
+                            for item in items.rows.get_clone() {
+                                extend_web_sys_nodes(nodes, &item.view);
+                            }
+                        }
                     }
                     ViewPart::OpaqueRange { .. } => {}
                 }

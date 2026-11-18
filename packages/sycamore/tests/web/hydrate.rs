@@ -403,39 +403,50 @@ mod nested_dynamic_ranges {
 
 mod keyed_list {
     use super::*;
-    fn v(state: Signal<Vec<i32>>) -> View {
+    fn v(state: Signal<Vec<i32>>, label: Signal<&'static str>) -> View {
         view! {
-            ul {
+            div {
                 Keyed(
                     list=state,
-                    view=|i| view! {
-                        li { (i) }
-                    },
+                    view=move |i| View::from((span().children(i), move || label.get())),
                     key=|i| *i,
                 )
             }
         }
     }
     static EXPECT: Expect = expect![[
-        r#"<ul data-hk="0.0"><!--/--><li data-hk="0.1">0</li><li data-hk="0.2">1</li><li data-hk="0.3">2</li><!--/--></ul>"#
+        r#"<div data-hk="0.0"><!--[--><!--[--><span data-hk="0.1">0</span><!--[-->a<!--]--><!--]--><!--[--><span data-hk="0.2">1</span><!--[-->a<!--]--><!--]--><!--[--><span data-hk="0.3">2</span><!--[-->a<!--]--><!--]--><!--]--></div>"#
     ]];
     #[test]
     fn ssr() {
-        check(|| v(*create_signal(vec![0, 1, 2])), &EXPECT);
+        check(
+            || v(*create_signal(vec![0, 1, 2]), *create_signal("a")),
+            &EXPECT,
+        );
     }
     #[wasm_bindgen_test]
-    fn test() {
+    fn moves_live_rows_without_recreating_them() {
         let c = test_container();
         c.set_inner_html(EXPECT.data());
+        let first = query("span");
 
         let _ = create_root(|| {
             let state = create_signal(vec![0, 1, 2]);
+            let label = create_signal("a");
 
-            sycamore::hydrate_in_scope(move || v(*state), &c);
+            sycamore::hydrate_in_scope(move || v(*state, *label), &c);
+            assert_eq!(query("span"), first);
 
-            // Reactivity should work normally.
+            label.set("b");
+            assert_text_content!(c, "0b1b2b");
             state.set(vec![2, 1, 0]);
-            assert_text_content!(query("ul"), "210");
+            assert_text_content!(c, "2b1b0b");
+            assert_eq!(query("span:last-of-type"), first);
+            label.set("c");
+            assert_text_content!(c, "2c1c0c");
+
+            state.set(vec![2, 3]);
+            assert_text_content!(c, "2c3c");
         });
     }
 }
@@ -455,7 +466,7 @@ mod indexed_list {
         }
     }
     static EXPECT: Expect = expect![[
-        r#"<ul data-hk="0.0"><!--/--><li data-hk="0.1">0</li><li data-hk="0.2">1</li><li data-hk="0.3">2</li><!--/--></ul>"#
+        r#"<ul data-hk="0.0"><!--[--><!--[--><li data-hk="0.1">0</li><!--]--><!--[--><li data-hk="0.2">1</li><!--]--><!--[--><li data-hk="0.3">2</li><!--]--><!--]--></ul>"#
     ]];
     #[test]
     fn ssr() {
@@ -466,14 +477,25 @@ mod indexed_list {
         let c = test_container();
         c.set_inner_html(EXPECT.data());
 
+        let first = query("li");
+        let last = query("li:last-of-type");
+
         let _ = create_root(|| {
             let state = create_signal(vec![0, 1, 2]);
 
             sycamore::hydrate_in_scope(move || v(*state), &c);
 
-            // Reactivity should work normally.
-            state.set(vec![2, 1, 0]);
-            assert_text_content!(query("ul"), "210");
+            assert_eq!(query("li"), first);
+
+            state.set(vec![1, 0, 2]);
+            assert_text_content!(query("ul"), "102");
+            assert_ne!(query("li"), first);
+            assert_eq!(query("li:last-of-type"), last);
+
+            state.set(vec![]);
+            assert_text_content!(query("ul"), "");
+            state.set(vec![3]);
+            assert_text_content!(query("ul"), "3");
         });
     }
 }

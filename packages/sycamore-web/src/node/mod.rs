@@ -6,6 +6,7 @@ use crate::*;
 // pub type HtmlNode = dom_node::DomNode;
 
 is_not_ssr!(
+    mod dom_list;
     mod dom_node;
 
     pub use dom_node::*;

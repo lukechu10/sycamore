@@ -1,6 +1,7 @@
 use sycamore_core::Build;
 use wasm_bindgen::intern;
 
+use super::dom_list::mount_list;
 use crate::*;
 
 /// View backend for rendering to the browser DOM.
@@ -234,86 +235,74 @@ impl ViewHtmlNode for DomNode {
 /// - Panics if `parent` is a text node.
 pub(crate) fn insert_view(parent: &web_sys::Node, view: &View, before: Option<&web_sys::Node>) {
     for part in &view.parts {
-        match part {
-            ViewPart::Node(node) => {
-                if let Some(before) = before {
-                    parent
-                        .insert_before(node.as_web_sys(), Some(before))
-                        .unwrap();
-                } else {
-                    parent.append_child(node.as_web_sys()).unwrap();
-                }
-            }
-            ViewPart::Dynamic(signal) => {
-                let start = HtmlNode::create_start_marker();
-                let end = HtmlNode::create_end_marker();
-                if let Some(before) = before {
-                    parent
-                        .insert_before(start.as_web_sys(), Some(before))
-                        .unwrap();
-                    parent
-                        .insert_before(end.as_web_sys(), Some(before))
-                        .unwrap();
-                } else {
-                    parent.append_child(start.as_web_sys()).unwrap();
-                    parent.append_child(end.as_web_sys()).unwrap();
-                }
-
-                insert_dynamic_view(parent, start.as_web_sys(), *signal, end.as_web_sys());
-            }
-            ViewPart::OpaqueRange { .. } => {}
+        if let ViewPart::Node(node) = part {
+            parent.insert_before(node.as_web_sys(), before).unwrap();
+        } else {
+            insert_part(parent, DomPart::from(part), before);
         }
     }
 }
 
-/// Insert a dynamic view into the DOM. This will create an effect that will update the view
-/// whenever the signal changes.
-///
-/// The view will be inserted into the DOM in between the `before` and `after` nodes.
-///
-/// # Panics
-/// - Panics if the `before` and `after` nodes are not initially siblings in the DOM.
-/// - Panics if `before` and `after` are not children of `parent`.
-/// - Panics if `parent` is a text node.
-fn insert_dynamic_view(
+/// Insert an empty anchored range into the live parent.
+pub(super) fn insert_range(
     parent: &web_sys::Node,
-    start: &web_sys::Node,
+    before: Option<&web_sys::Node>,
+) -> (web_sys::Node, web_sys::Node) {
+    let start = DomNode::create_start_marker().raw;
+    let end = DomNode::create_end_marker().raw;
+    parent.insert_before(&start, before).unwrap();
+    parent.insert_before(&end, before).unwrap();
+    (start, end)
+}
+
+fn insert_part(parent: &web_sys::Node, part: DomPart, before: Option<&web_sys::Node>) {
+    match part {
+        DomPart::Node { raw, .. } => {
+            parent.insert_before(&raw, before).unwrap();
+        }
+        DomPart::Dynamic(content) => {
+            let (start, end) = insert_range(parent, before);
+            watch_dynamic_range(parent, start, end, content, None::<fn(&web_sys::Node)>);
+        }
+        DomPart::List(items) => mount_list(parent, items, before),
+        DomPart::OpaqueRange => {}
+    }
+}
+
+/// Keep the anchors stable and replace only their interior. For an adopted range,
+/// the first run subscribes and attaches the effects to the existing DOM instead.
+/// Nested effects belong to this effect, so they are disposed before it replaces their DOM.
+fn watch_dynamic_range(
+    parent: &web_sys::Node,
+    start: web_sys::Node,
+    end: web_sys::Node,
     content: Signal<View>,
-    end: &web_sys::Node,
+    mut adopt: Option<impl FnOnce(&web_sys::Node) + 'static>,
 ) {
-    debug_assert!(
-        &start.parent_node().unwrap() == parent,
-        "`start` node is not a child of `parent`"
-    );
-    debug_assert!(
-        &end.parent_node().unwrap() == parent,
-        "`end` node is not a child of `parent`"
-    );
-    debug_assert!(
-        &start.next_sibling().unwrap() == end,
-        "`start` and `end` nodes are not siblings"
-    );
-
     let parent = parent.clone();
-    let start = start.clone();
-    let end = end.clone();
-    create_effect_initial(move || {
-        content.with(|view| insert_view(&parent, view, Some(&end)));
-        (
-            Box::new(move || {
-                // Clean up the old nodes before inserting the new ones.
-                let mut next = start.next_sibling().unwrap();
-                while &next != &end {
-                    let tmp = next.next_sibling().unwrap();
-                    parent.remove_child(&next).unwrap();
-                    next = tmp;
-                }
+    create_effect(move || {
+        content.track();
+        if let Some(adopt) = adopt.take() {
+            adopt(&parent);
+            return;
+        }
 
-                content.with(|view| insert_view(&parent, view, Some(&end)));
-            }),
-            (),
-        )
-    })
+        let parts = content.with_untracked(snapshot_parts);
+        debug_assert_eq!(start.parent_node().as_ref(), Some(&parent));
+        debug_assert_eq!(end.parent_node().as_ref(), Some(&parent));
+        let mut next = start
+            .next_sibling()
+            .expect("missing dynamic closing anchor");
+        while next != end {
+            let following = next.next_sibling().expect("missing dynamic closing anchor");
+            parent.remove_child(&next).unwrap();
+            next = following;
+        }
+
+        for part in parts {
+            insert_part(&parent, part, Some(&end));
+        }
+    });
 }
 
 /// The unconsumed children of one parent or dynamic range. `end` is exclusive.
@@ -444,72 +433,125 @@ fn marker_value(node: &web_sys::Node) -> Option<String> {
     }
 }
 
-/// Owned handles we can use after releasing the read borrow on a dynamic view.
-#[cfg(feature = "hydrate")]
-enum HydrationPart {
-    Node(web_sys::Node, NodeOrigin),
+/// Owned handles the renderer can use after releasing a dynamic view's signal borrow.
+enum DomPart {
+    Node {
+        raw: web_sys::Node,
+        #[cfg(feature = "hydrate")]
+        origin: NodeOrigin,
+    },
     Dynamic(Signal<View>),
+    List(ListItems),
     OpaqueRange,
 }
 
-/// Copy DOM and signal handles, not DOM contents. Traversal and effect installation can
-/// then run without holding the reactive arena borrow from reading a `Signal<View>`.
-#[cfg(feature = "hydrate")]
-fn snapshot_parts(view: &View) -> Vec<HydrationPart> {
-    view.parts
-        .iter()
-        .map(|part| match part {
-            ViewPart::Node(node) => HydrationPart::Node(node.raw.clone(), node.origin),
-            ViewPart::Dynamic(signal) => HydrationPart::Dynamic(*signal),
-            ViewPart::OpaqueRange { .. } => HydrationPart::OpaqueRange,
-        })
-        .collect()
+impl From<&ViewPart> for DomPart {
+    fn from(part: &ViewPart) -> Self {
+        match part {
+            ViewPart::Node(node) => Self::Node {
+                raw: node.raw.clone(),
+                #[cfg(feature = "hydrate")]
+                origin: node.origin,
+            },
+            ViewPart::Dynamic(signal) => Self::Dynamic(*signal),
+            ViewPart::List(items) => Self::List(*items),
+            ViewPart::OpaqueRange { .. } => Self::OpaqueRange,
+        }
+    }
 }
 
-/// A matched dynamic range waiting for its effect. Nested ranges are recorded in DOM
-/// order so they can later be installed under the enclosing range's reactive scope.
+/// Do not hold a reactive arena borrow when mounting parts: mounting a nested
+/// dynamic part or a list installs effects in the same arena.
+fn snapshot_parts(view: &View) -> smallvec::SmallVec<[DomPart; 1]> {
+    view.parts.iter().map(DomPart::from).collect()
+}
+
+/// A matched range waiting for its effects, recorded before any subscriptions are installed.
 #[cfg(feature = "hydrate")]
-struct HydratedRange {
-    start: web_sys::Node,
-    end: web_sys::Node,
-    content: Signal<View>,
-    nested: Vec<HydratedRange>,
+enum HydratedPart {
+    Dynamic {
+        start: web_sys::Node,
+        end: web_sys::Node,
+        content: Signal<View>,
+        nested: Vec<HydratedPart>,
+    },
+    List {
+        start: web_sys::Node,
+        end: web_sys::Node,
+        items: ListItems,
+        rows: Vec<HydratedRow>,
+    },
+}
+
+#[cfg(feature = "hydrate")]
+struct HydratedRow {
+    item: Rc<ListItem>,
+    range: ItemRange,
+    nested: Vec<HydratedPart>,
 }
 
 /// Hydrate one append in two phases: match existing DOM, then subscribe its dynamic
 /// ranges. The caller owns the cursor so a later append can resume where this one stops.
 #[cfg(feature = "hydrate")]
 fn hydrate_view(parent: &web_sys::Node, cursor: &mut HydrationCursor, view: &View) {
-    for range in match_parts(cursor, snapshot_parts(view)) {
-        attach_hydrated_range(parent, range);
-    }
+    attach_hydrated_parts(parent, match_parts(cursor, snapshot_parts(view)));
 }
 
 /// Walk one append's parts in sibling order without moving nodes or installing effects.
-/// Each dynamic part must consume its bounded range completely.
+/// Each dynamic range and each list row must consume its bounded range completely.
 #[cfg(feature = "hydrate")]
-fn match_parts(cursor: &mut HydrationCursor, parts: Vec<HydrationPart>) -> Vec<HydratedRange> {
+fn match_parts(
+    cursor: &mut HydrationCursor,
+    parts: impl IntoIterator<Item = DomPart>,
+) -> Vec<HydratedPart> {
     let mut ranges = Vec::new();
     for part in parts {
         match part {
-            HydrationPart::Node(node, NodeOrigin::PendingHydrationText) => {
-                cursor.consume_text(&node.node_value().unwrap_or_default());
+            DomPart::Node {
+                raw,
+                origin: NodeOrigin::PendingHydrationText,
+            } => {
+                cursor.consume_text(&raw.node_value().unwrap_or_default());
             }
-            HydrationPart::Node(node, _) => cursor.consume_node(&node),
-            HydrationPart::Dynamic(content) => {
+            DomPart::Node { raw, .. } => cursor.consume_node(&raw),
+            DomPart::Dynamic(content) => {
                 let (start, mut inner, end) = cursor.enter_range(("[", "]"));
                 let parts = content.with_untracked(snapshot_parts);
                 let nested = match_parts(&mut inner, parts);
                 inner.expect_exhausted();
-                ranges.push(HydratedRange {
+                ranges.push(HydratedPart::Dynamic {
                     start,
                     end,
                     content,
                     nested,
                 });
             }
-            HydrationPart::OpaqueRange => {
-                // Advance past the boundary without matching or modifying the contents.
+            DomPart::List(items) => {
+                let (start, mut inner, end) = cursor.enter_range(("[", "]"));
+                let rows = items
+                    .rows
+                    .get_clone_untracked()
+                    .into_iter()
+                    .map(|item| {
+                        let (start, mut row_cursor, end) = inner.enter_range(("[", "]"));
+                        let nested = match_parts(&mut row_cursor, snapshot_parts(&item.view));
+                        row_cursor.expect_exhausted();
+                        HydratedRow {
+                            item,
+                            range: ItemRange { start, end },
+                            nested,
+                        }
+                    })
+                    .collect();
+                inner.expect_exhausted();
+                ranges.push(HydratedPart::List {
+                    start,
+                    end,
+                    items,
+                    rows,
+                });
+            }
+            DomPart::OpaqueRange => {
                 let _ = cursor.enter_range(OPAQUE_RANGE_MARKERS);
             }
         }
@@ -518,70 +560,50 @@ fn match_parts(cursor: &mut HydrationCursor, parts: Vec<HydrationPart>) -> Vec<H
 }
 
 #[cfg(feature = "hydrate")]
-fn attach_hydrated_range(parent: &web_sys::Node, range: HydratedRange) {
-    watch_hydrated_range(
-        parent,
-        range.start,
-        range.end,
-        range.content,
-        Some(range.nested),
-    );
-}
-
-/// Keep the anchors stable while replacing only their interior. When `hydrated` is `Some`,
-/// the initial DOM was already matched, so the first run only subscribes and attaches nested
-/// effects. Otherwise the anchors were just created during an update and need initial content.
-///
-/// Nested effects belong to this effect's scope, so they are disposed before this range
-/// replaces its content.
-#[cfg(feature = "hydrate")]
-fn watch_hydrated_range(
-    parent: &web_sys::Node,
-    start: web_sys::Node,
-    end: web_sys::Node,
-    content: Signal<View>,
-    mut hydrated: Option<Vec<HydratedRange>>,
-) {
-    let parent = parent.clone();
-    create_effect(move || {
-        content.track();
-        if let Some(nested) = hydrated.take() {
-            for range in nested {
-                attach_hydrated_range(&parent, range);
+fn attach_hydrated_parts(parent: &web_sys::Node, parts: Vec<HydratedPart>) {
+    for part in parts {
+        match part {
+            HydratedPart::Dynamic {
+                start,
+                end,
+                content,
+                nested,
+            } => {
+                watch_dynamic_range(
+                    parent,
+                    start,
+                    end,
+                    content,
+                    Some(move |parent: &web_sys::Node| {
+                        attach_hydrated_parts(parent, nested);
+                    }),
+                );
             }
-            return;
-        }
-
-        // Take the snapshot before touching the DOM or installing any new effects.
-        let parts = content.with_untracked(snapshot_parts);
-        assert!(
-            start.parent_node().as_ref() == Some(&parent)
-                && end.parent_node().as_ref() == Some(&parent),
-            "hydrated range anchors no longer belong to their parent",
-        );
-        let mut next = start.next_sibling();
-        while let Some(node) = next {
-            if node == end {
-                break;
-            }
-            next = node.next_sibling();
-            parent.remove_child(&node).unwrap();
-        }
-
-        for part in parts {
-            match part {
-                HydrationPart::Node(node, _) => {
-                    parent.insert_before(&node, Some(&end)).unwrap();
-                }
-                HydrationPart::Dynamic(content) => {
-                    let start = DomNode::create_start_marker().raw;
-                    let close = DomNode::create_end_marker().raw;
-                    parent.insert_before(&start, Some(&end)).unwrap();
-                    parent.insert_before(&close, Some(&end)).unwrap();
-                    watch_hydrated_range(&parent, start, close, content, None);
-                }
-                HydrationPart::OpaqueRange => {}
+            HydratedPart::List {
+                start,
+                end,
+                items,
+                rows,
+            } => {
+                let mounted = rows
+                    .into_iter()
+                    .map(
+                        |HydratedRow {
+                             item,
+                             range,
+                             nested,
+                         }| {
+                            assert!(
+                                item.range.set(range).is_ok(),
+                                "list row was already mounted"
+                            );
+                            item.scope.run_in(|| attach_hydrated_parts(parent, nested));
+                            item
+                        },
+                    )
+                    .collect();
+                super::dom_list::watch_list(parent, start, end, items, mounted);
             }
         }
-    });
+    }
 }
