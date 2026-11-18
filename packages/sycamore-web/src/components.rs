@@ -44,29 +44,29 @@ pub fn Show(#[prop(into)] when: MaybeDyn<bool>, children: Children) -> View {
     // }
 }
 
-/// Component that is only renders its children on the client side.
+/// Component that renders its children only on the client side.
 ///
 /// This is useful when wrapping parts of your app that are not intended to be server-side
 /// rendered, e.g. highly interactive components such as graphs, etc...
 #[component]
 pub fn NoSsr(children: Children) -> View {
-    if is_ssr!() {
+    is_ssr! {
+        let _ = children;
         view! {
             no-ssr {}
         }
-    } else {
+    }
+    is_not_ssr! {
         let marker = create_node_ref();
         let view = view! {
             no-ssr(r#ref=marker)
         };
+        // The initial hydration walk adopts only the placeholder. Mount the full view
+        // afterward so its dynamic parts get their own anchors and effects.
         on_mount(move || {
             let marker = marker.get();
             let parent = marker.parent_node().unwrap();
-
-            let children = children.call();
-            for node in children.as_web_sys() {
-                parent.insert_before(&node, Some(&marker)).unwrap();
-            }
+            crate::node::insert_view(&parent, &children.call(), Some(&marker));
             parent.remove_child(&marker).unwrap();
         });
         view

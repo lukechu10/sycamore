@@ -232,7 +232,7 @@ impl ViewHtmlNode for DomNode {
 /// # Panics
 /// - Panics if `before` is not a child of `parent`.
 /// - Panics if `parent` is a text node.
-fn insert_view(parent: &web_sys::Node, view: &View, before: Option<&web_sys::Node>) {
+pub(crate) fn insert_view(parent: &web_sys::Node, view: &View, before: Option<&web_sys::Node>) {
     for part in &view.parts {
         match part {
             ViewPart::Node(node) => {

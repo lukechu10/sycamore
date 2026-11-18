@@ -139,6 +139,62 @@ mod no_hydrate {
     }
 }
 
+mod no_ssr {
+    use sycamore::web::NoSsr;
+    use sycamore::web::js_sys::Promise;
+    use wasm_bindgen::JsValue;
+
+    use super::*;
+
+    fn v() -> View {
+        let count = create_signal(0);
+        view! {
+            button(on_click=move |_| count.set(count.get_untracked() + 1)) { "Increment" }
+            "before"
+            NoSsr { (count) }
+            "after"
+        }
+    }
+
+    static EXPECT: Expect = expect![[
+        r#"<button data-hk="0.0">Increment</button>before<no-ssr data-hk="0.1"></no-ssr>after"#
+    ]];
+
+    #[test]
+    fn ssr() {
+        check(v, &EXPECT);
+    }
+
+    async fn assert_dynamic_content_updates(c: &Element) {
+        // Let NoSsr's on_mount callback run before inspecting its contents.
+        Promise::resolve(&JsValue::UNDEFINED).await.unwrap();
+        assert!(c.query_selector("no-ssr").unwrap().is_none());
+        assert_text_content!(c, "Incrementbefore0after");
+
+        query("button").unchecked_ref::<HtmlElement>().click();
+        assert_text_content!(c, "Incrementbefore1after");
+    }
+
+    #[wasm_bindgen_test]
+    async fn stays_reactive_after_hydration() {
+        let c = test_container();
+        c.set_inner_html(EXPECT.data());
+        let button = query("button");
+        sycamore::hydrate_to(v, &c);
+
+        assert_dynamic_content_updates(&c).await;
+        assert_eq!(query("button"), button);
+    }
+
+    #[wasm_bindgen_test]
+    async fn stays_reactive_in_csr() {
+        let c = test_container();
+        sycamore::render_to(v, &c);
+
+        assert_dynamic_content_updates(&c).await;
+    }
+}
+
 mod multiple_nodes_at_same_depth {
     use super::*;
     fn v() -> View {
