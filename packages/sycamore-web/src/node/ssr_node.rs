@@ -249,6 +249,16 @@ pub(crate) fn render_recursive_view(view: &View, buf: &mut String) {
                 signal.with_untracked(|view| render_recursive_view(view, buf));
                 render_recursive(&SsrNode::EndMarker, buf);
             }
+            ViewPart::OpaqueRange { content } => {
+                let (open, close) = OPAQUE_RANGE_MARKERS;
+                buf.push_str("<!--");
+                buf.push_str(open);
+                buf.push_str("-->");
+                render_recursive_view(content, buf);
+                buf.push_str("<!--");
+                buf.push_str(close);
+                buf.push_str("-->");
+            }
         }
     }
 }

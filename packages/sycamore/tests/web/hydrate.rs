@@ -79,6 +79,66 @@ mod chained_children {
     }
 }
 
+mod no_hydrate {
+    use sycamore::web::{HydrationScript, NoHydrate};
+
+    use super::*;
+
+    fn v(count: MutSignal<i32>) -> View {
+        view! {
+            HydrationScript {}
+            NoHydrate { p { "Server only" } }
+            NoHydrate {}
+            button(on_click=move |_| count.set(count.get_untracked() + 1)) { (count) }
+        }
+    }
+
+    static EXPECT: Expect = expect![[
+        r#"<!--opaque-range--><script></script><!--/opaque-range--><!--opaque-range--><p>Server only</p><!--/opaque-range--><!--opaque-range--><!--/opaque-range--><button data-hk="0.0"><!--[-->0<!--]--></button>"#
+    ]];
+
+    #[test]
+    fn ssr() {
+        check(|| v(create_signal(0)), &EXPECT);
+    }
+
+    #[wasm_bindgen_test]
+    fn preserves_server_content_and_hydrates_the_next_sibling() {
+        let c = test_container();
+        c.set_inner_html(EXPECT.data());
+        let paragraph = query("p");
+        let text = paragraph.first_child();
+        let button = query("button");
+
+        sycamore::hydrate_to(|| v(create_signal(0)), &c);
+
+        assert_eq!(c.inner_html(), EXPECT.data());
+        assert_eq!(query("button"), button);
+        button.unchecked_ref::<HtmlElement>().click();
+        assert_text_content!(button, "1");
+        assert_eq!(query("p"), paragraph);
+        assert_eq!(paragraph.first_child(), text);
+    }
+
+    #[wasm_bindgen_test]
+    fn ignores_opaque_comments_when_matching_an_enclosing_dynamic_range() {
+        let c = test_container();
+        let html = "<!--[--><!--opaque-range--><!--]--><!--/opaque-range--><!--]-->";
+        c.set_inner_html(html);
+
+        sycamore::hydrate_to(|| View::from_dynamic(|| view! { NoHydrate {} }), &c);
+
+        assert_eq!(c.inner_html(), html);
+    }
+
+    #[wasm_bindgen_test]
+    fn renders_children_in_csr() {
+        let c = test_container();
+        sycamore::render_to(|| view! { NoHydrate { p { "Rendered in CSR" } } }, &c);
+        assert_eq!(c.inner_html(), "<p>Rendered in CSR</p>");
+    }
+}
+
 mod multiple_nodes_at_same_depth {
     use super::*;
     fn v() -> View {

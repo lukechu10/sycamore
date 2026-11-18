@@ -261,6 +261,7 @@ fn insert_view(parent: &web_sys::Node, view: &View, before: Option<&web_sys::Nod
 
                 insert_dynamic_view(parent, start.as_web_sys(), *signal, end.as_web_sys());
             }
+            ViewPart::OpaqueRange { .. } => {}
         }
     }
 }
@@ -397,33 +398,40 @@ impl HydrationCursor {
 
     /// Return the server anchors and a cursor bounded by the closing anchor. Match
     /// nested markers by depth, then advance the outer cursor past the entire range.
-    fn enter_range(&mut self) -> (web_sys::Node, Self, web_sys::Node) {
+    fn enter_range(&mut self, markers: (&str, &str)) -> (web_sys::Node, Self, web_sys::Node) {
+        let (open, close) = markers;
         let Some(start) = self
             .current()
-            .filter(|node| self.text_offset == 0 && marker_value(node).as_deref() == Some("["))
+            .filter(|node| self.text_offset == 0 && marker_value(node).as_deref() == Some(open))
         else {
-            self.mismatch("a dynamic opening anchor (`<!--[-->`)");
+            self.mismatch(&format!("an opening anchor (`<!--{open}-->`)"));
         };
         let start = start.clone();
         let first = start.next_sibling();
         let mut next = first.clone();
         let mut depth = 0;
+        let mut opaque_depth = 0;
+        let (opaque_open, opaque_close) = OPAQUE_RANGE_MARKERS;
         while let Some(node) = next {
             if Some(&node) == self.end.as_ref() {
                 break;
             }
             match marker_value(&node).as_deref() {
-                Some("[") => depth += 1,
-                Some("]") if depth == 0 => {
+                // Dynamic markers inside an opaque range do not belong to the walk.
+                Some(marker) if open != opaque_open && marker == opaque_open => opaque_depth += 1,
+                Some(marker) if opaque_depth > 0 && marker == opaque_close => opaque_depth -= 1,
+                _ if opaque_depth > 0 => {}
+                Some(marker) if marker == open => depth += 1,
+                Some(marker) if marker == close && depth == 0 => {
                     self.next = node.next_sibling();
                     return (start, Self::new(first, Some(node.clone())), node);
                 }
-                Some("]") => depth -= 1,
+                Some(marker) if marker == close => depth -= 1,
                 _ => {}
             }
             next = node.next_sibling();
         }
-        self.mismatch("a matching dynamic closing anchor (`<!--]-->`)");
+        self.mismatch(&format!("a matching closing anchor (`<!--{close}-->`)"));
     }
 }
 
@@ -441,6 +449,7 @@ fn marker_value(node: &web_sys::Node) -> Option<String> {
 enum HydrationPart {
     Node(web_sys::Node, NodeOrigin),
     Dynamic(Signal<View>),
+    OpaqueRange,
 }
 
 /// Copy DOM and signal handles, not DOM contents. Traversal and effect installation can
@@ -452,6 +461,7 @@ fn snapshot_parts(view: &View) -> Vec<HydrationPart> {
         .map(|part| match part {
             ViewPart::Node(node) => HydrationPart::Node(node.raw.clone(), node.origin),
             ViewPart::Dynamic(signal) => HydrationPart::Dynamic(*signal),
+            ViewPart::OpaqueRange { .. } => HydrationPart::OpaqueRange,
         })
         .collect()
 }
@@ -487,7 +497,7 @@ fn match_parts(cursor: &mut HydrationCursor, parts: Vec<HydrationPart>) -> Vec<H
             }
             HydrationPart::Node(node, _) => cursor.consume_node(&node),
             HydrationPart::Dynamic(content) => {
-                let (start, mut inner, end) = cursor.enter_range();
+                let (start, mut inner, end) = cursor.enter_range(("[", "]"));
                 let parts = content.with_untracked(snapshot_parts);
                 let nested = match_parts(&mut inner, parts);
                 inner.expect_exhausted();
@@ -497,6 +507,10 @@ fn match_parts(cursor: &mut HydrationCursor, parts: Vec<HydrationPart>) -> Vec<H
                     content,
                     nested,
                 });
+            }
+            HydrationPart::OpaqueRange => {
+                // Advance past the boundary without matching or modifying the contents.
+                let _ = cursor.enter_range(OPAQUE_RANGE_MARKERS);
             }
         }
     }
@@ -566,6 +580,7 @@ fn watch_hydrated_range(
                     parent.insert_before(&close, Some(&end)).unwrap();
                     watch_hydrated_range(&parent, start, close, content, None);
                 }
+                HydrationPart::OpaqueRange => {}
             }
         }
     });

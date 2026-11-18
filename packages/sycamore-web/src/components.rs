@@ -82,12 +82,19 @@ pub fn NoSsr(children: Children) -> View {
 /// initial hydration phase is over, e.g. navigating to a new page with a `NoHydrate` component.
 #[component]
 pub fn NoHydrate(children: Children) -> View {
-    if is_ssr!() {
-        provide_context_in_new_scope(ConstructionMode::Create, move || children.call())
-    } else if ConstructionMode::current().is_hydrating() {
-        View::new()
-    } else {
-        children.call()
+    if !ConstructionMode::current().is_hydrating() {
+        return children.call();
+    }
+
+    is_ssr! {
+        let content = provide_context_in_new_scope(ConstructionMode::Create, move || children.call());
+        View::new_from_parts(smallvec::smallvec![ViewPart::OpaqueRange {
+            content: Box::new(content),
+        }])
+    }
+    is_not_ssr! {
+        // The client only needs the boundary; evaluating children would claim server nodes.
+        View::new_from_parts(smallvec::smallvec![ViewPart::OpaqueRange {}])
     }
 }
 
@@ -121,6 +128,6 @@ pub fn HydrationScript() -> View {
         }
     }
     is_not_ssr! {
-        view! {}
+        view! { NoHydrate {} }
     }
 }

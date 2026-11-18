@@ -17,6 +17,11 @@ pub struct View {
 pub(crate) enum ViewPart {
     Node(HtmlNode),
     Dynamic(Signal<View>),
+    /// A server-rendered range that the hydration cursor skips without adopting its contents.
+    OpaqueRange {
+        #[cfg(any(not(target_arch = "wasm32"), sycamore_force_ssr))]
+        content: Box<View>,
+    },
 }
 
 impl fmt::Debug for ViewPart {
@@ -24,6 +29,7 @@ impl fmt::Debug for ViewPart {
         match self {
             ViewPart::Node(_) => write!(f, "Node"),
             ViewPart::Dynamic(_) => write!(f, "Dynamic"),
+            ViewPart::OpaqueRange { .. } => write!(f, "OpaqueRange"),
         }
     }
 }
@@ -70,6 +76,7 @@ impl View {
                     ViewPart::Dynamic(signal) => {
                         signal.with(|view| extend_web_sys_nodes(nodes, view))
                     }
+                    ViewPart::OpaqueRange { .. } => {}
                 }
             }
         }

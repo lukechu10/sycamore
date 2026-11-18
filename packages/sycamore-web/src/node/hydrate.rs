@@ -6,6 +6,10 @@ use std::fmt;
 use sycamore_reactive::*;
 use wasm_bindgen::JsCast;
 
+/// Comment values that delimit content the client must leave untouched.
+#[cfg(any(feature = "hydrate", not(target_arch = "wasm32"), sycamore_force_ssr))]
+pub(crate) const OPAQUE_RANGE_MARKERS: (&str, &str) = ("opaque-range", "/opaque-range");
+
 /// Keeps track of whether we are creating new DOM nodes or hydrating existing ones.
 ///
 /// This type is intended to be used as a context value, and should be accessed via
