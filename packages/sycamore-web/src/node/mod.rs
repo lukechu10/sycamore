@@ -8,6 +8,8 @@ use crate::*;
 is_not_ssr!(
     mod dom_list;
     mod dom_node;
+    #[cfg(feature = "suspense")]
+    mod dom_suspense;
 
     pub use dom_node::*;
 

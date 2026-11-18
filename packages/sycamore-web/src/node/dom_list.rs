@@ -22,13 +22,14 @@ pub(super) fn watch_list(
 ) {
     // Register on the mount owner, not on the effect that reruns on every reorder.
     on_cleanup(move || items.scope.dispose());
-    let parent = parent.clone();
+    debug_assert_eq!(end.parent_node().as_ref(), Some(parent));
     create_effect(move || {
         let next = items.rows.get_clone();
         if mounted.len() == next.len() && mounted.iter().zip(&next).all(|(a, b)| Rc::ptr_eq(a, b)) {
             return;
         }
 
+        let parent = end.parent_node().expect("missing list range parent");
         reconcile_rows(&parent, &start, &end, &mounted, &next);
         mounted = next;
     });

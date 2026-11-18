@@ -19,6 +19,10 @@ pub(crate) enum ViewPart {
     Dynamic(Signal<View>),
     /// A list whose rows are mounted and reconciled as independent DOM ranges.
     List(ListItems),
+    #[cfg(all(feature = "suspense", feature = "hydrate"))]
+    Deferred(DeferredView),
+    #[cfg(all(feature = "suspense", target_arch = "wasm32", not(sycamore_force_ssr)))]
+    Suspense(Rc<SuspenseView>),
     /// A server-rendered range that the hydration cursor skips without adopting its contents.
     OpaqueRange {
         #[cfg(any(not(target_arch = "wasm32"), sycamore_force_ssr))]
@@ -32,6 +36,10 @@ impl fmt::Debug for ViewPart {
             ViewPart::Node(_) => write!(f, "Node"),
             ViewPart::Dynamic(_) => write!(f, "Dynamic"),
             ViewPart::List(_) => write!(f, "List"),
+            #[cfg(all(feature = "suspense", feature = "hydrate"))]
+            ViewPart::Deferred(_) => write!(f, "Deferred"),
+            #[cfg(all(feature = "suspense", target_arch = "wasm32", not(sycamore_force_ssr)))]
+            ViewPart::Suspense(_) => write!(f, "Suspense"),
             ViewPart::OpaqueRange { .. } => write!(f, "OpaqueRange"),
         }
     }
@@ -91,6 +99,20 @@ impl View {
                             }
                         }
                     }
+                    #[cfg(all(feature = "suspense", feature = "hydrate"))]
+                    ViewPart::Deferred(deferred) => {
+                        deferred.content.with(|content| {
+                            if let Some(view) = content {
+                                extend_web_sys_nodes(nodes, view);
+                            }
+                        });
+                    }
+                    #[cfg(all(
+                        feature = "suspense",
+                        target_arch = "wasm32",
+                        not(sycamore_force_ssr)
+                    ))]
+                    ViewPart::Suspense(_) => {}
                     ViewPart::OpaqueRange { .. } => {}
                 }
             }

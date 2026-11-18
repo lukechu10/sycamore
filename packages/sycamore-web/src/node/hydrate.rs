@@ -2,6 +2,8 @@
 
 use std::collections::HashMap;
 use std::fmt;
+#[cfg(all(feature = "hydrate", feature = "suspense"))]
+use std::num::NonZeroU32;
 
 use sycamore_reactive::*;
 use wasm_bindgen::JsCast;
@@ -49,6 +51,8 @@ pub struct HydrationSession {
     elements: MutSignal<HashMap<HydrationKey, web_sys::Element>>,
     active: MutSignal<bool>,
     next_key: MutSignal<HydrationKey>,
+    #[cfg(all(feature = "hydrate", target_arch = "wasm32", not(sycamore_force_ssr)))]
+    mount_callbacks: MutSignal<Vec<Box<dyn FnOnce()>>>,
 }
 
 impl HydrationSession {
@@ -77,31 +81,95 @@ impl HydrationSession {
                 .unchecked_into::<web_sys::Element>();
             let hk = element.get_attribute("data-hk").unwrap();
             let key = HydrationKey::parse(&hk).expect("could not parse hydration key");
-            elements.insert(key, element);
+            if key.suspense == 0 {
+                elements.insert(key, element);
+            }
         }
 
-        Self {
-            elements: create_signal(elements),
-            active: create_signal(true),
-            next_key: create_signal(HydrationKey {
-                suspense: 0,
-                element: 0,
-            }),
-        }
+        Self::new(elements, 0)
     }
 
     /// Create a new [`HydrationSession`] for SSR rendering. This will not scan any nodes, and will
     /// not be able to claim any elements. Instead, this will only be used to generate new hydration
     /// keys for elements that are created during SSR rendering.
     pub fn new_ssr() -> Self {
+        Self::new(HashMap::new(), 0)
+    }
+
+    #[cfg(all(
+        feature = "hydrate",
+        feature = "suspense",
+        any(not(target_arch = "wasm32"), sycamore_force_ssr)
+    ))]
+    pub(crate) fn new_ssr_namespace(namespace: NonZeroU32) -> Self {
+        Self::new(HashMap::new(), namespace.get())
+    }
+
+    fn new(elements: HashMap<HydrationKey, web_sys::Element>, namespace: u32) -> Self {
         Self {
-            elements: create_signal(HashMap::new()),
+            elements: create_signal(elements),
             active: create_signal(true),
             next_key: create_signal(HydrationKey {
-                suspense: 0,
+                suspense: namespace,
                 element: 0,
             }),
+            #[cfg(all(feature = "hydrate", target_arch = "wasm32", not(sycamore_force_ssr)))]
+            mount_callbacks: create_signal(Vec::new()),
         }
+    }
+
+    #[cfg(all(
+        feature = "hydrate",
+        feature = "suspense",
+        target_arch = "wasm32",
+        not(sycamore_force_ssr)
+    ))]
+    pub(crate) fn is_deferred(self) -> bool {
+        self.next_key.get_untracked().suspense != 0
+    }
+
+    /// Index only the elements owned by this independently resolved subtree.
+    #[cfg(all(
+        feature = "hydrate",
+        feature = "suspense",
+        target_arch = "wasm32",
+        not(sycamore_force_ssr)
+    ))]
+    pub(crate) fn new_hydrate_range(
+        mut next: Option<web_sys::Node>,
+        end: &web_sys::Node,
+        namespace: NonZeroU32,
+    ) -> Self {
+        let mut elements = HashMap::new();
+        let mut add = |element: web_sys::Element| {
+            if let Some(key) = element
+                .get_attribute("data-hk")
+                .and_then(|key| HydrationKey::parse(&key))
+                && key.suspense == namespace.get()
+            {
+                elements.insert(key, element);
+            }
+        };
+        while let Some(node) = next {
+            if &node == end {
+                break;
+            }
+            next = node.next_sibling();
+            if let Ok(element) = node.dyn_into::<web_sys::Element>() {
+                let descendants = element.query_selector_all("[data-hk]").unwrap();
+                add(element);
+                for i in 0..descendants.length() {
+                    add(descendants.get(i).unwrap().unchecked_into());
+                }
+            }
+        }
+        Self::new(elements, namespace.get())
+    }
+
+    #[cfg(all(feature = "hydrate", target_arch = "wasm32", not(sycamore_force_ssr)))]
+    pub(crate) fn queue_mount(self, f: impl FnOnce() + 'static) {
+        self.mount_callbacks
+            .update_silent(|callbacks| callbacks.push(Box::new(f)));
     }
 
     /// End the client claim phase without disposing the reactive scopes created during
@@ -110,6 +178,9 @@ impl HydrationSession {
     pub(crate) fn finish(self) {
         self.active.set_silent(false);
         self.elements.set_silent(HashMap::new());
+        for callback in self.mount_callbacks.take_silent() {
+            crate::queue_microtask(callback);
+        }
     }
 
     /// Get the next hydration key and increment the internal state. This new key will be unique.

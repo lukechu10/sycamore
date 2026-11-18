@@ -240,6 +240,13 @@ pub fn on_mount(f: impl FnOnce() + 'static) {
                 scope.run_in(f);
             }
         };
+        is_not_ssr! {
+            #[cfg(feature = "hydrate")]
+            if let ConstructionMode::Hydrate(session) = ConstructionMode::current() {
+                session.queue_mount(cb);
+                return;
+            }
+        }
         queue_microtask(cb);
     }
 }

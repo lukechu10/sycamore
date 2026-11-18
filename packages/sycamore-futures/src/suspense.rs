@@ -18,6 +18,12 @@ struct AllTasksRemaining {
     all_tasks_remaining: MutSignal<Vec<MutSignal<u32>>>,
 }
 
+/// Install a tracker local to this render, rather than sharing the root's tracker.
+#[doc(hidden)]
+pub fn provide_suspense_tracker() {
+    provide_context(AllTasksRemaining::default());
+}
+
 /// Represents a new suspense scope. This is created by a call to [`create_suspense_scope`].
 #[derive(Copy, Clone, Debug)]
 pub struct SuspenseScope {
@@ -36,7 +42,9 @@ impl SuspenseScope {
     /// this scope.
     pub fn new(parent: Option<SuspenseScope>) -> Self {
         let tasks_remaining = create_signal(0);
-        let global = use_global_scope().run_in(|| use_context_or_else(AllTasksRemaining::default));
+        let global = try_use_context::<AllTasksRemaining>().unwrap_or_else(|| {
+            use_global_scope().run_in(|| use_context_or_else(AllTasksRemaining::default))
+        });
         global
             .all_tasks_remaining
             .update(|vec| vec.push(tasks_remaining));
@@ -208,9 +216,10 @@ pub fn use_is_loading() -> Signal<bool> {
 /// not apply to any suspense scope in particular.
 pub fn use_is_loading_global() -> bool {
     if let Some(global) = try_use_context::<AllTasksRemaining>() {
-        global
-            .all_tasks_remaining
-            .with(|vec| vec.iter().any(|signal| signal.get() > 0))
+        global.all_tasks_remaining.with(|vec| {
+            vec.iter()
+                .any(|signal| signal.is_alive() && signal.get() > 0)
+        })
     } else {
         false
     }

@@ -256,6 +256,18 @@ pub(crate) fn render_recursive_view(view: &View, buf: &mut String) {
                     }
                 });
             }
+            #[cfg(all(feature = "suspense", feature = "hydrate"))]
+            ViewPart::Deferred(deferred) => {
+                use std::fmt::Write;
+                render_anchored(buf, |buf| {
+                    write!(buf, "<!--async:{}-->", deferred.namespace).unwrap();
+                    deferred.content.with_untracked(|content| {
+                        if let Some(view) = content {
+                            render_recursive_view(view, buf);
+                        }
+                    });
+                });
+            }
             ViewPart::OpaqueRange { content } => {
                 let (open, close) = OPAQUE_RANGE_MARKERS;
                 buf.push_str("<!--");

@@ -53,123 +53,114 @@ pub fn Suspense(
         use futures::FutureExt;
 
         let _ = &mut set_is_loading;
-
-        let mode = use_context::<SsrMode>();
+        let mode = try_use_context::<SsrMode>().unwrap_or(SsrMode::Sync);
         match mode {
-            // In sync mode, we don't even bother about the children and just return the fallback.
-            //
-            // We make sure to return a closure so that the view can be properly hydrated.
-            SsrMode::Sync => view! {
-                Show(when=true) {
-                    (fallback)
-                }
-                Show(when=false) {}
-            },
-            // In blocking mode, we don't need to render the fallback. We just need to render the
-            // view when it resolves.
+            SsrMode::Sync => {
+                anchored_branch(fallback.call())
+            }
             SsrMode::Blocking => {
-                let key = use_suspense_key();
-                let start = view! { suspense-start(data-key=key.to_string()) };
-                let (view, _suspense_scope) = create_suspense_scope(move || HydrationRegistry::in_suspense_scope(key, move || children.call()));
-                view! {
-                    (start)
-                    NoSsr {}
-                    Show(when=move || true) {
-                        (view)
-                    }
-                }
-            },
-            // In streaming mode, we render the fallback and then stream the result of the children
-            // once suspense is resolved.
+                let (content, _) = create_suspense_scope(move || children.call());
+                anchored_branch(content)
+            }
             SsrMode::Streaming => {
                 let key = use_suspense_key();
-                let start = view! { suspense-start(data-key=key.to_string()) };
-                let (view, suspense_scope) = create_suspense_scope(move || HydrationRegistry::in_suspense_scope(key, move || children.call()));
-
-                let suspense_stream = use_context::<SuspenseStream>();
-                suspense_stream.futures.borrow_mut().push(async move {
-                    suspense_scope.until_finished().await;
-                    debug_assert!(!suspense_scope.sent.get(), "suspense scope should not yet be sent");
-
-                    // Make sure parent is sent first.
-                    let (tx, rx) = futures::channel::oneshot::channel();
-                    let mut tx = Some(tx);
-                    create_effect(move || {
-                        if !suspense_scope.sent.get() && suspense_scope.parent.as_ref().is_none_or(|parent| parent.get().sent.get()) {
-                            suspense_scope.sent.set(true);
-                            tx.take().unwrap().send(()).unwrap();
-                        }
+                let (content, scope) = create_suspense_scope(move || children.call());
+                let owner = use_current_scope();
+                let stream = use_context::<SuspenseStream>();
+                stream.futures.borrow_mut().push(async move {
+                    // This future is polled by the shared streaming pump. Keep any
+                    // reactive work in the boundary's scope, not the pump's scope.
+                    let ready = owner.run_in(|| {
+                        let (tx, rx) = futures::channel::oneshot::channel();
+                        let mut tx = Some(tx);
+                        let loading = scope.is_loading();
+                        create_effect(move || {
+                            if !loading.get() && let Some(tx) = tx.take() {
+                                let _ = tx.send(());
+                            }
+                        });
+                        rx
                     });
-                    rx.await.unwrap();
-
-                    SuspenseFragment::new(key, view! { Show(when=true) { (view) } })
+                    ready.await.unwrap();
+                    SuspenseFragment::new(key, anchored(content))
                 }.boxed_local());
 
-                // We need an end marker to know where to replace the fallback value.
-                let end = view! { NoHydrate { suspense-end(data-key=key.to_string()) } };
-
-                view! {
-                    NoSsr {}
-                    (start)
-                    NoHydrate(children=fallback)
-                    (end)
-                }
+                let fallback = provide_context_in_new_scope(ConstructionMode::Create, || {
+                    provide_context(SsrMode::Sync);
+                    view! {
+                        suspense-start(data-key=key.to_string())
+                        (fallback)
+                        suspense-end(data-key=key.to_string())
+                    }
+                });
+                anchored(fallback)
             }
         }
     }
     is_not_ssr! {
-        let mode = if IS_HYDRATING.get() {
-            use_context::<SsrMode>()
+        let hydrating = ConstructionMode::current().is_hydrating();
+        let initial_fallback = hydrating.then(|| {
+            try_use_context::<SsrMode>().unwrap_or(SsrMode::Sync) == SsrMode::Sync
+        });
+
+        let mut content = None;
+        let owner = create_child_scope(|| {
+            let (view, scope) = if initial_fallback == Some(true) {
+                // Sync SSR contains only the fallback. The children have no nodes to claim.
+                provide_context_in_new_scope(ConstructionMode::Create, || {
+                    create_suspense_scope(move || children.call())
+                })
+            } else {
+                create_suspense_scope(move || children.call())
+            };
+            content = Some((view, scope.is_loading()));
+        });
+        let (content, loading) = content.unwrap();
+        owner.run_in(|| create_effect(move || set_is_loading(loading.get())));
+
+        let fallback = if initial_fallback == Some(true) {
+            Branch::Ready(owner.run_in(|| fallback.call()))
         } else {
-            SsrMode::Sync
+            Branch::Lazy(fallback)
         };
-        match mode {
-            SsrMode::Sync => {
-                let (view, suspense_scope) = create_suspense_scope(move || children.call());
-                let is_loading = suspense_scope.is_loading();
+        View::new_from_parts(smallvec::smallvec![ViewPart::Suspense(Rc::new(SuspenseView {
+            owner,
+            loading,
+            initial_fallback,
+            fallback: std::cell::RefCell::new(Some(fallback)),
+            content: std::cell::RefCell::new(Some(Branch::Ready(content))),
+        }))])
+    }
+}
 
-                create_effect(move || {
-                    set_is_loading(is_loading.get());
-                });
+is_ssr! {
+    fn anchored(view: View) -> View {
+        View::from((HtmlNode::create_start_marker(), view, HtmlNode::create_end_marker()))
+    }
 
-                view! {
-                    Show(when=is_loading) {
-                        (fallback)
-                    }
-                    Show(when=move || !is_loading.get()) {
-                        (view)
-                    }
-                }
-            }
-            SsrMode::Blocking | SsrMode::Streaming => {
-                // Blocking: Since the fallback is never rendered on the server side, we don't need
-                // to hydrate it either.
-                //
-                // Streaming: By the time the WASM is running, page loading should already be completed since
-                // WASM runs inside a deferred script. Therefore we only need to hydrate the view
-                // and not the fallback.
+    fn anchored_branch(view: View) -> View {
+        anchored(anchored(view))
+    }
+}
 
-                // First hydrate the `<sycamore-start>` element to get the suspense scope.
-                let start = view! { suspense-start() };
-                let node = start.nodes[0].as_web_sys().unchecked_ref::<web_sys::Element>();
-                let key: NonZeroU32 = node.get_attribute("data-key").unwrap().parse().unwrap();
+is_not_ssr! {
+    pub(crate) enum Branch {
+        Ready(View),
+        Lazy(Children),
+    }
 
-                let (view, suspense_scope) = HydrationRegistry::in_suspense_scope(key, move || create_suspense_scope(move || children.call()));
-                let is_loading = suspense_scope.is_loading();
+    pub(crate) struct SuspenseView {
+        pub owner: NodeHandle,
+        pub loading: Signal<bool>,
+        /// The branch that SSR actually rendered, independent of client loading state.
+        pub initial_fallback: Option<bool>,
+        pub fallback: std::cell::RefCell<Option<Branch>>,
+        pub content: std::cell::RefCell<Option<Branch>>,
+    }
 
-                create_effect(move || set_is_loading(is_loading.get()));
-
-                view! {
-                    NoSsr {
-                        Show(when=move || is_loading.get()) {
-                            (fallback)
-                        }
-                    }
-                    Show(when=move || !is_loading.get()) {
-                        (view)
-                    }
-                }
-            }
+    impl SuspenseView {
+        pub(crate) fn branch(&self, fallback: bool) -> &std::cell::RefCell<Option<Branch>> {
+            if fallback { &self.fallback } else { &self.content }
         }
     }
 }
@@ -222,41 +213,66 @@ fn TransitionInner(children: Children, mut set_is_loading: Callback<bool>) -> Vi
 /// Convert an async component to a regular sync component. Also wraps the async component inside a
 /// suspense scope so that content is properly suspended.
 pub fn wrap_async_component<F: Future<Output = View>>(f: impl FnOnce() -> F + 'static) -> View {
-    is_not_ssr! {
-        let mode = if IS_HYDRATING.get() {
-            use_context::<SsrMode>()
-        } else {
-            SsrMode::Sync
+    let mode = try_use_context::<SsrMode>().unwrap_or(SsrMode::Sync);
+    if is_ssr!() && mode == SsrMode::Sync {
+        // Synchronous SSR has no executor. Leave an empty range for the client.
+        return View::from_dynamic(View::new);
+    }
+    #[cfg(feature = "hydrate")]
+    if ConstructionMode::current().is_hydrating() && mode != SsrMode::Sync {
+        return deferred_async_view(f);
+    }
+
+    let pending = create_signal(View::new());
+    create_suspense_task(async move {
+        pending.set(f().await);
+    });
+    View::from_dynamic(move || {
+        pending.track();
+        pending.take_silent()
+    })
+}
+
+/// Async SSR emits a namespace with its resolved range. The client receives that
+/// namespace from the range itself, so sibling tasks may resolve in any order.
+#[cfg(feature = "hydrate")]
+#[derive(Clone, Copy)]
+pub(crate) struct DeferredView {
+    pub content: Signal<Option<View>>,
+    #[cfg(any(not(target_arch = "wasm32"), sycamore_force_ssr))]
+    pub namespace: NonZeroU32,
+    #[cfg(all(target_arch = "wasm32", not(sycamore_force_ssr)))]
+    pub session: MutSignal<Option<HydrationSession>>,
+}
+
+#[cfg(feature = "hydrate")]
+fn deferred_async_view<F: Future<Output = View>>(f: impl FnOnce() -> F + 'static) -> View {
+    let content = create_signal(None);
+    let deferred = DeferredView {
+        content: *content,
+        #[cfg(any(not(target_arch = "wasm32"), sycamore_force_ssr))]
+        namespace: use_suspense_key(),
+        #[cfg(all(target_arch = "wasm32", not(sycamore_force_ssr)))]
+        session: create_signal(None),
+    };
+
+    create_suspense_task(async move {
+        let session = {
+            is_ssr! { Some(HydrationSession::new_ssr_namespace(deferred.namespace)) }
+            is_not_ssr! { deferred.session.get_untracked() }
         };
-        match mode {
-            SsrMode::Sync => {
-                let view = create_signal(View::default());
-                let ret = view! { ({
-                    view.track();
-                    view.update_silent(std::mem::take)
-                }) };
-                create_suspense_task(async move {
-                    view.set(f().await);
-                });
-                ret
-            }
-            SsrMode::Blocking | SsrMode::Streaming => {
-                // TODO: This does not properly hydrate dynamic text nodes.
-                create_suspense_task(async move { f().await; });
-                view! {}
-            }
-        }
-    }
-    is_ssr! {
-        let node = create_signal(View::default());
-        create_suspense_task(async move {
-            node.set(f().await);
+        let mut future = None;
+        let scope = create_child_scope(|| {
+            provide_context(session.map_or(ConstructionMode::Create, ConstructionMode::Hydrate));
+            future = Some(Box::pin(f()));
         });
-        View::from_dynamic(move || {
-            node.track();
-            node.update_silent(std::mem::take)
-        })
-    }
+        let view =
+            std::future::poll_fn(|cx| scope.run_in(|| future.as_mut().unwrap().as_mut().poll(cx)))
+                .await;
+        content.set(Some(view));
+    });
+
+    View::new_from_parts(smallvec::smallvec![ViewPart::Deferred(deferred)])
 }
 
 /// Represents a streamed suspense view fragment.
@@ -288,12 +304,12 @@ pub(crate) struct SuspenseStream {
 
 /// Global counter for providing suspense key.
 #[derive(Debug, Clone, Copy)]
-struct SuspenseCounter {
+pub(crate) struct SuspenseCounter {
     next: MutSignal<NonZeroU32>,
 }
 
 impl SuspenseCounter {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             next: create_signal(NonZeroU32::new(1).unwrap()),
         }
@@ -302,10 +318,10 @@ impl SuspenseCounter {
 
 /// Get the next suspense key.
 pub fn use_suspense_key() -> NonZeroU32 {
-    let global_scope = use_global_scope();
-    let counter = global_scope.run_in(|| use_context_or_else(SuspenseCounter::new));
+    let counter = try_use_context::<SuspenseCounter>()
+        .unwrap_or_else(|| use_global_scope().run_in(|| use_context_or_else(SuspenseCounter::new)));
 
     let next = counter.next.get_untracked();
-    counter.next.set(next.checked_add(1).unwrap());
+    counter.next.set_silent(next.checked_add(1).unwrap());
     next
 }

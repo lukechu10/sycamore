@@ -49,6 +49,7 @@ pub fn hydrate(view: impl Into<Children>) {
 ///
 /// For rendering under the `<body>` tag, use [`hydrate`] instead.
 /// For rendering without hydration, use [`render`](super::render) instead.
+/// With streaming SSR, call this after the response has finished applying its fragments.
 #[cfg(feature = "hydrate")]
 pub fn hydrate_to(view: impl Into<Children>, parent: &web_sys::Node) {
     // Do not call the destructor function, effectively leaking the scope.
@@ -82,6 +83,14 @@ pub fn hydrate_in_scope(view: impl Into<Children>, parent: &web_sys::Node) {
         } else {
             panic!("invalid SSR mode {mode:?}")
         };
+
+        if mode == SsrMode::Streaming
+            && js_sys::Reflect::get(&window(), &"__sycamore_stream_complete".into())
+                .unwrap()
+                .as_bool() != Some(true)
+        {
+            panic!("streaming hydration requires the SSR stream to finish first");
+        }
 
         let session = HydrationSession::new_hydrate(parent.clone());
         let mut parent = HtmlNode::from_web_sys(parent.clone());

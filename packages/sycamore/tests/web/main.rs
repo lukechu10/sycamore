@@ -4,6 +4,8 @@ pub mod indexed;
 pub mod keyed;
 pub mod portal;
 pub mod render;
+#[cfg(feature = "suspense")]
+pub mod suspense;
 pub mod svg;
 
 mod utils;

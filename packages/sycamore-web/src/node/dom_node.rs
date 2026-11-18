@@ -187,15 +187,27 @@ impl ViewHtmlNode for DomNode {
         name: Cow<'static, str>,
         handler: impl FnMut(web_sys::Event) + 'static,
     ) {
-        let cb = Closure::wrap(Box::new(handler) as Box<dyn FnMut(_)>);
         let node = self.raw.clone();
-        node.add_event_listener_with_callback(&name, cb.as_ref().unchecked_ref())
-            .unwrap();
-        on_cleanup(move || {
-            node.remove_event_listener_with_callback(&name, cb.as_ref().unchecked_ref())
+        let attach = move || {
+            let cb = Closure::wrap(Box::new(handler) as Box<dyn FnMut(_)>);
+            node.add_event_listener_with_callback(&name, cb.as_ref().unchecked_ref())
                 .unwrap();
-            drop(cb);
-        });
+            on_cleanup(move || {
+                node.remove_event_listener_with_callback(&name, cb.as_ref().unchecked_ref())
+                    .unwrap();
+                drop(cb);
+            });
+        };
+        #[cfg(all(feature = "hydrate", feature = "suspense"))]
+        if let ConstructionMode::Hydrate(session) = ConstructionMode::current()
+            && session.is_deferred()
+        {
+            // An async component can construct nodes before its final await. Don't
+            // activate their handlers until the range has been matched in place.
+            on_mount(attach);
+            return;
+        }
+        attach();
     }
 
     fn set_inner_html(&mut self, inner_html: Cow<'static, str>) {
@@ -215,9 +227,17 @@ impl ViewHtmlNode for DomNode {
     fn append_view(&mut self, view: View) {
         #[cfg(feature = "hydrate")]
         if ConstructionMode::current().is_hydrating() {
-            let cursor = self
-                .hydration_cursor
-                .get_or_insert_with(|| HydrationCursor::new(self.raw.first_child(), None));
+            let cursor = self.hydration_cursor.get_or_insert_with(|| {
+                let mut first = self.raw.first_child();
+                if self.raw.node_type() == web_sys::Node::DOCUMENT_NODE
+                    && first
+                        .as_ref()
+                        .is_some_and(|node| node.node_type() == web_sys::Node::DOCUMENT_TYPE_NODE)
+                {
+                    first = first.and_then(|node| node.next_sibling());
+                }
+                HydrationCursor::new(first, None)
+            });
             hydrate_view(&self.raw, cursor, &view);
             return;
         }
@@ -265,6 +285,10 @@ fn insert_part(parent: &web_sys::Node, part: DomPart, before: Option<&web_sys::N
             watch_dynamic_range(parent, start, end, content, None::<fn(&web_sys::Node)>);
         }
         DomPart::List(items) => mount_list(parent, items, before),
+        #[cfg(feature = "suspense")]
+        DomPart::Suspense(view) => super::dom_suspense::mount_suspense(parent, view, before),
+        #[cfg(all(feature = "suspense", feature = "hydrate"))]
+        DomPart::Deferred(_) => unreachable!("deferred view must first adopt a server range"),
         DomPart::OpaqueRange => {}
     }
 }
@@ -279,9 +303,11 @@ fn watch_dynamic_range(
     content: Signal<View>,
     mut adopt: Option<impl FnOnce(&web_sys::Node) + 'static>,
 ) {
-    let parent = parent.clone();
+    debug_assert_eq!(end.parent_node().as_ref(), Some(parent));
     create_effect(move || {
         content.track();
+        // A retained suspense branch can move into a document fragment while hidden.
+        let parent = end.parent_node().expect("missing dynamic range parent");
         if let Some(adopt) = adopt.take() {
             adopt(&parent);
             return;
@@ -442,6 +468,10 @@ enum DomPart {
     },
     Dynamic(Signal<View>),
     List(ListItems),
+    #[cfg(feature = "suspense")]
+    Suspense(Rc<SuspenseView>),
+    #[cfg(all(feature = "suspense", feature = "hydrate"))]
+    Deferred(DeferredView),
     OpaqueRange,
 }
 
@@ -455,6 +485,10 @@ impl From<&ViewPart> for DomPart {
             },
             ViewPart::Dynamic(signal) => Self::Dynamic(*signal),
             ViewPart::List(items) => Self::List(*items),
+            #[cfg(feature = "suspense")]
+            ViewPart::Suspense(view) => Self::Suspense(view.clone()),
+            #[cfg(all(feature = "suspense", feature = "hydrate"))]
+            ViewPart::Deferred(view) => Self::Deferred(*view),
             ViewPart::OpaqueRange { .. } => Self::OpaqueRange,
         }
     }
@@ -480,6 +514,20 @@ enum HydratedPart {
         end: web_sys::Node,
         items: ListItems,
         rows: Vec<HydratedRow>,
+    },
+    #[cfg(feature = "suspense")]
+    Suspense {
+        range: ItemRange,
+        initial: ItemRange,
+        nested: Vec<HydratedPart>,
+        view: Rc<SuspenseView>,
+    },
+    #[cfg(feature = "suspense")]
+    Deferred {
+        first: web_sys::Node,
+        end: web_sys::Node,
+        namespace: std::num::NonZeroU32,
+        view: DeferredView,
     },
 }
 
@@ -551,6 +599,45 @@ fn match_parts(
                     rows,
                 });
             }
+            #[cfg(feature = "suspense")]
+            DomPart::Suspense(view) => {
+                let (start, mut outer, end) = cursor.enter_range(("[", "]"));
+                let range = ItemRange { start, end };
+                let (start, mut inner, end) = outer.enter_range(("[", "]"));
+                let fallback = view
+                    .initial_fallback
+                    .expect("missing initial suspense branch");
+                let branch = view.branch(fallback).take();
+                let Some(Branch::Ready(branch)) = branch else {
+                    panic!("initial suspense branch was not built for hydration");
+                };
+                let nested = match_parts(&mut inner, snapshot_parts(&branch));
+                inner.expect_exhausted();
+                outer.expect_exhausted();
+                ranges.push(HydratedPart::Suspense {
+                    range,
+                    initial: ItemRange { start, end },
+                    nested,
+                    view,
+                });
+            }
+            #[cfg(feature = "suspense")]
+            DomPart::Deferred(view) => {
+                let (_, inner, end) = cursor.enter_range(("[", "]"));
+                let first = inner
+                    .current()
+                    .expect("missing async hydration namespace")
+                    .clone();
+                let namespace = marker_value(&first)
+                    .and_then(|marker| marker.strip_prefix("async:")?.parse().ok())
+                    .expect("invalid async hydration namespace");
+                ranges.push(HydratedPart::Deferred {
+                    first,
+                    end,
+                    namespace,
+                    view,
+                });
+            }
             DomPart::OpaqueRange => {
                 let _ = cursor.enter_range(OPAQUE_RANGE_MARKERS);
             }
@@ -603,6 +690,41 @@ fn attach_hydrated_parts(parent: &web_sys::Node, parts: Vec<HydratedPart>) {
                     )
                     .collect();
                 super::dom_list::watch_list(parent, start, end, items, mounted);
+            }
+            #[cfg(feature = "suspense")]
+            HydratedPart::Suspense {
+                range,
+                initial,
+                nested,
+                view,
+            } => {
+                attach_hydrated_parts(parent, nested);
+                super::dom_suspense::watch_suspense(range, view, Some(initial));
+            }
+            #[cfg(feature = "suspense")]
+            HydratedPart::Deferred {
+                first,
+                end,
+                namespace,
+                view,
+            } => {
+                let session =
+                    HydrationSession::new_hydrate_range(first.next_sibling(), &end, namespace);
+                view.session.set_silent(Some(session));
+                create_effect(move || {
+                    let parts = view
+                        .content
+                        .with(|content| content.as_ref().map(snapshot_parts));
+                    if let Some(parts) = parts {
+                        let parent = end.parent_node().expect("missing async range parent");
+                        let mut cursor =
+                            HydrationCursor::new(first.next_sibling(), Some(end.clone()));
+                        let nested = match_parts(&mut cursor, parts);
+                        cursor.expect_exhausted();
+                        attach_hydrated_parts(&parent, nested);
+                        session.finish();
+                    }
+                });
             }
         }
     }
