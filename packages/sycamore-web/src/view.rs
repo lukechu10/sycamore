@@ -79,6 +79,11 @@ impl View {
         ))])
     }
 
+    /// Snapshot the top-level DOM nodes currently represented by this view.
+    ///
+    /// The result does not track later changes. This is not a snapshot of the
+    /// mounted DOM: renderer-owned range markers, opaque content, and suspense
+    /// branches are not included.
     pub fn as_web_sys(&self) -> Vec<web_sys::Node> {
         fn extend_web_sys_nodes(nodes: &mut Vec<web_sys::Node>, view: &View) {
             for part in &view.parts {
