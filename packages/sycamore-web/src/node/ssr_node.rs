@@ -397,6 +397,28 @@ mod tests {
     }
 
     #[test]
+    fn signal_view_build_can_create_signals() {
+        #[derive(Clone)]
+        struct ReactiveText(u32);
+
+        impl Build<View> for ReactiveText {
+            fn build(self) -> View {
+                View::from(create_signal(self.0).get_untracked())
+            }
+        }
+
+        check(
+            || {
+                let value = create_signal(ReactiveText(0));
+                let view = View::from(*value);
+                value.set(ReactiveText(1));
+                view
+            },
+            expect!["<!--[-->1<!--]-->"],
+        );
+    }
+
+    #[test]
     fn dynamic_text() {
         check(
             move || {

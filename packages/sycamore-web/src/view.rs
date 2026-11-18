@@ -162,9 +162,7 @@ impl Build<View> for Children<View> {
 
 impl<U: Clone + Build<View>> Build<View> for Signal<U> {
     fn build(self) -> View {
-        View::new_from_parts(smallvec![ViewPart::Dynamic(
-            *self.map(|v| v.clone().build())
-        )])
+        View::from_dynamic(move || self.get_clone())
     }
 }
 impl<U: Clone + Build<View>> Build<View> for MutSignal<U> {
