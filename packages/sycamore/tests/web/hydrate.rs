@@ -479,6 +479,9 @@ mod indexed_list {
 }
 
 mod portal {
+    use sycamore::web::js_sys::Promise;
+    use wasm_bindgen::JsValue;
+
     use super::*;
     fn v(state: Signal<bool>) -> View {
         view! {
@@ -496,14 +499,23 @@ mod portal {
         check(|| v(*create_signal(true)), &EXPECT);
     }
     #[wasm_bindgen_test]
-    fn test() {
+    async fn stays_reactive_after_hydration() {
         let c = test_container();
         c.set_inner_html(EXPECT.data());
+        let target = query("#target");
 
-        let _ = create_root(|| {
-            let state = create_signal(true);
-
-            sycamore::hydrate_in_scope(move || v(*state), &c);
+        let mut state = None;
+        let root = create_root(|| {
+            let show = create_signal(true);
+            state = Some(show);
+            sycamore::hydrate_in_scope(move || v(*show), &c);
         });
+
+        Promise::resolve(&JsValue::UNDEFINED).await.unwrap();
+        assert_eq!(query("#target"), target);
+        assert_text_content!(target, "Hello from the other side!");
+
+        root.run_in(|| state.unwrap().set(false));
+        assert_text_content!(target, "");
     }
 }
