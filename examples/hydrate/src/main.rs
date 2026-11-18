@@ -55,7 +55,10 @@ fn App() -> View {
 fn main() {
     if is_not_ssr!() {
         console_error_panic_hook::set_once();
-        sycamore::hydrate(App);
+        let root = document()
+            .get_element_by_id("app")
+            .expect("missing hydration root");
+        sycamore::hydrate_to(App, &root);
     } else {
         // Create index.html from template.html and insert the rendered HTML.
         let html = sycamore::render_to_string(App);
