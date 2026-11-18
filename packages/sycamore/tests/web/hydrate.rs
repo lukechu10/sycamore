@@ -82,6 +82,43 @@ mod hydrate_recursive {
     }
 }
 
+mod nested_children_validation {
+    use super::*;
+
+    #[wasm_bindgen_test]
+    #[should_panic(expected = "hydration mismatch: expected the end of the child sequence")]
+    fn rejects_extra_children_after_the_last_append() {
+        let c = test_container();
+        c.set_inner_html(
+            r#"<div data-hk="0.0"><p data-hk="0.1">Expected<span>Extra</span></p></div>"#,
+        );
+
+        sycamore::hydrate_to(|| view! { div { p { "Expected" } } }, &c);
+    }
+
+    #[wasm_bindgen_test]
+    #[should_panic(expected = "hydration mismatch: expected the end of the child sequence")]
+    fn rejects_extra_children_without_a_children_call() {
+        let c = test_container();
+        c.set_inner_html(r#"<div data-hk="0.0"><p data-hk="0.1">Extra</p></div>"#);
+
+        sycamore::hydrate_to(|| div().children(p()), &c);
+    }
+
+    #[wasm_bindgen_test]
+    fn accepts_raw_inner_html() {
+        let c = test_container();
+        c.set_inner_html(r#"<div data-hk="0.0"><p data-hk="0.1"><em>Raw HTML</em></p></div>"#);
+
+        sycamore::hydrate_to(
+            || div().children(p().dangerously_set_inner_html("<em>Raw HTML</em>")),
+            &c,
+        );
+
+        assert_text_content!(query("em"), "Raw HTML");
+    }
+}
+
 mod chained_children {
     use super::*;
 

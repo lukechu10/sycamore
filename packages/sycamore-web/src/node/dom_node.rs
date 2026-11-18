@@ -25,6 +25,8 @@ enum NodeOrigin {
     Fresh,
     /// Adopted from the server-rendered HTML.
     Adopted,
+    /// Adopted, but its children are managed by `set_inner_html` rather than a view.
+    AdoptedRawHtml,
     /// A client text node used to match server text, which cannot carry a hydration key.
     PendingHydrationText,
 }
@@ -61,6 +63,9 @@ impl DomNode {
     pub(crate) fn finish_hydrating_children(&self) {
         if let Some(cursor) = &self.hydration_cursor {
             cursor.expect_exhausted();
+        } else if matches!(self.origin, NodeOrigin::Adopted) {
+            // Without a `.children()` call, the client expects no children.
+            HydrationCursor::new(self.raw.first_child(), None).expect_exhausted();
         }
     }
 
@@ -223,6 +228,14 @@ impl ViewHtmlNode for DomNode {
         self.raw
             .unchecked_ref::<web_sys::Element>()
             .set_inner_html(&inner_html);
+        #[cfg(feature = "hydrate")]
+        if matches!(
+            self.origin,
+            NodeOrigin::Adopted | NodeOrigin::AdoptedRawHtml
+        ) {
+            self.origin = NodeOrigin::AdoptedRawHtml;
+            self.hydration_cursor = None;
+        }
     }
 
     fn as_web_sys(&self) -> &web_sys::Node {

@@ -63,12 +63,18 @@ impl View {
 
     /// Create a new view with a single node.
     pub fn from_node(node: HtmlNode) -> Self {
-        Self::new_from_parts(smallvec![ViewPart::Node(node)])
+        Self::new_from_parts(smallvec![Self::finish_node(node)])
     }
 
     /// Create a new view with multiple nodes.
     pub fn from_nodes(nodes: Vec<HtmlNode>) -> Self {
-        Self::new_from_parts(nodes.into_iter().map(ViewPart::Node).collect())
+        Self::new_from_parts(nodes.into_iter().map(Self::finish_node).collect())
+    }
+
+    fn finish_node(node: HtmlNode) -> ViewPart {
+        #[cfg(all(feature = "hydrate", target_arch = "wasm32", not(sycamore_force_ssr)))]
+        node.finish_hydrating_children();
+        ViewPart::Node(node)
     }
 
     /// Create a reactive view from a function returning any value that implements [`Build`]
