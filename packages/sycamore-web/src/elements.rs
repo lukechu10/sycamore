@@ -100,6 +100,7 @@ macro_rules! impl_element {
             }
 
             impl Build<View> for [<Html $name:camel>] {
+                #[cfg_attr(debug_assertions, track_caller)]
                 fn build(self) -> View {
                     View::from_node(self.0)
                 }
@@ -194,6 +195,7 @@ macro_rules! impl_svg_element {
             }
 
             impl Build<View> for [<Svg $name:camel>] {
+                #[cfg_attr(debug_assertions, track_caller)]
                 fn build(self) -> View {
                     View::from_node(self.0)
                 }
@@ -1171,6 +1173,7 @@ pub trait GlobalProps: GlobalAttributes + AsHtmlNode + Sized {
     }
 
     /// Set the children of an element.
+    #[cfg_attr(debug_assertions, track_caller)]
     fn children(mut self, children: impl Build<View>) -> Self {
         self.as_html_node().append_view(children.build());
         self
