@@ -5,10 +5,7 @@ edition.workspace = true
 publish = false
 
 [dependencies]
-sycamore = { path = "../../packages/sycamore", features = [
-	"suspense",
-	"hydrate",
-] }
+sycamore = { path = "../../packages/sycamore", features = ["hydrate"] }
 
 [lints]
 workspace = true

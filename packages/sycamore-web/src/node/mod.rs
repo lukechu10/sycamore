@@ -18,6 +18,8 @@ is_not_ssr!(
     mod dom_node;
     #[cfg(feature = "suspense")]
     mod dom_suspense;
+    #[cfg(feature = "suspense")]
+    pub(crate) use dom_suspense::DomSuspense;
 
     pub use dom_node::*;
 

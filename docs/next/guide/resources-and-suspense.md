@@ -10,6 +10,10 @@ This is where resources and suspense come in.
 The resources API provides a simple interface for fetching and refreshing async
 data and suspense makes it easy to render fallbacks while the data is loading.
 
+Both are available through Sycamore's `suspense` Cargo feature, which is enabled
+by default. If you set `default-features = false`, enable `suspense` explicitly
+in your Sycamore dependency.
+
 ## The Resources API
 
 To create a new resource, call the `create_isomorphic_resource` function.

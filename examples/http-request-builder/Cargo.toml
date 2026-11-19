@@ -8,7 +8,7 @@ publish = false
 console_error_panic_hook = "0.1.7"
 gloo-net = { version = "0.7.0", features = ["http"] }
 serde = { version = "1.0.147", features = ["derive"] }
-sycamore = { path = "../../packages/sycamore", features = ["suspense"] }
+sycamore = { path = "../../packages/sycamore" }
 
 [lints]
 workspace = true

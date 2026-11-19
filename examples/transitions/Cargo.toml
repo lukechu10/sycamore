@@ -9,7 +9,7 @@ console_error_panic_hook = "0.1.7"
 getrandom = { version = "0.4.3", features = ["wasm_js"] }
 gloo-timers = { version = "0.4.0", features = ["futures"] }
 rand = "0.10.3"
-sycamore = { path = "../../packages/sycamore", features = ["suspense"] }
+sycamore = { path = "../../packages/sycamore" }
 
 [lints]
 workspace = true

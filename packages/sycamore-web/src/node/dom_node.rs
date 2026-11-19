@@ -321,7 +321,7 @@ fn insert_part(parent: &web_sys::Node, part: DomPart, before: Option<&web_sys::N
         }
         DomPart::List(items) => mount_list(parent, items, before),
         #[cfg(feature = "suspense")]
-        DomPart::Suspense(view) => super::dom_suspense::mount_suspense(parent, view, before),
+        DomPart::Suspense(view) => view.mount(parent, before),
         #[cfg(all(feature = "suspense", feature = "hydrate"))]
         DomPart::Deferred(_) => unreachable!("deferred view must first adopt a server range"),
         DomPart::OpaqueRange => {}
@@ -368,7 +368,7 @@ fn watch_dynamic_range(
 
 /// The unconsumed children of one parent or dynamic range. `end` is exclusive.
 #[cfg(feature = "hydrate")]
-struct HydrationCursor {
+pub(crate) struct HydrationCursor {
     next: Option<web_sys::Node>,
     end: Option<web_sys::Node>,
     /// Byte offset into `next` when the HTML parser merged adjacent text parts.
@@ -407,7 +407,7 @@ impl HydrationCursor {
     }
 
     #[cfg_attr(debug_assertions, track_caller)]
-    fn expect_exhausted(&self) {
+    pub(super) fn expect_exhausted(&self) {
         if self.next != self.end || self.text_offset != 0 {
             self.mismatch("the end of the child sequence");
         }
@@ -474,7 +474,10 @@ impl HydrationCursor {
     /// Return the server anchors and a cursor bounded by the closing anchor. Match
     /// nested markers by depth, then advance the outer cursor past the entire range.
     #[cfg_attr(debug_assertions, track_caller)]
-    fn enter_range(&mut self, markers: (&str, &str)) -> (web_sys::Node, Self, web_sys::Node) {
+    pub(super) fn enter_range(
+        &mut self,
+        markers: (&str, &str),
+    ) -> (web_sys::Node, Self, web_sys::Node) {
         let (open, close) = markers;
         let Some(start) = self
             .current()
@@ -530,7 +533,7 @@ enum DomPart {
     Dynamic(Signal<View>),
     List(ListItems),
     #[cfg(feature = "suspense")]
-    Suspense(Rc<SuspenseView>),
+    Suspense(Rc<dyn DomSuspense>),
     #[cfg(all(feature = "suspense", feature = "hydrate"))]
     Deferred(DeferredView),
     OpaqueRange,
@@ -561,9 +564,13 @@ fn snapshot_parts(view: &View) -> smallvec::SmallVec<[DomPart; 1]> {
     view.parts.iter().map(DomPart::from).collect()
 }
 
+/// Installs effects for a range after matching the existing DOM is complete.
+#[cfg(all(feature = "hydrate", feature = "suspense"))]
+pub(super) type AttachHydratedRange = Box<dyn FnOnce(&web_sys::Node)>;
+
 /// A matched range waiting for its effects, recorded before any subscriptions are installed.
 #[cfg(feature = "hydrate")]
-enum HydratedPart {
+pub(super) enum HydratedPart {
     Dynamic {
         start: web_sys::Node,
         end: web_sys::Node,
@@ -577,12 +584,7 @@ enum HydratedPart {
         rows: Vec<HydratedRow>,
     },
     #[cfg(feature = "suspense")]
-    Suspense {
-        range: ItemRange,
-        initial: ItemRange,
-        nested: Vec<HydratedPart>,
-        view: Rc<SuspenseView>,
-    },
+    Suspense(AttachHydratedRange),
     #[cfg(feature = "suspense")]
     Deferred {
         first: web_sys::Node,
@@ -593,7 +595,7 @@ enum HydratedPart {
 }
 
 #[cfg(feature = "hydrate")]
-struct HydratedRow {
+pub(super) struct HydratedRow {
     item: Rc<ListItem>,
     range: ItemRange,
     nested: Vec<HydratedPart>,
@@ -604,7 +606,13 @@ struct HydratedRow {
 #[cfg(feature = "hydrate")]
 #[cfg_attr(debug_assertions, track_caller)]
 fn hydrate_view(parent: &web_sys::Node, cursor: &mut HydrationCursor, view: &View) {
-    attach_hydrated_parts(parent, match_parts(cursor, snapshot_parts(view)));
+    attach_hydrated_parts(parent, match_view(cursor, view));
+}
+
+#[cfg(feature = "hydrate")]
+#[cfg_attr(debug_assertions, track_caller)]
+pub(super) fn match_view(cursor: &mut HydrationCursor, view: &View) -> Vec<HydratedPart> {
+    match_parts(cursor, snapshot_parts(view))
 }
 
 /// Walk one append's parts in sibling order without moving nodes or installing effects.
@@ -664,25 +672,7 @@ fn match_parts(
             }
             #[cfg(feature = "suspense")]
             DomPart::Suspense(view) => {
-                let (start, mut outer, end) = cursor.enter_range(("[", "]"));
-                let range = ItemRange { start, end };
-                let (start, mut inner, end) = outer.enter_range(("[", "]"));
-                let fallback = view
-                    .initial_fallback
-                    .expect("missing initial suspense branch");
-                let branch = view.branch(fallback).take();
-                let Some(Branch::Ready(branch)) = branch else {
-                    panic!("initial suspense branch was not built for hydration");
-                };
-                let nested = match_parts(&mut inner, snapshot_parts(&branch));
-                inner.expect_exhausted();
-                outer.expect_exhausted();
-                ranges.push(HydratedPart::Suspense {
-                    range,
-                    initial: ItemRange { start, end },
-                    nested,
-                    view,
-                });
+                ranges.push(HydratedPart::Suspense(view.match_range(cursor)));
             }
             #[cfg(feature = "suspense")]
             DomPart::Deferred(view) => {
@@ -710,7 +700,7 @@ fn match_parts(
 }
 
 #[cfg(feature = "hydrate")]
-fn attach_hydrated_parts(parent: &web_sys::Node, parts: Vec<HydratedPart>) {
+pub(super) fn attach_hydrated_parts(parent: &web_sys::Node, parts: Vec<HydratedPart>) {
     for part in parts {
         match part {
             HydratedPart::Dynamic {
@@ -755,15 +745,7 @@ fn attach_hydrated_parts(parent: &web_sys::Node, parts: Vec<HydratedPart>) {
                 super::dom_list::watch_list(parent, start, end, items, mounted);
             }
             #[cfg(feature = "suspense")]
-            HydratedPart::Suspense {
-                range,
-                initial,
-                nested,
-                view,
-            } => {
-                attach_hydrated_parts(parent, nested);
-                super::dom_suspense::watch_suspense(range, view, Some(initial));
-            }
+            HydratedPart::Suspense(attach) => attach(parent),
             #[cfg(feature = "suspense")]
             HydratedPart::Deferred {
                 first,

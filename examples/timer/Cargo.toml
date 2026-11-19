@@ -6,7 +6,7 @@ publish = false
 
 [dependencies]
 gloo-timers = { version = "0.4.0", features = ["futures"] }
-sycamore = { path = "../../packages/sycamore", features = ["suspense"] }
+sycamore = { path = "../../packages/sycamore" }
 
 [lints]
 workspace = true

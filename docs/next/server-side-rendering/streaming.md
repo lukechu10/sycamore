@@ -11,7 +11,9 @@ experience.
 
 ## Different SSR modes
 
-There are 3 different SSR rendering modes.
+There are three SSR rendering modes. Blocking and streaming modes require
+Sycamore's `suspense` feature, which is enabled by default. If you disable
+Sycamore's default features, enable `suspense` explicitly to use either mode.
 
 ### Sync mode
 

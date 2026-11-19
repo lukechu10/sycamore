@@ -25,7 +25,7 @@ pub(crate) enum ViewPart {
     ))]
     Deferred(DeferredView),
     #[cfg(all(feature = "suspense", target_arch = "wasm32", not(sycamore_force_ssr)))]
-    Suspense(Rc<SuspenseView>),
+    Suspense(Rc<dyn DomSuspense>),
     /// A server-rendered range that the hydration cursor skips without adopting its contents.
     OpaqueRange {
         #[cfg(any(not(target_arch = "wasm32"), sycamore_force_ssr))]

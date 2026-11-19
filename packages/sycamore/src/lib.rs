@@ -17,8 +17,8 @@
 //!   they are accessed at the top-level of a component. The default behavior is to warn instead of
 //!   panic.
 //!
-//! - `suspense` - Enables suspense and resources. Also enables wrappers around `js_sys::futures` to
-//!   make it easier to extend a reactive scope into an `async` function.
+//! - `suspense` (_default_) - Enables suspense and resources. Also enables wrappers around
+//!   `js_sys::futures` to make it easier to extend a reactive scope into an `async` function.
 //!
 //! - `nightly` - Enables nightly-only features. This makes it slightly more ergonomic to use
 //!   signals.

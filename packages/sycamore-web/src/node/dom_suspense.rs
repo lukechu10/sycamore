@@ -1,18 +1,48 @@
 //! Switch between retained Suspense branches without rebuilding their views.
 
 use super::dom_node::{insert_range, insert_view};
+#[cfg(feature = "hydrate")]
+use super::dom_node::{AttachHydratedRange, HydrationCursor, attach_hydrated_parts, match_view};
 use crate::*;
 
-pub(super) fn mount_suspense(
-    parent: &web_sys::Node,
-    view: Rc<SuspenseView>,
-    before: Option<&web_sys::Node>,
-) {
-    let (start, end) = insert_range(parent, before);
-    watch_suspense(ItemRange { start, end }, view, None);
+/// Keep the concrete renderer and its drop glue reachable only from the boundary
+/// constructor, not from the shared DOM renderer.
+pub(crate) trait DomSuspense {
+    fn mount(self: Rc<Self>, parent: &web_sys::Node, before: Option<&web_sys::Node>);
+
+    #[cfg(feature = "hydrate")]
+    fn match_range(self: Rc<Self>, cursor: &mut HydrationCursor) -> AttachHydratedRange;
 }
 
-pub(super) fn watch_suspense(outer: ItemRange, view: Rc<SuspenseView>, initial: Option<ItemRange>) {
+impl DomSuspense for SuspenseView {
+    fn mount(self: Rc<Self>, parent: &web_sys::Node, before: Option<&web_sys::Node>) {
+        let (start, end) = insert_range(parent, before);
+        watch_suspense(ItemRange { start, end }, self, None);
+    }
+
+    #[cfg(feature = "hydrate")]
+    fn match_range(self: Rc<Self>, cursor: &mut HydrationCursor) -> AttachHydratedRange {
+        let (start, mut outer, end) = cursor.enter_range(("[", "]"));
+        let range = ItemRange { start, end };
+        let (start, mut inner, end) = outer.enter_range(("[", "]"));
+        let initial = ItemRange { start, end };
+        let fallback = self
+            .initial_fallback
+            .expect("missing initial suspense branch");
+        let Some(Branch::Ready(branch)) = self.branch(fallback).take() else {
+            panic!("initial suspense branch was not built for hydration");
+        };
+        let nested = match_view(&mut inner, &branch);
+        inner.expect_exhausted();
+        outer.expect_exhausted();
+        Box::new(move |parent| {
+            attach_hydrated_parts(parent, nested);
+            watch_suspense(range, self, Some(initial));
+        })
+    }
+}
+
+fn watch_suspense(outer: ItemRange, view: Rc<SuspenseView>, initial: Option<ItemRange>) {
     let owner = use_current_scope();
     let content_owner = view.owner;
     on_cleanup(move || content_owner.dispose());
