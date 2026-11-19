@@ -280,7 +280,7 @@ fn render_view_with_context(view: &View, buf: &mut String, raw_text: bool) {
                     }
                 });
             }
-            #[cfg(all(feature = "suspense", feature = "hydrate"))]
+            #[cfg(feature = "suspense")]
             ViewPart::Deferred(deferred) => {
                 use std::fmt::Write;
                 render_anchored(buf, |buf| {
@@ -343,6 +343,21 @@ mod tests {
         check(
             move || div().dangerously_set_inner_html("<p>hello</p>"),
             expect![[r#"<div data-hk="0.0"><p>hello</p></div>"#]],
+        );
+    }
+
+    #[test]
+    fn no_hydrate_omits_keys_for_the_entire_subtree() {
+        check(
+            || {
+                sycamore_macro::view! {
+                    NoHydrate { div { p { "Static" } } }
+                    p { "Hydratable" }
+                }
+            },
+            expect![[
+                r#"<!--opaque-range--><div><p>Static</p></div><!--/opaque-range--><p data-hk="0.0">Hydratable</p>"#
+            ]],
         );
     }
 

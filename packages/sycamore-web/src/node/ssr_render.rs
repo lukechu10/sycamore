@@ -309,7 +309,6 @@ fn render_suspense_fragment(SuspenseFragment { key, view }: SuspenseFragment) ->
 #[cfg(feature = "suspense")]
 #[cfg_ssr]
 mod tests {
-    #[cfg(feature = "hydrate")]
     use expect_test::expect;
     use futures::channel::oneshot;
 
@@ -319,7 +318,7 @@ mod tests {
     async fn AsyncComponent(receiver: oneshot::Receiver<()>) -> View {
         receiver.await.unwrap();
         view! {
-            "Hello, async!"
+            p { "Hello, async!" }
         }
     }
 
@@ -343,7 +342,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg(feature = "hydrate")]
     async fn render_to_string_await_suspense_works() {
         let (sender, receiver) = oneshot::channel();
         let ssr = render_to_string_await_suspense(move || {
@@ -358,7 +356,7 @@ mod tests {
         let res = ssr.await;
 
         let expect = expect![[
-            r#"<!--[--><!--[--><!--[--><!--async:1-->Hello, async!<!--]--><!--]--><!--]-->"#
+            r#"<!--[--><!--[--><!--[--><!--async:1--><p data-hk="1.0">Hello, async!</p><!--]--><!--]--><!--]-->"#
         ]];
         expect.assert_eq(&res);
     }
@@ -414,7 +412,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg(feature = "hydrate")]
     async fn streaming_preserves_outer_anchors_and_serializes_before_disposal() {
         use futures::StreamExt;
 
@@ -430,7 +427,7 @@ mod tests {
             let fragment = ssr.next().await.unwrap();
             assert_eq!(
                 fragment,
-                r#"<template id="sycamore-suspense-1"><!--[--><!--[--><!--async:2-->Hello, async!<!--]--><!--]--></template><script>__sycamore_suspense(1)</script>"#,
+                r#"<template id="sycamore-suspense-1"><!--[--><!--[--><!--async:2--><p data-hk="2.0">Hello, async!</p><!--]--><!--]--></template><script>__sycamore_suspense(1)</script>"#,
             );
             assert_eq!(ssr.next().await.unwrap(), "<script>__sycamore_finish_stream()</script>");
             assert!(ssr.next().await.is_none());

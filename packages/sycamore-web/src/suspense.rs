@@ -218,7 +218,7 @@ pub fn wrap_async_component<F: Future<Output = View>>(f: impl FnOnce() -> F + 's
         // Synchronous SSR has no executor. Leave an empty range for the client.
         return View::from_dynamic(View::new);
     }
-    #[cfg(feature = "hydrate")]
+    #[cfg(any(feature = "hydrate", not(target_arch = "wasm32"), sycamore_force_ssr))]
     if ConstructionMode::current().is_hydrating() && mode != SsrMode::Sync {
         return deferred_async_view(f);
     }
@@ -235,7 +235,7 @@ pub fn wrap_async_component<F: Future<Output = View>>(f: impl FnOnce() -> F + 's
 
 /// Async SSR emits a namespace with its resolved range. The client receives that
 /// namespace from the range itself, so sibling tasks may resolve in any order.
-#[cfg(feature = "hydrate")]
+#[cfg(any(feature = "hydrate", not(target_arch = "wasm32"), sycamore_force_ssr))]
 #[derive(Clone, Copy)]
 pub(crate) struct DeferredView {
     pub content: Signal<Option<View>>,
@@ -245,7 +245,7 @@ pub(crate) struct DeferredView {
     pub session: MutSignal<Option<HydrationSession>>,
 }
 
-#[cfg(feature = "hydrate")]
+#[cfg(any(feature = "hydrate", not(target_arch = "wasm32"), sycamore_force_ssr))]
 fn deferred_async_view<F: Future<Output = View>>(f: impl FnOnce() -> F + 'static) -> View {
     let content = create_signal(None);
     let deferred = DeferredView {

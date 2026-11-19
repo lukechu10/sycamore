@@ -19,7 +19,10 @@ pub(crate) enum ViewPart {
     Dynamic(Signal<View>),
     /// A list whose rows are mounted and reconciled as independent DOM ranges.
     List(ListItems),
-    #[cfg(all(feature = "suspense", feature = "hydrate"))]
+    #[cfg(all(
+        feature = "suspense",
+        any(feature = "hydrate", not(target_arch = "wasm32"), sycamore_force_ssr)
+    ))]
     Deferred(DeferredView),
     #[cfg(all(feature = "suspense", target_arch = "wasm32", not(sycamore_force_ssr)))]
     Suspense(Rc<SuspenseView>),
@@ -36,7 +39,10 @@ impl fmt::Debug for ViewPart {
             ViewPart::Node(_) => write!(f, "Node"),
             ViewPart::Dynamic(_) => write!(f, "Dynamic"),
             ViewPart::List(_) => write!(f, "List"),
-            #[cfg(all(feature = "suspense", feature = "hydrate"))]
+            #[cfg(all(
+                feature = "suspense",
+                any(feature = "hydrate", not(target_arch = "wasm32"), sycamore_force_ssr)
+            ))]
             ViewPart::Deferred(_) => write!(f, "Deferred"),
             #[cfg(all(feature = "suspense", target_arch = "wasm32", not(sycamore_force_ssr)))]
             ViewPart::Suspense(_) => write!(f, "Suspense"),
@@ -110,7 +116,10 @@ impl View {
                             }
                         }
                     }
-                    #[cfg(all(feature = "suspense", feature = "hydrate"))]
+                    #[cfg(all(
+                        feature = "suspense",
+                        any(feature = "hydrate", not(target_arch = "wasm32"), sycamore_force_ssr)
+                    ))]
                     ViewPart::Deferred(deferred) => {
                         deferred.content.with(|content| {
                             if let Some(view) = content {

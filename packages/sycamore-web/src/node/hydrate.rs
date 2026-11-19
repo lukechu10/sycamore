@@ -2,7 +2,10 @@
 
 use std::collections::HashMap;
 use std::fmt;
-#[cfg(all(feature = "hydrate", feature = "suspense"))]
+#[cfg(all(
+    feature = "suspense",
+    any(feature = "hydrate", not(target_arch = "wasm32"), sycamore_force_ssr)
+))]
 use std::num::NonZeroU32;
 
 use sycamore_reactive::*;
@@ -28,15 +31,20 @@ impl ConstructionMode {
     /// To set the hydration session, use [`provide_context`](sycamore_reactive::provide_context)
     /// with a [`ConstructionMode`].
     pub fn current() -> Self {
-        if cfg!(not(feature = "hydrate")) {
-            Self::Create
-        } else {
-            match try_use_context::<Self>() {
-                Some(Self::Hydrate(session)) if session.active.get_untracked() => {
-                    Self::Hydrate(session)
-                }
-                _ => Self::Create,
+        // SSR emits hydratable HTML regardless of whether client hydration is compiled in.
+        if cfg!(all(
+            target_arch = "wasm32",
+            not(sycamore_force_ssr),
+            not(feature = "hydrate")
+        )) {
+            return Self::Create;
+        }
+
+        match try_use_context::<Self>() {
+            Some(Self::Hydrate(session)) if session.active.get_untracked() => {
+                Self::Hydrate(session)
             }
+            _ => Self::Create,
         }
     }
 
@@ -97,7 +105,6 @@ impl HydrationSession {
     }
 
     #[cfg(all(
-        feature = "hydrate",
         feature = "suspense",
         any(not(target_arch = "wasm32"), sycamore_force_ssr)
     ))]
