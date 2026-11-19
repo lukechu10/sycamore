@@ -1,0 +1,27 @@
+[package]
+name = "hackernews"
+version = "0.1.0"
+edition.workspace = true
+publish = false
+
+[dependencies]
+anyhow = "1.0.66"
+async-recursion = "1.0.0"
+chrono = { version = "0.4.23", features = ["serde", "wasmbind"] }
+console_error_panic_hook = "0.1.7"
+futures = "0.3.25"
+gloo-net = { version = "0.8.0", features = ["http"] }
+serde = { version = "1.0.147", features = ["derive"] }
+serde_json = "1.0.89"
+sycamore = { path = "../../packages/sycamore" }
+sycamore-router = { path = "../../packages/sycamore-router" }
+web-sys = { version = "0.3.60", features = ["Url"] }
+
+[package.metadata.sycamore.tools]
+tailwindcss = { enable = true }
+
+[package.metadata.sycamore.serve]
+spa = true
+
+[lints]
+workspace = true

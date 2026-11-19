@@ -26,6 +26,7 @@ Now open up <http://localhost:8080> in your browser to see the example running l
 | [components](components)                         | UI abstraction using components                                                                |
 | [context](context)                               | Demonstration for the Context API                                                              |
 | [counter](counter)                               | A simple counter which can be incremented and decremented                                      |
+| [hackernews](hackernews)                         | A simple HackerNews reader designed as a Single Page App                                       |
 | [hello-builder](hello-builder)                   | Hello World! With the builder API!                                                             |
 | [hello-world](hello-world)                       | Hello World!                                                                                   |
 | [http-request](http-request)                     | Suspense + async components for sending HTTP requests                                          |
