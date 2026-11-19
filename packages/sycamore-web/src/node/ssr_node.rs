@@ -1,4 +1,3 @@
-use std::any::{Any, TypeId};
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
@@ -12,10 +11,11 @@ pub enum SsrNode {
         tag: Cow<'static, str>,
         attributes: Vec<(Cow<'static, str>, Cow<'static, str>)>,
         bool_attributes: Vec<(Cow<'static, str>, bool)>,
-        children: Vec<Self>,
+        children: Vec<View>,
         // NOTE: This field is boxed to avoid allocating memory for a field that is rarely used.
         inner_html: Option<Box<Cow<'static, str>>>,
-        hk_key: Option<HydrationKey>,
+        /// Hydration key for this element. This is used to match elements during hydration.
+        key: Option<HydrationKey>,
     },
     TextDynamic {
         text: Arc<Mutex<String>>,
@@ -23,83 +23,37 @@ pub enum SsrNode {
     TextStatic {
         text: Cow<'static, str>,
     },
-    Marker,
+    StartMarker,
+    EndMarker,
     /// SSR by default does not update to any dynamic changes in the view. This special node allows
     /// dynamically changing the view tree before it is rendered.
     ///
     /// This is used for updating the view with suspense content once it is resolved.
     Dynamic {
-        view: Arc<Mutex<View<Self>>>,
+        view: Arc<Mutex<View>>,
     },
 }
 
-impl Build<View<SsrNode>> for SsrNode {
-    fn build(self) -> View<SsrNode> {
+impl Build<View> for SsrNode {
+    fn build(self) -> View {
         View::from_node(self)
-    }
-}
-
-impl ViewNode for SsrNode {
-    fn append_child(&mut self, child: Self) {
-        match self {
-            Self::Element { children, .. } => {
-                children.push(child);
-            }
-            _ => panic!("can only append child to an element"),
-        }
-    }
-
-    fn create_dynamic_view<U: Build<View<Self>> + 'static>(
-        mut f: impl FnMut() -> U + 'static,
-    ) -> View<Self> {
-        // If `view` is just a single text node, we can just return this node since text nodes are
-        // specialized. Otherwise, we must create two marker nodes to represent start and end
-        // respectively.
-        if TypeId::of::<U>() == TypeId::of::<String>() {
-            // TODO: Once the reactive graph is sync, we can replace this with a signal.
-            let text = Arc::new(Mutex::new(String::new()));
-            create_effect({
-                let text = text.clone();
-                move || {
-                    let mut value = Some(f());
-                    let value: &mut Option<String> =
-                        (&mut value as &mut dyn Any).downcast_mut().unwrap();
-                    *text.lock().unwrap() = value.take().unwrap();
-                }
-            });
-            SsrNode::TextDynamic { text }.build()
-        } else {
-            let start = Self::create_marker_node();
-            let end = Self::create_marker_node();
-            // TODO: Once the reactive graph is sync, we can replace this with a signal.
-            let view = Arc::new(Mutex::new(View::new()));
-            create_effect({
-                let view = view.clone();
-                move || {
-                    let value = f();
-                    *view.lock().unwrap() = value.build();
-                }
-            });
-            (start, Self::Dynamic { view }, end).build()
-        }
     }
 }
 
 impl ViewHtmlNode for SsrNode {
     fn create_element(tag: Cow<'static, str>) -> Self {
-        let hk_key = if IS_HYDRATING.get() {
-            let reg: HydrationRegistry = use_context();
-            Some(reg.next_key())
-        } else {
-            None
+        let key = match ConstructionMode::current() {
+            ConstructionMode::Create => None,
+            ConstructionMode::Hydrate(session) => Some(session.next_key()),
         };
+
         Self::Element {
             tag,
             attributes: Vec::new(),
             bool_attributes: Vec::new(),
             children: Vec::new(),
             inner_html: None,
-            hk_key,
+            key,
         }
     }
 
@@ -118,8 +72,12 @@ impl ViewHtmlNode for SsrNode {
         }
     }
 
-    fn create_marker_node() -> Self {
-        Self::Marker
+    fn create_start_marker() -> Self {
+        Self::StartMarker
+    }
+
+    fn create_end_marker() -> Self {
+        Self::EndMarker
     }
 
     fn set_attribute(&mut self, name: Cow<'static, str>, value: StringAttribute) {
@@ -170,6 +128,19 @@ impl ViewHtmlNode for SsrNode {
     fn from_web_sys(_node: web_sys::Node) -> Self {
         panic!("`from_web_sys()` is not supported in SSR mode")
     }
+
+    fn append_view(&mut self, view: View) {
+        // If the view is empty, we don't need to append it.
+        if view.parts.is_empty() {
+            return;
+        }
+        match self {
+            Self::Element { children, .. } => {
+                children.push(view);
+            }
+            _ => panic!("can only append view to an element"),
+        }
+    }
 }
 
 /// A list of all the void HTML elements. We need this to know how to render them to a string.
@@ -182,8 +153,24 @@ static VOID_ELEMENTS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     .collect()
 });
 
+/// Escape regular HTML text without losing carriage returns to parser normalization.
+fn render_text(text: &str, buf: &mut String, raw_text: bool) {
+    // Raw-text elements such as <style> do not decode character references.
+    if raw_text {
+        html_escape::encode_text_to_string(text, buf);
+        return;
+    }
+
+    let mut parts = text.split('\r');
+    html_escape::encode_text_to_string(parts.next().unwrap(), buf);
+    for part in parts {
+        buf.push_str("&#13;");
+        html_escape::encode_text_to_string(part, buf);
+    }
+}
+
 /// Recursively render `node` by appending to `buf`.
-pub(crate) fn render_recursive(node: &SsrNode, buf: &mut String) {
+fn render_recursive(node: &SsrNode, buf: &mut String, raw_text: bool) {
     match node {
         SsrNode::Element {
             tag,
@@ -191,7 +178,7 @@ pub(crate) fn render_recursive(node: &SsrNode, buf: &mut String) {
             bool_attributes,
             children,
             inner_html,
-            hk_key,
+            key: hk_key,
         } => {
             buf.push('<');
             buf.push_str(tag);
@@ -220,8 +207,12 @@ pub(crate) fn render_recursive(node: &SsrNode, buf: &mut String) {
 
             if is_void {
                 assert!(
-                    children.is_empty() && inner_html.is_none(),
-                    "void elements cannot have children or inner_html"
+                    children.is_empty(),
+                    "<{tag}> is a void element and cannot have children"
+                );
+                assert!(
+                    inner_html.is_none(),
+                    "<{tag}> is a void element and cannot have inner_html"
                 );
                 return;
             }
@@ -232,8 +223,14 @@ pub(crate) fn render_recursive(node: &SsrNode, buf: &mut String) {
                 );
                 buf.push_str(inner_html);
             } else {
+                if !children.is_empty() && matches!(tag.as_ref(), "pre" | "textarea" | "listing") {
+                    // The HTML parser discards one initial LF in these elements.
+                    // Supply it ourselves so a leading LF in the view survives parsing.
+                    buf.push('\n');
+                }
+                let raw_text = super::is_raw_text_element(tag);
                 for child in children {
-                    render_recursive(child, buf);
+                    render_view_with_context(child, buf, raw_text);
                 }
             }
 
@@ -245,26 +242,75 @@ pub(crate) fn render_recursive(node: &SsrNode, buf: &mut String) {
         }
         SsrNode::TextDynamic { text } => {
             buf.push_str("<!--t-->"); // For dynamic text, add a marker for hydrating it.
-            html_escape::encode_text_to_string(text.lock().unwrap().as_str(), buf);
+            render_text(text.lock().unwrap().as_str(), buf, raw_text);
             buf.push_str("<!-->"); // End of dynamic text.
         }
-        SsrNode::TextStatic { text } => {
-            html_escape::encode_text_to_string(text, buf);
+        SsrNode::TextStatic { text } => render_text(text, buf, raw_text),
+        SsrNode::StartMarker => {
+            buf.push_str("<!--[-->");
         }
-        SsrNode::Marker => {
-            buf.push_str("<!--/-->");
+        SsrNode::EndMarker => {
+            buf.push_str("<!--]-->");
         }
         SsrNode::Dynamic { view } => {
-            render_recursive_view(&view.lock().unwrap(), buf);
+            render_view_with_context(&view.lock().unwrap(), buf, raw_text);
         }
     }
 }
 
-/// Recursively render a [`View`] to a string by calling `render_recursive` on each node.
+/// Serialize a [`View`], enclosing each dynamic part in the paired comments the client
+/// uses as range boundaries. Even empty dynamic parts need both anchors for later updates.
 pub(crate) fn render_recursive_view(view: &View, buf: &mut String) {
-    for node in &view.nodes {
-        render_recursive(node, buf);
+    render_view_with_context(view, buf, false);
+}
+
+fn render_view_with_context(view: &View, buf: &mut String, raw_text: bool) {
+    for part in &view.parts {
+        match part {
+            ViewPart::Node(node) => render_recursive(node, buf, raw_text),
+            ViewPart::Dynamic(signal) => {
+                render_anchored(buf, |buf| {
+                    signal.with_untracked(|view| render_view_with_context(view, buf, raw_text));
+                });
+            }
+            ViewPart::List(items) => {
+                render_anchored(buf, |buf| {
+                    for item in items {
+                        render_anchored(buf, |buf| render_view_with_context(item, buf, raw_text));
+                    }
+                });
+            }
+            #[cfg(feature = "suspense")]
+            ViewPart::Deferred(deferred) => {
+                use std::fmt::Write;
+                render_anchored(buf, |buf| {
+                    write!(buf, "<!--async:{}-->", deferred.namespace).unwrap();
+                    deferred.content.with_untracked(|content| {
+                        if let Some(view) = content {
+                            render_view_with_context(view, buf, raw_text);
+                        }
+                    });
+                });
+            }
+            ViewPart::OpaqueRange { content } => {
+                let (open, close) = OPAQUE_RANGE_MARKERS;
+                buf.push_str("<!--");
+                buf.push_str(open);
+                buf.push_str("-->");
+                render_view_with_context(content, buf, raw_text);
+                buf.push_str("<!--");
+                buf.push_str(close);
+                buf.push_str("-->");
+            }
+        }
     }
+}
+
+/// Lists and their individual rows use the same paired comments as dynamic views.
+fn render_anchored(buf: &mut String, render: impl FnOnce(&mut String)) {
+    render_recursive(&SsrNode::StartMarker, buf, false);
+    render(buf);
+    render_recursive(&SsrNode::EndMarker, buf, false);
 }
 
 #[cfg(test)]
@@ -301,6 +347,21 @@ mod tests {
     }
 
     #[test]
+    fn no_hydrate_omits_keys_for_the_entire_subtree() {
+        check(
+            || {
+                sycamore_macro::view! {
+                    NoHydrate { div { p { "Static" } } }
+                    p { "Hydratable" }
+                }
+            },
+            expect![[
+                r#"<!--opaque-range--><div><p>Static</p></div><!--/opaque-range--><p data-hk="0.0">Hydratable</p>"#
+            ]],
+        );
+    }
+
+    #[test]
     fn render_void_element() {
         check(br, expect![[r#"<br data-hk="0.0">"#]]);
         check(
@@ -333,7 +394,7 @@ mod tests {
                 }
             },
             expect![[
-                r#"<ul data-hk="0.0"><!--/--><li data-hk="0.1">1</li><li data-hk="0.2">2</li><!--/--></ul>"#
+                r#"<ul data-hk="0.0"><!--[--><!--[--><li data-hk="0.1">1</li><!--]--><!--[--><li data-hk="0.2">2</li><!--]--><!--]--></ul>"#
             ]],
         );
     }
@@ -375,6 +436,28 @@ mod tests {
     }
 
     #[test]
+    fn signal_view_build_can_create_signals() {
+        #[derive(Clone)]
+        struct ReactiveText(u32);
+
+        impl Build<View> for ReactiveText {
+            fn build(self) -> View {
+                View::from(create_signal(self.0).get_untracked())
+            }
+        }
+
+        check(
+            || {
+                let value = create_signal(ReactiveText(0));
+                let view = View::from(*value);
+                value.set(ReactiveText(1));
+                view
+            },
+            expect!["<!--[-->1<!--]-->"],
+        );
+    }
+
+    #[test]
     fn dynamic_text() {
         check(
             move || {
@@ -385,7 +468,7 @@ mod tests {
                 value.set(1);
                 view
             },
-            expect![[r#"<p data-hk="0.0"><!--/-->1<!--/--></p>"#]],
+            expect![[r#"<p data-hk="0.0"><!--[-->1<!--]--></p>"#]],
         );
     }
 }

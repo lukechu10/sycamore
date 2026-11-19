@@ -1164,7 +1164,7 @@ impl<T: GlobalProps> GlobalAttributes for T {}
 
 /// Props that are available on all elements.
 pub trait GlobalProps: GlobalAttributes + AsHtmlNode + Sized {
-    /// Set the inner html of an element.
+    /// Set the inner HTML of an element.
     fn dangerously_set_inner_html(mut self, inner_html: impl Into<Cow<'static, str>>) -> Self {
         self.as_html_node().set_inner_html(inner_html.into());
         self

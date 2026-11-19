@@ -153,7 +153,7 @@ mod tests {
                 assert_eq!(resource.unwrap().get(), None);
                 assert!(resource.unwrap().is_loading());
 
-                // Signal when the resource is loaded.
+                // MutSignal when the resource is loaded.
                 create_effect(move || {
                     if !resource.unwrap().is_loading()
                         && let Some(tx) = tx.take()

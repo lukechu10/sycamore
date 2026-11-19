@@ -4,63 +4,29 @@ use sycamore_macro::{component, view};
 
 use crate::*;
 
-/// A utility component that only renders its children when a condition is satisfied.
-#[component]
-pub fn Show(#[prop(into)] when: MaybeDyn<bool>, children: Children) -> View {
-    let mut children = children.call();
-    let when = create_selector(move || when.get());
-
-    if is_ssr!() {
-        View::from_dynamic(move || {
-            if when.get() {
-                std::mem::take(&mut children)
-            } else {
-                view! {}
-            }
-        })
-    } else {
-        View::from_dynamic(move || {
-            let cloned = utils::clone_nodes_via_web_sys(&children);
-
-            if when.get() {
-                // Do not set `children` to the document fragment since the document fragment will
-                // be emptied when it is appended.
-                children = utils::unwrap_from_document_fragment(cloned);
-
-                utils::clone_nodes_via_web_sys(&children)
-            } else {
-                // Wrap children inside a document fragment so that it can still be dynamically
-                // updated even though it is not mounted.
-                children = utils::wrap_in_document_fragment(cloned);
-                view! {}
-            }
-        })
-    }
-}
-
-/// Component that is only renders its children on the client side.
+/// Component that renders its children only on the client side.
 ///
 /// This is useful when wrapping parts of your app that are not intended to be server-side
 /// rendered, e.g. highly interactive components such as graphs, etc...
 #[component]
 pub fn NoSsr(children: Children) -> View {
-    if is_ssr!() {
+    is_ssr! {
+        let _ = children;
         view! {
             no-ssr {}
         }
-    } else {
+    }
+    is_not_ssr! {
         let marker = create_node_ref();
         let view = view! {
             no-ssr(r#ref=marker)
         };
+        // The initial hydration walk adopts only the placeholder. Mount the full view
+        // afterward so its dynamic parts get their own anchors and effects.
         on_mount(move || {
             let marker = marker.get();
             let parent = marker.parent_node().unwrap();
-
-            let children = children.call();
-            for node in children.as_web_sys() {
-                parent.insert_before(&node, Some(&marker)).unwrap();
-            }
+            crate::node::insert_view(&parent, &children.call(), Some(&marker));
             parent.remove_child(&marker).unwrap();
         });
         view
@@ -76,15 +42,19 @@ pub fn NoSsr(children: Children) -> View {
 /// initial hydration phase is over, e.g. navigating to a new page with a `NoHydrate` component.
 #[component]
 pub fn NoHydrate(children: Children) -> View {
-    if is_ssr!() {
-        let is_hydrating = IS_HYDRATING.replace(false);
-        let children = children.call();
-        IS_HYDRATING.set(is_hydrating);
-        children
-    } else if IS_HYDRATING.get() {
-        view! {}
-    } else {
-        children.call()
+    if !ConstructionMode::current().is_hydrating() {
+        return children.call();
+    }
+
+    is_ssr! {
+        let content = provide_context_in_new_scope(ConstructionMode::Create, move || children.call());
+        View::new_from_parts(smallvec::smallvec![ViewPart::OpaqueRange {
+            content: Box::new(content),
+        }])
+    }
+    is_not_ssr! {
+        // The client only needs the boundary; evaluating children would claim server nodes.
+        View::new_from_parts(smallvec::smallvec![ViewPart::OpaqueRange {}])
     }
 }
 
@@ -118,6 +88,6 @@ pub fn HydrationScript() -> View {
         }
     }
     is_not_ssr! {
-        view! {}
+        view! { NoHydrate {} }
     }
 }

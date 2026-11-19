@@ -29,11 +29,8 @@ pub fn render_in_scope(view: impl Into<Children>, parent: &web_sys::Node) {
     if is_ssr!() {
         panic!("`render_in_scope` is not available in SSR mode");
     } else {
-        IS_HYDRATING.set(false);
-        let nodes = view.into().call().nodes;
-        for node in nodes {
-            parent.append_child(node.as_web_sys()).unwrap();
-        }
+        let mut parent = HtmlNode::from_web_sys(parent.clone());
+        parent.append_view(view.into().call());
     }
 }
 
@@ -52,6 +49,7 @@ pub fn hydrate(view: impl Into<Children>) {
 ///
 /// For rendering under the `<body>` tag, use [`hydrate`] instead.
 /// For rendering without hydration, use [`render`](super::render) instead.
+/// With streaming SSR, call this after the response has finished applying its fragments.
 #[cfg(feature = "hydrate")]
 pub fn hydrate_to(view: impl Into<Children>, parent: &web_sys::Node) {
     // Do not call the destructor function, effectively leaking the scope.
@@ -86,43 +84,22 @@ pub fn hydrate_in_scope(view: impl Into<Children>, parent: &web_sys::Node) {
             panic!("invalid SSR mode {mode:?}")
         };
 
-        // Get all nodes with `data-hk` attribute.
-        let existing_nodes = parent
-            .unchecked_ref::<web_sys::Element>()
-            .query_selector_all("[data-hk]")
-            .unwrap();
-
-        HYDRATE_NODES.with(|nodes| {
-            let mut nodes = nodes.borrow_mut();
-            let len = existing_nodes.length();
-            for i in 0..len {
-                let node = existing_nodes.get(i).unwrap();
-                let hk = node.unchecked_ref::<web_sys::Element>().get_attribute("data-hk").unwrap();
-                let key = HydrationKey::parse(&hk).expect("could not parse hydration key");
-                let node = HydrateNode::from_web_sys(node);
-                nodes.insert(key, node);
-            }
-        });
-
-        IS_HYDRATING.set(true);
-        provide_context(mode);
-        provide_context(HydrationRegistry::new());
-        let nodes = view.into().call().nodes;
-        // We need to append `nodes` to the `parent` so that the top level nodes also get properly
-        // hydrated.
-        let mut parent = HydrateNode::from_web_sys(parent.clone());
-        for node in nodes {
-            parent.append_child(node);
+        if mode == SsrMode::Streaming
+            && js_sys::Reflect::get(&window(), &"__sycamore_stream_complete".into())
+                .unwrap()
+                .as_bool() != Some(true)
+        {
+            panic!("streaming hydration requires the SSR stream to finish first");
         }
 
-        // Wait until suspense is resolved before setting `IS_HYDRATING` to `false`.
-        #[cfg(not(feature = "suspense"))]
-        IS_HYDRATING.set(false);
-        #[cfg(feature = "suspense")]
-        create_effect(|| {
-            if IS_HYDRATING.get() && !sycamore_futures::use_is_loading_global() {
-                IS_HYDRATING.set(false);
-            }
-        });
+        let session = HydrationSession::new_hydrate(parent.clone());
+        let mut parent = HtmlNode::from_web_sys(parent.clone());
+
+        provide_context(mode);
+        provide_context(ConstructionMode::Hydrate(session));
+
+        parent.append_view(view.into().call());
+        parent.finish_hydrating_children();
+        session.finish();
     }
 }

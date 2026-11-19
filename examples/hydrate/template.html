@@ -7,10 +7,11 @@
 	<title>Hydration | Sycamore</title>
 </head>
 
+<!-- Generate SSR-ed HTML with `cargo run`. This will generate an `index.html` file with the rendered HTML -->
+
 <body>
-	<!-- Generate SSR-ed HTML with `cargo run`. This will generate an `index.html` file with the rendered HTML -->
-	%sycamore.html%
-	<!-- End SSR-ed HTML. -->
+	<!-- Keep template whitespace outside the hydration root. -->
+	<div id="app">%sycamore.html%</div>
 </body>
 
 </html>

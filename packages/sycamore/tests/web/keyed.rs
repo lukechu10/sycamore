@@ -467,6 +467,102 @@ fn template_with_other_nodes_at_same_level() {
 }
 
 #[wasm_bindgen_test]
+fn retains_row_effects_and_cleans_up_removed_rows() {
+    use std::cell::Cell;
+    use std::rc::Rc;
+
+    let c = test_container();
+    let _ = create_root(|| {
+        let rows = create_signal(vec![1, 0, 2]);
+        let suffix = create_signal("a");
+        let show = create_signal(true);
+        let disposed = Rc::new(Cell::new(0));
+        let render_row = {
+            let disposed = Rc::clone(&disposed);
+            move |i| {
+                let disposed = Rc::clone(&disposed);
+                on_cleanup(move || disposed.set(disposed.get() + 1));
+                if i == 0 {
+                    View::new()
+                } else {
+                    View::from_dynamic(move || format!("{i}{}", suffix.get()))
+                }
+            }
+        };
+
+        sycamore::render_in_scope(
+            move || {
+                view! {
+                    "before"
+                    if show.get() {
+                        Keyed(list=rows, view=render_row.clone(), key=|i| *i)
+                    }
+                    "after"
+                }
+            },
+            &c,
+        );
+        assert_text_content!(c, "before1a2aafter");
+
+        rows.set(vec![2, 0, 1]);
+        suffix.set("b");
+        assert_text_content!(c, "before2b1bafter");
+        assert_eq!(disposed.get(), 0);
+
+        rows.set(vec![2, 1]);
+        assert_text_content!(c, "before2b1bafter");
+        assert_eq!(disposed.get(), 1);
+
+        show.set(false);
+        suffix.set("c");
+        assert_text_content!(c, "beforeafter");
+        assert_eq!(disposed.get(), 3);
+    });
+}
+
+#[wasm_bindgen_test]
+fn unmount_disposes_a_list_built_outside_its_mount_scope() {
+    use std::cell::Cell;
+    use std::rc::Rc;
+
+    let c = test_container();
+    let _ = create_root(|| {
+        let rows = create_signal(vec![1]);
+        let suffix = create_signal("a");
+        let show = create_signal(true);
+        let created = Rc::new(Cell::new(0));
+        let disposed = Rc::new(Cell::new(0));
+        let view_row = {
+            let created = Rc::clone(&created);
+            let disposed = Rc::clone(&disposed);
+            move |i| {
+                created.set(created.get() + 1);
+                let disposed = Rc::clone(&disposed);
+                on_cleanup(move || disposed.set(disposed.get() + 1));
+                View::from_dynamic(move || format!("{i}{}", suffix.get()))
+            }
+        };
+        let mut list = Some(view! { Keyed(list=rows, view=view_row, key=|i| *i) });
+        let view = View::from_dynamic(move || {
+            if show.get() {
+                list.take().unwrap()
+            } else {
+                View::new()
+            }
+        });
+        sycamore::render_in_scope(|| view, &c);
+        assert_text_content!(c, "1a");
+
+        show.set(false);
+        suffix.set("b");
+        rows.set(vec![2]);
+        assert_text_content!(c, "");
+        assert_eq!(created.get(), 1);
+        assert_eq!(disposed.get(), 1);
+    });
+}
+
+#[wasm_bindgen_test]
 fn issue_795_keyed() {
     let _ = create_root(|| {
         let count = create_signal(vec!['b', 'c', 'g', 'e', 'f', 'd', 'h']);

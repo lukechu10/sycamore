@@ -29,7 +29,6 @@ use std::borrow::Cow;
 use std::cell::Cell;
 use std::rc::Rc;
 
-use sycamore_macro::*;
 use sycamore_reactive::*;
 use wasm_bindgen::prelude::*;
 
@@ -73,6 +72,9 @@ pub use self::view::*;
 /// We add this to make the macros from `sycamore-macro` work properly.
 /// We also add the `web` module so that the macros can access `::sycamore::web` correctly.
 extern crate self as sycamore;
+#[allow(unused_imports)] // Needed for macro support.
+use sycamore_macro::*;
+#[allow(unused_imports)] // Needed for macro support.
 mod web {
     pub use crate::*;
 }
@@ -207,18 +209,6 @@ macro_rules! cfg_not_ssr_item {
     };
 }
 
-/// A type alias for the rendering backend.
-#[cfg_ssr]
-pub type HtmlNode = SsrNode;
-/// A type alias for the rendering backend.
-#[cfg_not_ssr]
-#[cfg(not(feature = "hydrate"))]
-pub type HtmlNode = DomNode;
-/// A type alias for the rendering backend.
-#[cfg_not_ssr]
-#[cfg(feature = "hydrate")]
-pub type HtmlNode = HydrateNode;
-
 /// A type alias for [`Children`](sycamore_core::Children) automatically selecting the correct node
 /// type.
 pub type Children = sycamore_core::Children<View>;
@@ -252,6 +242,13 @@ pub fn on_mount(f: impl FnOnce() + 'static) {
                 scope.run_in(f);
             }
         };
+        is_not_ssr! {
+            #[cfg(feature = "hydrate")]
+            if let ConstructionMode::Hydrate(session) = ConstructionMode::current() {
+                session.queue_mount(cb);
+                return;
+            }
+        }
         queue_microtask(cb);
     }
 }

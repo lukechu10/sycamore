@@ -23,7 +23,7 @@ features = [
 	"History",
 	"HtmlAnchorElement",
 	"HtmlBaseElement",
-	"KeyboardEvent",
+	"MouseEvent",
 	"Location",
 	"PopStateEvent",
 	"Url",
@@ -31,6 +31,10 @@ features = [
 	"UrlSearchParams",
 ]
 version = "0.3.60"
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-futures = "0.4"
+wasm-bindgen-test = "0.3.33"
 
 [lints]
 workspace = true

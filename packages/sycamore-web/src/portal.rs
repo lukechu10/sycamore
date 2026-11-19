@@ -1,43 +1,41 @@
-use sycamore_core::Build;
 use sycamore_macro::component;
 
 use crate::*;
 
-/// A portal into a different part of the DOM. Only renders in client side rendering (CSR) mode.
-/// Does nothing in SSR mode.
+/// Mounts children into another part of the DOM on the client, including after hydration.
+/// Nothing is rendered on the server.
 #[component]
 pub fn Portal(selector: impl AsRef<str>, children: Children) -> View {
-    if is_not_ssr!() {
-        let selector = selector.as_ref();
-        let Some(parent) = document().query_selector(selector).unwrap() else {
-            console_warn!(
-                "element matching selector `{selector}` not found, portal will not be rendered"
-            );
-            return View::default();
-        };
-
-        // Do this in an `on_mount` so that we don't try to hydrate the portal contents.
+    is_ssr! {
+        let _ = (selector, children);
+    }
+    is_not_ssr! {
+        let selector = selector.as_ref().to_owned();
+        // Wait for the target to be mounted and for the initial hydration walk to finish.
         on_mount(move || {
-            let start = HtmlNode::create_marker_node();
-            let start_node = start.as_web_sys().clone();
-            let end = HtmlNode::create_marker_node();
-            let end_node = end.as_web_sys().clone();
-            let children: View = (start, children, end).build();
+            let Some(parent) = document().query_selector(&selector).unwrap() else {
+                console_warn!(
+                    "element matching selector `{selector}` not found, portal will not be rendered"
+                );
+                return;
+            };
 
-            let nodes = children.as_web_sys();
-            for node in &nodes {
-                parent.append_child(node).unwrap();
-            }
+            let start = HtmlNode::create_start_marker().raw;
+            let end = HtmlNode::create_end_marker().raw;
+            parent.append_child(&start).unwrap();
+            parent.append_child(&end).unwrap();
+            crate::node::insert_view(&parent, &children.call(), Some(&end));
 
+            // Own the entire range, not just the initial nodes: dynamic parts can replace
+            // their contents before this scope is disposed.
             on_cleanup(move || {
-                let nodes = utils::get_nodes_between(&start_node, &end_node);
-                for node in nodes {
+                for node in utils::get_nodes_between(&start, &end) {
                     parent.remove_child(&node).unwrap();
                 }
-                parent.remove_child(&start_node).unwrap();
-                parent.remove_child(&end_node).unwrap();
+                parent.remove_child(&start).unwrap();
+                parent.remove_child(&end).unwrap();
             });
         });
     }
-    View::default()
+    View::new()
 }

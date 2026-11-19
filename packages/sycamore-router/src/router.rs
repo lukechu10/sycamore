@@ -5,7 +5,7 @@ use std::rc::Rc;
 use sycamore::prelude::*;
 use wasm_bindgen::prelude::*;
 use web_sys::js_sys::Array;
-use web_sys::{Element, Event, HtmlAnchorElement, HtmlBaseElement, KeyboardEvent, UrlSearchParams};
+use web_sys::{Element, Event, HtmlAnchorElement, HtmlBaseElement, UrlSearchParams};
 
 use crate::Route;
 
@@ -18,7 +18,7 @@ pub trait Integration {
     /// Add a callback for listening to the `popstate` event.
     fn on_popstate(&self, f: Box<dyn FnMut()>);
 
-    /// Get the click handler that is run when links are clicked.
+    /// Get the handler for clicks that bubble to the document while the router is mounted.
     fn click_handler(&self) -> Box<dyn Fn(web_sys::MouseEvent)>;
 }
 
@@ -59,20 +59,37 @@ impl Integration for HistoryIntegration {
 
     fn click_handler(&self) -> Box<dyn Fn(web_sys::MouseEvent)> {
         Box::new(|ev| {
-            if let Some(a) = ev
+            if ev.default_prevented()
+                || ev.button() != 0
+                || ev.meta_key()
+                || ev.ctrl_key()
+                || ev.shift_key()
+                || ev.alt_key()
+            {
+                return;
+            }
+
+            let Some(target) = ev
                 .target()
-                .unwrap_throw()
-                .unchecked_into::<Element>()
+                .and_then(|target| target.dyn_into::<Element>().ok())
+            else {
+                return;
+            };
+            if let Some(a) = target
                 .closest("a[href]")
                 .unwrap_throw()
+                .and_then(|link| link.dyn_into::<HtmlAnchorElement>().ok())
             {
                 let location = window().location();
 
-                let a = a.unchecked_into::<HtmlAnchorElement>();
-
-                // Check if a has `rel="external"`.
-                if a.rel() == "external" {
-                    // Use default browser behavior.
+                // Leave browser-managed navigation alone.
+                let target = a.target();
+                if (!target.is_empty() && !target.eq_ignore_ascii_case("_self"))
+                    || a.has_attribute("download")
+                    || a.rel()
+                        .split_ascii_whitespace()
+                        .any(|rel| rel.eq_ignore_ascii_case("external"))
+                {
                     return;
                 }
 
@@ -81,8 +98,7 @@ impl Integration for HistoryIntegration {
                 let hash = a.hash();
                 let query = a.search();
 
-                let meta_keys_pressed = meta_keys_pressed(ev.unchecked_ref::<KeyboardEvent>());
-                if !meta_keys_pressed && location.origin() == Ok(origin) {
+                if location.origin() == Ok(origin) {
                     if location.pathname().as_ref() != Ok(&a_pathname) {
                         // Same origin, different path. Navigate to new page.
                         ev.prevent_default();
@@ -155,8 +171,11 @@ fn base_pathname() -> String {
     }
 }
 
-/// The sycamore router component. This component expects to be used inside a browser environment.
+/// The Sycamore router component. This component expects to be used inside a browser environment.
 /// For server environments, see [`StaticRouter`].
+///
+/// Click handling is delegated to the document, so links added after the router mounts also work.
+/// Use `rel="external"` on links that should bypass [`HistoryIntegration`].
 #[component]
 pub fn Router<R, F, I>(view: F, integration: I) -> View
 where
@@ -216,18 +235,21 @@ where
         }
     }));
     let route_signal = create_memo(move || pathname.with(|pathname| route.match_path(pathname)));
-    let view = view(*route_signal);
-    let nodes = view.as_web_sys();
     on_mount(move || {
-        for node in nodes {
-            let handler: Closure<dyn FnMut(web_sys::MouseEvent)> =
-                Closure::new(integration.click_handler());
-            node.add_event_listener_with_callback("click", handler.into_js_value().unchecked_ref())
-                .unwrap(); // TODO: manage in scope
-        }
-        // TODO: this does not work for dynamic views
+        let document = document();
+        let handler: Closure<dyn FnMut(web_sys::MouseEvent)> =
+            Closure::new(integration.click_handler());
+        let callback = handler.as_ref().unchecked_ref();
+        document
+            .add_event_listener_with_callback("click", callback)
+            .unwrap_throw();
+        on_cleanup(move || {
+            document
+                .remove_event_listener_with_callback("click", handler.as_ref().unchecked_ref())
+                .unwrap_throw();
+        });
     });
-    view
+    view(*route_signal)
 }
 
 /// A router that only renders once with the given `route`.
@@ -415,14 +437,104 @@ pub fn use_location_hash() -> Signal<String> {
     })
 }
 
-fn meta_keys_pressed(kb_event: &KeyboardEvent) -> bool {
-    kb_event.meta_key() || kb_event.ctrl_key() || kb_event.shift_key() || kb_event.alt_key()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    #[cfg(all(target_arch = "wasm32", not(sycamore_force_ssr)))]
+    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    #[cfg(all(target_arch = "wasm32", not(sycamore_force_ssr)))]
+    #[wasm_bindgen_test::wasm_bindgen_test]
+    async fn delegates_clicks_to_links_mounted_later_and_cleans_up() {
+        use wasm_bindgen_futures::JsFuture;
+        use web_sys::HtmlElement;
+        use web_sys::js_sys::Promise;
+
+        #[derive(Route, Clone, Copy)]
+        enum Routes {
+            #[to("/")]
+            Home,
+            #[not_found]
+            NotFound,
+        }
+
+        struct TestIntegration(Rc<Cell<u32>>);
+
+        impl Integration for TestIntegration {
+            fn current_pathname(&self) -> String {
+                "/".to_string()
+            }
+
+            fn on_popstate(&self, _: Box<dyn FnMut()>) {}
+
+            fn click_handler(&self) -> Box<dyn Fn(web_sys::MouseEvent)> {
+                let clicks = Rc::clone(&self.0);
+                Box::new(move |event| {
+                    event.prevent_default();
+                    clicks.set(clicks.get() + 1);
+                })
+            }
+        }
+
+        let document = document();
+        let container = document.create_element("div").unwrap();
+        document.body().unwrap().append_child(&container).unwrap();
+        let clicks = Rc::new(Cell::new(0));
+        let link = Cell::new(None);
+        let root = create_root(|| {
+            let current = create_signal(0);
+            link.set(Some(current));
+            let integration = TestIntegration(Rc::clone(&clicks));
+            sycamore::render_in_scope(
+                move || {
+                    view! {
+                        Router(
+                            integration=integration,
+                            view=move |_: Signal<Routes>| view! {
+                                if current.get() == 1 {
+                                    a(href="#first") { "First" }
+                                } else if current.get() == 2 {
+                                    a(href="#second") { "Second" }
+                                }
+                            },
+                        )
+                    }
+                },
+                &container,
+            );
+        });
+        JsFuture::from(Promise::resolve(&JsValue::UNDEFINED))
+            .await
+            .unwrap();
+
+        let current = link.get().unwrap();
+        let get_link = || {
+            container
+                .query_selector("a")
+                .unwrap()
+                .unwrap()
+                .unchecked_into::<HtmlElement>()
+        };
+        current.set(1);
+        get_link().click();
+        assert_eq!(clicks.get(), 1);
+
+        current.set(2);
+        let second = get_link();
+        second.click();
+        assert_eq!(clicks.get(), 2);
+
+        root.dispose();
+        // Keep a connected target even if disposing the view removed its range.
+        second.remove_attribute("href").unwrap();
+        container.append_child(&second).unwrap();
+        second.click();
+        assert_eq!(clicks.get(), 2);
+        container.remove();
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     #[test]
     fn static_router() {
         #[derive(Route, Clone, Copy)]
