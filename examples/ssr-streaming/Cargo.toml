@@ -22,3 +22,10 @@ futures = "0.3.30"
 tokio = { version = "1.40.0", features = ["full"] }
 tokio-stream = "0.1.16"
 tower-http = { version = "0.7.1", features = ["fs"] }
+
+[package.metadata.sycamore.build.server]
+
+[package.metadata.sycamore.serve]
+serve-frontend = true
+backend-port = 3000
+forward-routes = ["/"]

@@ -1,6 +1,0 @@
-[build]
-inject_scripts = false
-filehash = false
-
-[watch]
-ignore = ["src/server.rs"]
