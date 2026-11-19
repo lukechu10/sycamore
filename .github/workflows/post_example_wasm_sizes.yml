@@ -100,7 +100,7 @@ jobs:
               '| --- | ---: | ---: | ---: |',
               ...rows,
             ].join('\n');
-            const metric = 'Sizes are the total uncompressed `.wasm` output from `trunk build --release` (1 kB = 1,000 bytes).';
+            const metric = 'Sizes are the total uncompressed `.wasm` files in the public output of `cargo sycamore build --release` (1 kB = 1,000 bytes).';
             await core.summary.addRaw(`## Example Wasm sizes\n\n${metric}\n\n${table}`, true).write();
 
             // GitHub may omit pull_requests from workflow_run for forks. Resolve the PR

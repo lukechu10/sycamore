@@ -3,7 +3,7 @@ name: Compare example Wasm sizes
 on:
   pull_request:
 
-# Trunk and Cargo can execute code from the PR. Keep this workflow read-only.
+# cargo-sycamore and Cargo can execute code from the PR. Keep this workflow read-only.
 permissions:
   contents: read
 
@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
-      TRUNK_VERSION: '0.21.1'
+      CARGO_SYCAMORE_VERSION: '0.2.2'
     strategy:
       fail-fast: false
       matrix:
@@ -47,54 +47,48 @@ jobs:
         run: cargo generate-lockfile
 
       # Reuse only exact baselines, never one from a different revision or toolchain.
-      # Bump v1 if the build flags or the measurement format change.
+      # Bump v2 if the build flags or the measurement format change.
       - name: Cache base report
         if: matrix.revision == 'base'
         id: base-report
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/example-wasm-sizes-base.json
-          key: example-wasm-report-v1-${{ runner.os }}-${{ runner.arch }}-trunk${{ env.TRUNK_VERSION }}-${{ steps.rust.outputs.version }}-${{ hashFiles('Cargo.lock') }}-${{ matrix.ref }}
+          key: example-wasm-report-v2-${{ runner.os }}-${{ runner.arch }}-cargo-sycamore-${{ env.CARGO_SYCAMORE_VERSION }}-${{ steps.rust.outputs.version }}-${{ hashFiles('Cargo.lock') }}-${{ matrix.ref }}
 
       - name: Set up Wasm target
         if: steps.base-report.outputs.cache-hit != 'true'
         run: rustup target add wasm32-unknown-unknown
 
-      - name: Cache Cargo dependencies and Trunk tools
+      - name: Cache Cargo dependencies and cargo-sycamore tools
         if: steps.base-report.outputs.cache-hit != 'true'
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
-          key: example-wasm-${{ matrix.revision }}-trunk${{ env.TRUNK_VERSION }}
+          key: example-wasm-${{ matrix.revision }}-cargo-sycamore-${{ env.CARGO_SYCAMORE_VERSION }}
           cache-bin: false
-          cache-directories: ~/.cache/trunk
+          cache-directories: ~/.cache/cargo-sycamore/tools
 
-      - name: Install Trunk
+      - name: Install cargo-sycamore
         if: steps.base-report.outputs.cache-hit != 'true'
-        run: |
-          archive="$RUNNER_TEMP/trunk.tar.gz"
-          curl --fail --silent --show-error --location --retry 3 \
-            "https://github.com/thedodd/trunk/releases/download/v$TRUNK_VERSION/trunk-x86_64-unknown-linux-gnu.tar.gz" \
-            --output "$archive"
-          echo "3def10251032028a4e1e697317abf40079c81cd14670236eabe0879698096270  $archive" | sha256sum --check
-          mkdir -p "$RUNNER_TEMP/trunk-bin"
-          tar -xzf "$archive" -C "$RUNNER_TEMP/trunk-bin" trunk
-          echo "$RUNNER_TEMP/trunk-bin" >> "$GITHUB_PATH"
+        uses: taiki-e/install-action@75a7c0f87bd666af3cdb75c5b9e9d03ab6044e6f # v2.90.6
+        with:
+          tool: cargo-sycamore@${{ env.CARGO_SYCAMORE_VERSION }}
+          fallback: cargo-binstall
 
       - name: Build examples
         if: steps.base-report.outputs.cache-hit != 'true'
         run: |
           output="$RUNNER_TEMP/example-dist"
           mkdir -p "$output"
-          # Match the GitHub Pages example builds in build_examples.yml.
+          # Match the tool version and release flags in build_examples.yml.
           for path in examples/*/; do
             [[ -d "$path" ]] || continue
             example=$(basename "$path")
             echo "Building: $example"
             (
               cd "$path"
-              dist_dir="$output/$example"
-              mkdir "$dist_dir"
-              trunk build --release --dist "$dist_dir" --public-url "/$example"
+              cargo sycamore build --release --public-url "/$example" --out-dir "$output/$example"
+              test -d "$output/$example/public"
             )
           done
 
@@ -110,7 +104,7 @@ jobs:
 
           dist = Path(os.environ["RUNNER_TEMP"]) / "example-dist"
           sizes = {
-              example.name: sum(f.stat().st_size for f in example.rglob("*.wasm") if f.is_file())
+              example.name: sum(f.stat().st_size for f in (example / "public").rglob("*.wasm") if f.is_file())
               for example in sorted(dist.iterdir()) if example.is_dir()
           }
           with open(os.environ["SIZE_REPORT"], "w") as report:
