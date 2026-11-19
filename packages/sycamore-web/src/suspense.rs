@@ -265,9 +265,10 @@ fn deferred_async_view<F: Future<Output = View>>(f: impl FnOnce() -> F + 'static
             provide_context(session.map_or(ConstructionMode::Create, ConstructionMode::Hydrate));
             future = Some(Box::pin(f()));
         });
-        let view =
-            std::future::poll_fn(|cx| scope.run_in(|| future.as_mut().unwrap().as_mut().poll(cx)))
-                .await;
+        // Own the pinned box in `poll_fn` instead of borrowing it across `.await`
+        // to avoid the async aliasing issue in rust-lang/rust#63818.
+        let mut future = future.unwrap();
+        let view = std::future::poll_fn(move |cx| scope.run_in(|| future.as_mut().poll(cx))).await;
         content.set(Some(view));
     });
 
