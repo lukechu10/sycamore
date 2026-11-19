@@ -71,37 +71,37 @@ jobs:
               return new Map(entries);
             }
 
-            const formatSize = bytes => bytes === undefined ? '—' : (bytes / 1000).toFixed(2);
+            const formatSize = bytes => `${(bytes / 1000).toFixed(2)} kB`;
+            const diffBlock = lines => ['```diff', ...lines, '```'].join('\n');
             const base = readSizes('base');
             const head = readSizes('head');
-            const rows = [];
+            const lines = [];
+            const changedLines = [];
             let hasSignificantChange = false;
             for (const name of [...new Set([...base.keys(), ...head.keys()])].sort()) {
               const before = base.get(name);
               const after = head.get(name);
-              let change;
-              if (before === undefined) change = 'Added example';
-              else if (after === undefined) change = 'Removed example';
-              else if (before === 0) change = after === 0 ? 'No Wasm' : 'No Wasm baseline';
+              let line;
+              if (before === undefined) line = `  ${name}: added (${formatSize(after)})`;
+              else if (after === undefined) line = `  ${name}: removed (${formatSize(before)})`;
+              else if (before === after) line = `  ${name}: ${formatSize(after)} (unchanged)`;
               else {
                 const delta = after - before;
-                change = `${delta > 0 ? '+' : ''}${(100 * delta / before).toFixed(2)}%`;
+                const change = before === 0 ? 'no Wasm baseline' :
+                  `${delta > 0 ? '+' : ''}${(100 * delta / before).toFixed(2)}%`;
+                // Diff syntax colors '+' green and '-' red; choose the marker by impact.
+                const marker = delta < 0 ? '+' : '-';
+                line = `${marker} ${name}: ${formatSize(before)} → ${formatSize(after)} (${change})`;
+                // Compare integer byte counts before rounding. Exactly ±5% does not qualify.
+                if (before > 0 && Math.abs(delta) * 20 > before) hasSignificantChange = true;
               }
-              // Compare integer byte counts before rounding. Exactly ±5% does not qualify.
-              if (before > 0 && after !== undefined && Math.abs(after - before) * 20 > before) {
-                hasSignificantChange = true;
-                change = `**${change}**`;
-              }
-              rows.push(`| \`${name}\` | ${formatSize(before)} | ${formatSize(after)} | ${change} |`);
+              lines.push(line);
+              if (before !== after) changedLines.push(line);
             }
 
-            const table = [
-              '| Example | Base (kB) | PR (kB) | Change |',
-              '| --- | ---: | ---: | ---: |',
-              ...rows,
-            ].join('\n');
             const metric = 'Sizes are the total uncompressed `.wasm` files in the public output of `cargo sycamore build --release` (1 kB = 1,000 bytes).';
-            await core.summary.addRaw(`## Example Wasm sizes\n\n${metric}\n\n${table}`, true).write();
+            const legend = '`+` smaller · `-` larger';
+            await core.summary.addRaw(`## Example Wasm sizes\n\n${metric}\n\n${legend}\n\n${diffBlock(lines)}`, true).write();
 
             // GitHub may omit pull_requests from workflow_run for forks. Resolve the PR
             // from GitHub metadata, not from the artifact, and skip stale or ambiguous runs.
@@ -151,14 +151,9 @@ jobs:
                 : 'No comparable example changed by more than 5%.',
               '',
               ...(hasSignificantChange ? [
-                '<details>',
-                '<summary>Wasm sizes for all examples</summary>',
+                legend,
                 '',
-                metric,
-                '',
-                table,
-                '',
-                '</details>',
+                diffBlock(changedLines),
                 '',
               ] : []),
               `[Build details](${run.html_url}) · PR commit \`${run.head_sha.slice(0, 12)}\``,
