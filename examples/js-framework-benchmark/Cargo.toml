@@ -12,3 +12,6 @@ sycamore = { path = "../../packages/sycamore" }
 
 [lints]
 workspace = true
+
+[package.metadata.sycamore.build]
+assets = ["bootstrap.min.css", "index.css"]
