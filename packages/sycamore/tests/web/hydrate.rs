@@ -61,6 +61,66 @@ mod svg_case_sensitive_names {
     }
 }
 
+mod cargo_sycamore_meta {
+    use sycamore::web::CargoSycamoreMeta;
+
+    use super::*;
+
+    fn v() -> View {
+        view! {
+            html {
+                head {
+                    title { "App" }
+                    CargoSycamoreMeta {}
+                    meta(name="description", content="App description")
+                }
+                body { p { "App body" } }
+            }
+        }
+    }
+
+    const SLOT: &str = r#"<meta name="cargo-sycamore-bootstrap">"#;
+    static EXPECT: Expect = expect![[
+        r#"<html data-hk="0.0"><head data-hk="0.1"><title data-hk="0.2">App</title><!--opaque-range--><meta name="cargo-sycamore-bootstrap"><!--/opaque-range--><meta name="description" content="App description" data-hk="0.3"></head><body data-hk="0.4"><p data-hk="0.5">App body</p></body></html>"#
+    ]];
+
+    #[test]
+    fn ssr() {
+        check(v, &EXPECT);
+    }
+
+    #[wasm_bindgen_test]
+    fn hydrates_document_with_injected_bootstrap_markup() {
+        use web_sys::{DomParser, SupportedType};
+
+        let html = EXPECT.data().replace(
+            SLOT,
+            &format!(r#"{SLOT}<script type="module" src="/app.js" data-cargo-sycamore></script><link rel="modulepreload" href="/app.js" data-cargo-sycamore>"#),
+        );
+        // DOMParser gives us a separate document and does not run the bootstrap script.
+        let document = DomParser::new()
+            .unwrap()
+            .parse_from_string(&format!("<!doctype html>{html}"), SupportedType::TextHtml)
+            .unwrap();
+        let find = |selector| document.query_selector(selector).unwrap().unwrap();
+        let html = find("html");
+        let head = find("head");
+        let script = find("script");
+        let preload = find("link");
+        let description = find("meta[name=description]");
+        let body = find("body");
+
+        sycamore::hydrate_to(v, &document);
+
+        assert_eq!(find("html"), html);
+        assert_eq!(find("head"), head);
+        assert_eq!(find("script"), script);
+        assert_eq!(find("link"), preload);
+        assert_eq!(find("meta[name=description]"), description);
+        assert_eq!(find("body"), body);
+    }
+}
+
 mod hydrate_recursive {
     use super::*;
     fn v() -> View {
