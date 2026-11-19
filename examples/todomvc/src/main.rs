@@ -267,7 +267,7 @@ pub fn Item(todo: MutSignal<Todo>) -> View {
     };
 
     view! {
-        li(class=move || class()) {
+        li(class=class) {
             div(class="view") {
                 input(
                     class="toggle",

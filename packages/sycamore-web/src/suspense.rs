@@ -7,7 +7,6 @@ use sycamore_core::Callback;
 use sycamore_futures::{
     create_detached_suspense_scope, create_suspense_scope, create_suspense_task,
 };
-use sycamore_macro::component;
 
 use crate::*;
 

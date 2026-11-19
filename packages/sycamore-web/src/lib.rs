@@ -29,7 +29,6 @@ use std::borrow::Cow;
 use std::cell::Cell;
 use std::rc::Rc;
 
-use sycamore_macro::*;
 use sycamore_reactive::*;
 use wasm_bindgen::prelude::*;
 
@@ -73,6 +72,9 @@ pub use self::view::*;
 /// We add this to make the macros from `sycamore-macro` work properly.
 /// We also add the `web` module so that the macros can access `::sycamore::web` correctly.
 extern crate self as sycamore;
+#[allow(unused_imports)] // Needed for macro support.
+use sycamore_macro::*;
+#[allow(unused_imports)] // Needed for macro support.
 mod web {
     pub use crate::*;
 }
