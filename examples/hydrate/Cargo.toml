@@ -11,3 +11,9 @@ wasm-bindgen = "0.2.83"
 
 [lints]
 workspace = true
+
+[package.metadata.sycamore.tools]
+prebuild-hooks = ["cargo run"]
+
+[package.metadata.sycamore.watch]
+ignore = ["index.html"]

@@ -18,3 +18,9 @@ console_error_panic_hook = "0.1.7"
 
 [target.'cfg(any(not(target_arch = "wasm32"), sycamore_force_ssr))'.dependencies]
 tokio = { version = "1.40.0", features = ["full"] }
+
+[package.metadata.sycamore.tools]
+prebuild-hooks = ["cargo run"]
+
+[package.metadata.sycamore.watch]
+ignore = ["index.html"]

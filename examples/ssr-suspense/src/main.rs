@@ -20,6 +20,7 @@ fn App() -> View {
                 meta(charset="utf-8")
                 meta(name="viewport", content="width=device-width, initial-scale=1")
                 sycamore::web::HydrationScript {}
+                sycamore::web::CargoSycamoreMeta {}
             }
             body { sycamore::web::Suspense { AsyncContent {} } }
         }
