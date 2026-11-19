@@ -1,0 +1,141 @@
+name: Report example Wasm sizes
+
+on:
+  workflow_run:
+    workflows: [Compare example Wasm sizes]
+    types: [completed]
+
+permissions:
+  actions: read
+  pull-requests: write
+
+jobs:
+  report:
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.path == '.github/workflows/compare_example_wasm_sizes.yml'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    # This workflow has a write token. Never check out or execute PR code here.
+    # Download only the two expected reports, without extracting any archives.
+    steps:
+      - name: Download base sizes
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: example-wasm-sizes-base.json
+          path: ${{ runner.temp }}/wasm-sizes/base
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+          skip-decompress: true
+
+      - name: Download PR sizes
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: example-wasm-sizes-head.json
+          path: ${{ runner.temp }}/wasm-sizes/head
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+          skip-decompress: true
+
+      - name: Compare sizes and report changes
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const fs = require('node:fs');
+            const path = require('node:path');
+
+            // Artifacts are untrusted. Accept only bounded maps of safe names to byte counts.
+            function readSizes(revision) {
+              const file = path.join(process.env.RUNNER_TEMP, 'wasm-sizes', revision,
+                `example-wasm-sizes-${revision}.json`);
+              const stat = fs.lstatSync(file);
+              if (!stat.isFile() || stat.size > 32 * 1024) {
+                throw new Error(`Invalid ${revision} size report file`);
+              }
+              const sizes = JSON.parse(fs.readFileSync(file, 'utf8'));
+              if (sizes === null || typeof sizes !== 'object' || Array.isArray(sizes)) {
+                throw new Error(`Expected a map in the ${revision} size report`);
+              }
+              const entries = Object.entries(sizes);
+              if (entries.length > 250 || entries.some(([name, bytes]) =>
+                !/^[a-zA-Z0-9_-]{1,80}$/.test(name) || !Number.isSafeInteger(bytes) ||
+                bytes < 0 || bytes > 1e12)) {
+                throw new Error(`Invalid entries in the ${revision} size report`);
+              }
+              return new Map(entries);
+            }
+
+            const base = readSizes('base');
+            const head = readSizes('head');
+            const rows = [];
+            const significant = [];
+            for (const name of [...new Set([...base.keys(), ...head.keys()])].sort()) {
+              const before = base.get(name);
+              const after = head.get(name);
+              let change;
+              if (before === undefined) change = 'Added example';
+              else if (after === undefined) change = 'Removed example';
+              else if (before === 0) change = after === 0 ? 'No Wasm' : 'No Wasm baseline';
+              else {
+                const delta = after - before;
+                change = `${delta > 0 ? '+' : ''}${(100 * delta / before).toFixed(2)}%`;
+              }
+              const row = `| \`${name}\` | ${before ?? '—'} | ${after ?? '—'} | ${change} |`;
+              rows.push(row);
+              // Compare integer byte counts before rounding. Exactly ±5% does not qualify.
+              if (before > 0 && after !== undefined && Math.abs(after - before) * 20 > before) {
+                significant.push(row);
+              }
+            }
+
+            const table = [
+              '| Example | Base (bytes) | PR (bytes) | Change |',
+              '| --- | ---: | ---: | ---: |',
+            ].join('\n');
+            const metric = 'Sizes are the total uncompressed `.wasm` bytes emitted by `trunk build --release` for each example.';
+            await core.summary.addRaw(`## Example Wasm sizes\n\n${metric}\n\n${table}\n${rows.join('\n')}`, true).write();
+            if (!significant.length) {
+              core.info('No comparable example changed by more than 5%.');
+              return;
+            }
+
+            // GitHub may omit pull_requests from workflow_run for forks. Resolve the PR
+            // from GitHub metadata, not from the artifact, and skip stale or ambiguous runs.
+            const run = context.payload.workflow_run;
+            const source = run.head_repository;
+            if (!source?.owner?.login || !run.head_branch) {
+              core.warning('Missing source repository or branch for this run.');
+              return;
+            }
+            const candidates = await github.paginate(github.rest.pulls.list, {
+              ...context.repo,
+              state: 'open',
+              head: `${source.owner.login}:${run.head_branch}`,
+              per_page: 100,
+            });
+            const associated = new Set(run.pull_requests?.map(pr => pr.number));
+            const matches = candidates.filter(pr =>
+              pr.head.repo?.id === source.id && pr.head.ref === run.head_branch &&
+              pr.head.sha === run.head_sha && (!associated.size || associated.has(pr.number)));
+            if (matches.length !== 1) {
+              core.notice('No unique open PR at the measured commit; skipping the comment.');
+              return;
+            }
+
+            const body = [
+              '### Example Wasm size changes over 5%',
+              '',
+              metric,
+              '',
+              table,
+              ...significant,
+              '',
+              `[Build details](${run.html_url}) · PR commit \`${run.head_sha.slice(0, 12)}\``,
+            ].join('\n');
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: matches[0].number,
+              body,
+            });
