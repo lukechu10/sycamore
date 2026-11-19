@@ -10,3 +10,6 @@ sycamore-router = { path = "../../packages/sycamore-router" }
 
 [lints]
 workspace = true
+
+[package.metadata.sycamore.serve]
+spa = true

@@ -60,6 +60,7 @@ impl DomNode {
     /// Validate a complete child sequence. Individual `append_view` calls cannot do this
     /// because a later `.children()` call may consume the remaining siblings.
     #[cfg(feature = "hydrate")]
+    #[cfg_attr(debug_assertions, track_caller)]
     pub(crate) fn finish_hydrating_children(&self) {
         if let Some(cursor) = &self.hydration_cursor {
             cursor.expect_exhausted();
@@ -246,6 +247,7 @@ impl ViewHtmlNode for DomNode {
         Self::fresh(node)
     }
 
+    #[cfg_attr(debug_assertions, track_caller)]
     fn append_view(&mut self, view: View) {
         #[cfg(feature = "hydrate")]
         if ConstructionMode::current().is_hydrating() {
@@ -393,6 +395,7 @@ impl HydrationCursor {
             .filter(|node| Some(*node) != self.end.as_ref())
     }
 
+    #[cfg_attr(debug_assertions, track_caller)]
     fn mismatch(&self, expected: &str) -> ! {
         let found = self
             .current()
@@ -403,6 +406,7 @@ impl HydrationCursor {
         );
     }
 
+    #[cfg_attr(debug_assertions, track_caller)]
     fn expect_exhausted(&self) {
         if self.next != self.end || self.text_offset != 0 {
             self.mismatch("the end of the child sequence");
@@ -469,6 +473,7 @@ impl HydrationCursor {
 
     /// Return the server anchors and a cursor bounded by the closing anchor. Match
     /// nested markers by depth, then advance the outer cursor past the entire range.
+    #[cfg_attr(debug_assertions, track_caller)]
     fn enter_range(&mut self, markers: (&str, &str)) -> (web_sys::Node, Self, web_sys::Node) {
         let (open, close) = markers;
         let Some(start) = self
@@ -597,6 +602,7 @@ struct HydratedRow {
 /// Hydrate one append in two phases: match existing DOM, then subscribe its dynamic
 /// ranges. The caller owns the cursor so a later append can resume where this one stops.
 #[cfg(feature = "hydrate")]
+#[cfg_attr(debug_assertions, track_caller)]
 fn hydrate_view(parent: &web_sys::Node, cursor: &mut HydrationCursor, view: &View) {
     attach_hydrated_parts(parent, match_parts(cursor, snapshot_parts(view)));
 }
@@ -604,6 +610,7 @@ fn hydrate_view(parent: &web_sys::Node, cursor: &mut HydrationCursor, view: &Vie
 /// Walk one append's parts in sibling order without moving nodes or installing effects.
 /// Each dynamic range and each list row must consume its bounded range completely.
 #[cfg(feature = "hydrate")]
+#[cfg_attr(debug_assertions, track_caller)]
 fn match_parts(
     cursor: &mut HydrationCursor,
     parts: impl IntoIterator<Item = DomPart>,

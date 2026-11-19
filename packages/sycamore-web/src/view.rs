@@ -63,20 +63,24 @@ impl View {
     }
 
     /// Create a new view from a value that implements [`Build`].
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn from<U: Build<Self>>(value: U) -> Self {
         value.build()
     }
 
     /// Create a new view with a single node.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn from_node(node: HtmlNode) -> Self {
         Self::new_from_parts(smallvec![Self::finish_node(node)])
     }
 
     /// Create a new view with multiple nodes.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn from_nodes(nodes: Vec<HtmlNode>) -> Self {
         Self::new_from_parts(nodes.into_iter().map(Self::finish_node).collect())
     }
 
+    #[cfg_attr(debug_assertions, track_caller)]
     fn finish_node(node: HtmlNode) -> ViewPart {
         #[cfg(all(feature = "hydrate", target_arch = "wasm32", not(sycamore_force_ssr)))]
         node.finish_hydrating_children();
@@ -85,6 +89,7 @@ impl View {
 
     /// Create a reactive view from a function returning any value that implements [`Build`]
     /// for this view. An alias to [`ViewNode::create_dynamic_view`].
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn from_dynamic<U: Build<Self> + 'static>(mut f: impl FnMut() -> U + 'static) -> Self {
         Self::new_from_parts(smallvec![ViewPart::Dynamic(*create_memo(
             move || f().build()

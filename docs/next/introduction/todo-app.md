@@ -158,8 +158,8 @@ view! {
 }
 ```
 
-Run `trunk serve` and open up your browser at <http://localhost:8080> and see it
-work for yourself!
+Run `cargo sycamore serve` and open up your browser at <http://localhost:8080>
+and see it work for yourself!
 
 ## Modifying todos
 

@@ -111,14 +111,15 @@ pub fn Main() -> View {
                 sycamore::web::NoHydrate {
                     link(
                         rel="preload",
-                        href="/dist/ssr-streaming_bg.wasm",
+                        href="/dist/public/ssr-streaming_bg.wasm",
                         r#as="fetch",
                         crossorigin="",
                     )
                     script(r#type="module") {
-                        "import init from '/dist/ssr-streaming.js'; const wasm = await init({{}});"
+                        "import init from '/dist/public/ssr-streaming.js'; const wasm = await init({{}});"
                     }
                 }
+                sycamore::web::CargoSycamoreMeta {}
             }
             body { App {} }
         }

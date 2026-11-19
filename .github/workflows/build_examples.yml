@@ -22,11 +22,10 @@ jobs:
         with:
           node-version: 18.x
 
-      - name: Install trunk
-        run: >
-          wget -qO-
-          https://github.com/thedodd/trunk/releases/download/v0.21.1/trunk-x86_64-unknown-linux-gnu.tar.gz
-          | tar -xzf- && sudo mv trunk /usr/bin/
+      - name: Install cargo-sycamore
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-sycamore@0.2.2
 
       - name: Cargo generate-lockfile
         run: cargo generate-lockfile
@@ -35,7 +34,6 @@ jobs:
         uses: actions/cache@v3
         with:
           path: |
-            ~/.cargo/bin/
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
@@ -56,7 +54,9 @@ jobs:
               cd "$path"
               dist_dir="$output/$example"
               mkdir "$dist_dir"
-              trunk build --release --dist "$dist_dir" --public-url "/$example"
+              cargo sycamore build --release --public-url "/$example"
+              cp -a dist/public/. "$dist_dir/"
+              test -f "$dist_dir/index.html"
             )
           done
 

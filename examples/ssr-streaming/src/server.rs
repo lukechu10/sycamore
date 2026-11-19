@@ -46,13 +46,18 @@ async fn root_blocking() -> impl IntoResponse {
 
 /// Start the server.
 pub async fn start() {
-    // build our application with a single route
+    let current_file = file!();
+    let dist_public_path = std::path::Path::new(current_file)
+        .parent()
+        .unwrap()
+        .join("../dist/public");
+
     let app = Router::new()
         .route("/", get(root))
         .route("/blocking", get(root_blocking))
-        .nest_service("/dist", ServeDir::new("dist"));
+        .nest_service("/dist/public", ServeDir::new(dist_public_path));
 
     // run our app with hyper, listening globally on port 8080
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }

@@ -1,2 +1,0 @@
-[build]
-no_minification = true # Disable minification for this example since it interferes with hydration.

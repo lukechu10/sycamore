@@ -58,12 +58,11 @@ is hosted on
 
 ### Building Locally
 
-All the examples can also be built locally using [Trunk](https://trunk-rs.github.io/trunk/). For instance, the
+All the examples can also be built locally using [cargo-sycamore](https://github.com/sycamore-rs/cargo-sycamore). For instance, the
 following command builds and serves the `todomvc` example:
 
 ```bash
-cd examples/todomvc
-trunk serve
+cargo sycamore serve -p todomvc
 ```
 
 Now open up <http://localhost:8080> in your browser to see the example running in action.
