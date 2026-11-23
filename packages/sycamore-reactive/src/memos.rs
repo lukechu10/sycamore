@@ -22,10 +22,35 @@ pub fn create_selector_with<T>(
     mut f: impl FnMut() -> T + 'static,
     mut eq: impl FnMut(&T, &T) -> bool + 'static,
 ) -> MutSignal<T> {
+    let (signal, ()) = create_computed_node(|| {
+        let initial = f();
+        let update = move |value: &mut T| {
+            let new = f();
+            if eq(&new, value) {
+                false
+            } else {
+                *value = new;
+                true
+            }
+        };
+        (initial, update, ())
+    });
+    signal
+}
+
+/// Initializes a reactive node in its own tracked scope, then installs its update callback.
+/// The initializer's extra result is returned to the caller rather than stored in the node.
+#[cfg_attr(debug_assertions, track_caller)]
+pub(crate) fn create_computed_node<T, R, F>(
+    initialize: impl FnOnce() -> (T, F, R),
+) -> (MutSignal<T>, R)
+where
+    F: FnMut(&mut T) -> bool + 'static,
+{
     let root = Root::global();
     let signal = create_empty_signal();
     let prev = root.current_node.replace(signal.id);
-    let (initial, tracker) = root.tracked_scope(&mut f);
+    let ((initial, mut update, result), tracker) = root.tracked_scope(initialize);
     root.current_node.set(prev);
 
     tracker.create_dependency_link(root, signal.id);
@@ -33,17 +58,10 @@ pub fn create_selector_with<T>(
     let mut signal_mut = signal.get_mut();
     signal_mut.value = Some(Box::new(initial));
     signal_mut.callback = Some(Box::new(move |value| {
-        let value = value.downcast_mut().expect("wrong memo type");
-        let new = f();
-        if eq(&new, value) {
-            false
-        } else {
-            *value = new;
-            true
-        }
+        update(value.downcast_mut().expect("wrong computed node type"))
     }));
 
-    signal
+    (signal, result)
 }
 
 /// Creates a memoized computation from some signals.

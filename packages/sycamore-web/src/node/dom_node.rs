@@ -336,18 +336,13 @@ fn watch_dynamic_range(
     start: web_sys::Node,
     end: web_sys::Node,
     content: Signal<View>,
-    mut adopt: Option<impl FnOnce(&web_sys::Node) + 'static>,
+    adopt: Option<impl FnOnce(&web_sys::Node)>,
 ) {
     debug_assert_eq!(end.parent_node().as_ref(), Some(parent));
-    create_effect(move || {
+    let update = move || {
         content.track();
         // A retained suspense branch can move into a document fragment while hidden.
         let parent = end.parent_node().expect("missing dynamic range parent");
-        if let Some(adopt) = adopt.take() {
-            adopt(&parent);
-            return;
-        }
-
         let parts = content.with_untracked(snapshot_parts);
         debug_assert_eq!(start.parent_node().as_ref(), Some(&parent));
         debug_assert_eq!(end.parent_node().as_ref(), Some(&parent));
@@ -363,7 +358,17 @@ fn watch_dynamic_range(
         for part in parts {
             insert_part(&parent, part, Some(&end));
         }
-    });
+    };
+
+    if let Some(adopt) = adopt {
+        create_effect_initial(|| {
+            content.track();
+            adopt(parent);
+            (Box::new(update), ())
+        });
+    } else {
+        create_effect(update);
+    }
 }
 
 /// The unconsumed children of one parent or dynamic range. `end` is exclusive.

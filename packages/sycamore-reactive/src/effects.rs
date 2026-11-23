@@ -1,9 +1,7 @@
 //! Side effects!
 
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use crate::create_memo;
+use crate::memos::create_computed_node;
 
 /// Creates an effect on signals used inside the effect closure.
 ///
@@ -33,22 +31,33 @@ pub fn create_effect(f: impl FnMut() + 'static) {
 
 /// Creates an effect that runs a different code path on the first run.
 ///
-/// The initial function is expected to return a tuple containing a function for subsequent runs
-/// and an optional value that will be returned by the effect.
+/// The initial function runs immediately and returns a tuple containing a function for subsequent
+/// runs and a value returned to the caller. The initializer can borrow local data; only the
+/// function for subsequent runs must be `'static`.
 ///
 /// # Example
 /// ```
 /// # use sycamore_reactive::*;
+/// let label = String::from("count");
 /// # create_root(|| {
 /// let state = create_signal(0);
 ///
-/// let initial_value = create_effect_initial(move || {
-///     state.set(100);
-///     (
-///         Box::new(move || state.set(state.get() + 1)),
-///         state.get(), // This value will be returned and assigned to `initial_value`.
-///     )
+/// let initial_label = create_effect_initial(|| {
+///     println!("{label}: {}", state.get()); // Track `state` on the first run.
+///     (Box::new(move || println!("new count: {}", state.get())), label.as_str())
 /// });
+/// assert_eq!(initial_label, "count");
+/// state.set(1);
+/// # });
+/// ```
+///
+/// The rerun callback cannot borrow local data:
+///
+/// ```compile_fail,E0597
+/// # use sycamore_reactive::*;
+/// # create_root(|| {
+/// let label = String::from("count");
+/// create_effect_initial(|| (Box::new(|| println!("{label}")), ()));
 /// # });
 /// ```
 ///
@@ -58,27 +67,16 @@ pub fn create_effect(f: impl FnMut() + 'static) {
 /// [`use_current_scope`](crate::use_current_scope) and
 /// [`NodeHandle::run_in`](crate::NodeHandle::run_in).
 #[cfg_attr(debug_assertions, track_caller)]
-pub fn create_effect_initial<T: 'static>(
-    initial: impl FnOnce() -> (Box<dyn FnMut() + 'static>, T) + 'static,
-) -> T {
-    let ret = Rc::new(RefCell::new(None));
-    let mut initial = Some(initial);
-    let mut effect = None;
-
-    create_effect({
-        let ret = Rc::clone(&ret);
-        move || {
-            if let Some(initial) = initial.take() {
-                let (new_f, value) = initial();
-                effect = Some(new_f);
-                *ret.borrow_mut() = Some(value);
-            } else {
-                effect.as_mut().unwrap()()
-            }
-        }
+pub fn create_effect_initial<T>(initial: impl FnOnce() -> (Box<dyn FnMut() + 'static>, T)) -> T {
+    let (_, result) = create_computed_node(|| {
+        let (mut rerun, result) = initial();
+        let update = move |_: &mut ()| {
+            rerun();
+            true
+        };
+        ((), update, result)
     });
-
-    ret.take().unwrap()
+    result
 }
 
 #[cfg(test)]
@@ -101,6 +99,71 @@ mod tests {
             assert_eq!(double.get(), 2);
             state.set(2);
             assert_eq!(double.get(), 4);
+        });
+    }
+
+    #[test]
+    fn effect_initial_runs_once_and_replaces_dependencies() {
+        let _ = create_root(|| {
+            let initial_source = create_signal(0);
+            let rerun_source = create_signal(0);
+            let mut initial_runs = 0;
+            let reruns = create_signal(0);
+
+            let result = create_effect_initial(|| {
+                initial_runs += 1;
+                let value = initial_source.get();
+                // This write must not trigger a rerun before initialization finishes.
+                initial_source.set(value + 1);
+                (
+                    Box::new(move || {
+                        rerun_source.track();
+                        reruns.set(reruns.get_untracked() + 1);
+                    }),
+                    value,
+                )
+            });
+            assert_eq!(result, 0);
+            assert_eq!(initial_runs, 1);
+            assert_eq!(reruns.get(), 0);
+
+            // The rerun-only source is not tracked until the callback first runs.
+            rerun_source.set(1);
+            assert_eq!(reruns.get(), 0);
+            initial_source.set(2);
+            assert_eq!(reruns.get(), 1);
+            initial_source.set(3);
+            assert_eq!(reruns.get(), 1);
+            rerun_source.set(2);
+            assert_eq!(reruns.get(), 2);
+        });
+    }
+
+    #[test]
+    fn effect_initial_cleans_up_before_rerun() {
+        let _ = create_root(|| {
+            let source = create_signal(0);
+            let cleaned_up = create_signal(false);
+            let reran = create_signal(false);
+            let child = create_effect_initial(|| {
+                source.track();
+                let child = create_signal(());
+                on_cleanup(move || cleaned_up.set(true));
+                (
+                    Box::new(move || {
+                        assert!(cleaned_up.get_untracked());
+                        assert!(!child.is_alive());
+                        reran.set(true);
+                    }),
+                    child,
+                )
+            });
+            assert!(child.is_alive());
+            assert!(!cleaned_up.get());
+            assert!(!reran.get());
+
+            source.set(1);
+            assert!(reran.get());
         });
     }
 
