@@ -468,13 +468,17 @@ mod dynamic {
     fn test() {
         let c = test_container();
         c.set_inner_html(EXPECT.data());
+        let p = query("p");
+        let initial_text = p.first_child().unwrap().next_sibling().unwrap();
 
         let _ = create_root(|| {
             let state = create_signal(0);
 
             sycamore::hydrate_in_scope(move || v(*state), &c);
 
-            assert_text_content!(query("p"), "0");
+            assert_text_content!(p, "0");
+            // Adoption should keep the server text node rather than recreate the range.
+            assert_eq!(p.first_child().unwrap().next_sibling(), Some(initial_text));
 
             // Reactivity should work normally.
             state.set(1);
