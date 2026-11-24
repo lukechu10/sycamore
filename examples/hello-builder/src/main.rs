@@ -4,7 +4,6 @@
 //! alternative to using the `view!` macro.
 
 use sycamore::prelude::*;
-use sycamore::web::tags::*;
 
 #[component]
 fn App() -> View {

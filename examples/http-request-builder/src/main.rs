@@ -2,7 +2,6 @@ use gloo_net::http::Request;
 use serde::{Deserialize, Serialize};
 use sycamore::prelude::*;
 use sycamore::web::Suspense;
-use sycamore::web::tags::*;
 
 // API that counts visits to the web-page
 const API_BASE_URL: &str = "https://abacus.jasoncameron.dev/hit";
