@@ -10,234 +10,223 @@ use syn::{Expr, Pat};
 
 use crate::ir::{DynNode, Node, Prop, PropType, Root, TagIdent, TagNode, TextNode};
 
-pub struct Codegen {
-    // TODO: configure mode: Client, Hydrate, SSR
-}
-
-impl Codegen {
-    pub fn root(&self, root: &Root) -> TokenStream {
-        match &root.0[..] {
-            [] => quote! {
-                ::sycamore::rt::View::new()
-            },
-            [node] => self.node(node),
-            nodes => {
-                let nodes = nodes.iter().map(|node| self.node(node));
-                quote! {
-                    ::sycamore::rt::Build::<::sycamore::rt::View>::build(::std::vec![#(#nodes),*])
-                }
+pub fn expand_root(root: &Root) -> TokenStream {
+    match &root.0[..] {
+        [] => quote! {
+            ::sycamore::rt::View::new()
+        },
+        [node] => expand_node(node),
+        nodes => {
+            let nodes = nodes.iter().map(|node| expand_node(node));
+            quote! {
+                ::sycamore::rt::Build::<::sycamore::rt::View>::build(::std::vec![#(#nodes),*])
             }
         }
     }
+}
 
-    /// Generate a `View` from a `Node`.
-    pub fn node(&self, node: &Node) -> TokenStream {
-        match node {
-            Node::Tag(tag) => {
-                if is_component(&tag.ident) {
-                    self.component(tag)
-                } else {
-                    self.element(tag)
-                }
+/// Generate a `View` from a `Node`.
+pub fn expand_node(node: &Node) -> TokenStream {
+    match node {
+        Node::Tag(tag) => {
+            if is_component(&tag.ident) {
+                expand_component(tag)
+            } else {
+                expand_element(tag)
             }
-            Node::Text(TextNode { value, format_args }) => match format_args {
-                Some(args) => quote! {
-                    ::sycamore::rt::View::from_dynamic(move || {
-                        ::std::format!(#value #(, #args)*)
-                    })
-                },
-                None => quote! {
-                    ::sycamore::rt::Build::<::sycamore::rt::View>::build(#value)
-                },
+        }
+        Node::Text(TextNode { value, format_args }) => match format_args {
+            Some(args) => quote! {
+                ::sycamore::rt::View::from_dynamic(move || {
+                    ::std::format!(#value #(, #args)*)
+                })
             },
-            Node::Dyn(DynNode { value }) => {
-                let is_dynamic = is_dyn(value);
-                if is_dynamic {
-                    quote! {
-                        ::sycamore::rt::View::from_dynamic(
-                            move || ::sycamore::rt::Build::<::sycamore::rt::View>::build(#value)
-                        )
-                    }
-                } else {
-                    quote! {
-                        ::sycamore::rt::Build::<::sycamore::rt::View>::build(#value)
-                    }
+            None => quote! {
+                ::sycamore::rt::Build::<::sycamore::rt::View>::build(#value)
+            },
+        },
+        Node::Dyn(DynNode { value }) => {
+            let is_dynamic = is_dyn(value);
+            if is_dynamic {
+                quote! {
+                    ::sycamore::rt::View::from_dynamic(
+                        move || ::sycamore::rt::Build::<::sycamore::rt::View>::build(#value)
+                    )
+                }
+            } else {
+                quote! {
+                    ::sycamore::rt::Build::<::sycamore::rt::View>::build(#value)
                 }
             }
-            Node::If(if_node) => {
-                let cond = &if_node.cond;
-                let is_dynamic = is_dyn(cond);
+        }
+        Node::If(if_node) => {
+            let cond = &if_node.cond;
+            let is_dynamic = is_dyn(cond);
 
-                let if_root = self.root(&if_node.then);
-                let else_root = if_node
-                    .else_branch
-                    .as_ref()
-                    .map(|else_branch| self.root(else_branch))
-                    .unwrap_or_else(|| quote! { ::sycamore::rt::View::new() });
+            let if_root = expand_root(&if_node.then);
+            let else_root = if_node
+                .else_branch
+                .as_ref()
+                .map(|else_branch| expand_root(else_branch))
+                .unwrap_or_else(|| quote! { ::sycamore::rt::View::new() });
 
-                if is_dynamic {
-                    quote! {
-                        ::sycamore::rt::View::from_dynamic(move || {
-                            if #cond {
-                                #if_root
-                            } else {
-                                #else_root
-                            }
-                        })
-                    }
-                } else {
-                    quote! {
+            if is_dynamic {
+                quote! {
+                    ::sycamore::rt::View::from_dynamic(move || {
                         if #cond {
                             #if_root
                         } else {
                             #else_root
                         }
+                    })
+                }
+            } else {
+                quote! {
+                    if #cond {
+                        #if_root
+                    } else {
+                        #else_root
                     }
                 }
             }
-            Node::Match(match_node) => {
-                let match_expr = &match_node.expr;
-                let is_dynamic = is_dyn(match_expr)
-                    || match_node.arms.iter().any(|arm| is_dyn_pattern(&arm.pat));
+        }
+        Node::Match(match_node) => {
+            let match_expr = &match_node.expr;
+            let is_dynamic =
+                is_dyn(match_expr) || match_node.arms.iter().any(|arm| is_dyn_pattern(&arm.pat));
 
-                let arms = match_node.arms.iter().map(|arm| {
-                    let pat = &arm.pat;
-                    let arm_root = self.root(&arm.body);
-                    quote! {
-                        #pat => #arm_root
-                    }
-                });
+            let arms = match_node.arms.iter().map(|arm| {
+                let pat = &arm.pat;
+                let arm_root = expand_root(&arm.body);
+                quote! {
+                    #pat => #arm_root
+                }
+            });
 
-                if is_dynamic {
-                    quote! {
-                        ::sycamore::rt::View::from_dynamic(move || {
-                            match #match_expr {
-                                #(#arms),*
-                            }
-                        })
-                    }
-                } else {
-                    quote! {
+            if is_dynamic {
+                quote! {
+                    ::sycamore::rt::View::from_dynamic(move || {
                         match #match_expr {
                             #(#arms),*
                         }
+                    })
+                }
+            } else {
+                quote! {
+                    match #match_expr {
+                        #(#arms),*
                     }
                 }
             }
         }
     }
+}
 
-    pub fn element(&self, element: &TagNode) -> TokenStream {
-        let TagNode {
-            ident,
-            props,
-            children,
-        } = element;
+pub fn expand_element(element: &TagNode) -> TokenStream {
+    let TagNode {
+        ident,
+        props,
+        children,
+    } = element;
 
-        let attributes = props.iter().map(|attr| self.attribute(attr));
+    let attributes = props.iter().map(expand_attribute);
 
-        let children = children
-            .0
-            .iter()
-            .map(|child| self.node(child))
-            .collect::<Vec<_>>();
+    let children = children.0.iter().map(expand_node).collect::<Vec<_>>();
 
-        match ident {
-            TagIdent::Path(tag) => {
-                assert!(tag.get_ident().is_some(), "elements must be an ident");
-                quote! {
-                    ::sycamore::rt::View::from(
-                        ::sycamore::rt::tags::#tag().children(::std::vec![#(#children),*])#(#attributes)*
-                    )
-                }
-            }
-            TagIdent::Hyphenated(tag) => quote! {
-                ::sycamore::rt::View::from(
-                    ::sycamore::rt::custom_element(#tag).children(::std::vec![#(#children),*])#(#attributes)*
-                )
-            },
-        }
-    }
-
-    pub fn attribute(&self, attr: &Prop) -> TokenStream {
-        // Like component props, element attributes are passed as-is. Reactivity is
-        // opt-in via an explicit closure (or a reactive value such as a signal).
-        let value = &attr.value;
-        match &attr.ty {
-            PropType::Plain { ident } => {
-                quote! { .#ident(#value) }
-            }
-            PropType::PlainHyphenated { ident } => {
-                quote! { .attr(#ident, #value) }
-            }
-            PropType::PlainQuoted { ident } => {
-                quote! { .attr(#ident, #value) }
-            }
-            PropType::Directive { dir, ident } => match dir.to_string().as_str() {
-                "prop" => {
-                    let ident = ident.to_string();
-                    quote! { .prop(#ident, #value) }
-                }
-                _ => syn::Error::new(dir.span(), format!("unknown directive `{dir}`"))
-                    .to_compile_error(),
-            },
-            PropType::Ref => quote! { .r#ref(#value) },
-            PropType::Spread => quote! { .spread(#value) },
-        }
-    }
-
-    pub fn component(
-        &self,
-        TagNode {
-            ident,
-            props,
-            children,
-        }: &TagNode,
-    ) -> TokenStream {
-        let ident = match ident {
-            TagIdent::Path(path) => path,
-            TagIdent::Hyphenated(_) => unreachable!("hyphenated tags are not components"),
-        };
-
-        let plain = props
-            .iter()
-            .filter_map(|prop| match &prop.ty {
-                PropType::Plain { ident } => Some((ident, prop.value.clone())),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        let plain_names = plain.iter().map(|(ident, _)| ident);
-        let plain_values = plain.iter().map(|(_, value)| value);
-
-        let other_props = props
-            .iter()
-            .filter(|prop| !matches!(&prop.ty, PropType::Plain { .. }))
-            .collect::<Vec<_>>();
-        let other_attributes = other_props.iter().map(|prop| self.attribute(prop));
-
-        let children_quoted = if children.0.is_empty() {
-            quote! {}
-        } else {
-            let codegen = Codegen {};
-            let children = codegen.root(children);
+    match ident {
+        TagIdent::Path(tag) => {
+            assert!(tag.get_ident().is_some(), "elements must be an ident");
             quote! {
-                .children(
-                    ::sycamore::rt::Children::new(move || {
-                        #children
-                    })
+                ::sycamore::rt::View::from(
+                    ::sycamore::rt::tags::#tag().children(::std::vec![#(#children),*])#(#attributes)*
                 )
             }
-        };
-        let call = quote_spanned!(ident.span()=> #ident());
-        let build = quote_spanned!(ident.span()=> .build());
-        quote! {{
-            #call
-                #(.#plain_names(#plain_values))*
-                #(#other_attributes)*
-                #children_quoted
-                #build
-        }}
+        }
+        TagIdent::Hyphenated(tag) => quote! {
+            ::sycamore::rt::View::from(
+                ::sycamore::rt::custom_element(#tag).children(::std::vec![#(#children),*])#(#attributes)*
+            )
+        },
     }
+}
+
+pub fn expand_attribute(attr: &Prop) -> TokenStream {
+    // Like component props, element attributes are passed as-is. Reactivity is
+    // opt-in via an explicit closure (or a reactive value such as a signal).
+    let value = &attr.value;
+    match &attr.ty {
+        PropType::Plain { ident } => {
+            quote! { .#ident(#value) }
+        }
+        PropType::PlainHyphenated { ident } => {
+            quote! { .attr(#ident, #value) }
+        }
+        PropType::PlainQuoted { ident } => {
+            quote! { .attr(#ident, #value) }
+        }
+        PropType::Directive { dir, ident } => match dir.to_string().as_str() {
+            "prop" => {
+                let ident = ident.to_string();
+                quote! { .prop(#ident, #value) }
+            }
+            _ => {
+                syn::Error::new(dir.span(), format!("unknown directive `{dir}`")).to_compile_error()
+            }
+        },
+        PropType::Ref => quote! { .r#ref(#value) },
+        PropType::Spread => quote! { .spread(#value) },
+    }
+}
+
+pub fn expand_component(
+    TagNode {
+        ident,
+        props,
+        children,
+    }: &TagNode,
+) -> TokenStream {
+    let ident = match ident {
+        TagIdent::Path(path) => path,
+        TagIdent::Hyphenated(_) => unreachable!("hyphenated tags are not components"),
+    };
+
+    let plain = props
+        .iter()
+        .filter_map(|prop| match &prop.ty {
+            PropType::Plain { ident } => Some((ident, prop.value.clone())),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let plain_names = plain.iter().map(|(ident, _)| ident);
+    let plain_values = plain.iter().map(|(_, value)| value);
+
+    let other_props = props
+        .iter()
+        .filter(|prop| !matches!(&prop.ty, PropType::Plain { .. }))
+        .collect::<Vec<_>>();
+    let other_attributes = other_props.iter().copied().map(expand_attribute);
+
+    let children_quoted = if children.0.is_empty() {
+        quote! {}
+    } else {
+        let children = expand_root(children);
+        quote! {
+            .children(
+                ::sycamore::rt::Children::new(move || {
+                    #children
+                })
+            )
+        }
+    };
+    let call = quote_spanned!(ident.span()=> #ident());
+    let build = quote_spanned!(ident.span()=> .build());
+    quote! {{
+        #call
+            #(.#plain_names(#plain_values))*
+            #(#other_attributes)*
+            #children_quoted
+            #build
+    }}
 }
 
 fn is_component(ident: &TagIdent) -> bool {
@@ -382,11 +371,7 @@ mod tests {
             let Node::Tag(tag) = &root.0[0] else {
                 panic!("expected element");
             };
-            let actual: TokenStream = tag
-                .props
-                .iter()
-                .map(|prop| Codegen {}.attribute(prop))
-                .collect();
+            let actual: TokenStream = tag.props.iter().map(expand_attribute).collect();
             let expected = quote! {
                 .value(#value)
                 .attr("data-value", #value)
