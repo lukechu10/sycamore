@@ -362,7 +362,7 @@ mod tests {
                     value=#value,
                     data-value=#value,
                     "quoted-value"=#value,
-                    prop:value=#value,
+                    prop("value")=#value,
                 )
             })
             .unwrap();
