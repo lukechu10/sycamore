@@ -161,6 +161,12 @@ pub fn expand_attribute(attr: &Attribute) -> TokenStream {
         Attribute::PlainQuoted { ident, value } => {
             quote! { .attr(#ident, #value) }
         }
+        Attribute::FnCall { ident, args } => {
+            quote! { .#ident(#args) }
+        }
+        Attribute::FnCallAssign { ident, args, value } => {
+            quote! { .#ident(#args, #value) }
+        }
         Attribute::Directive { dir, ident, value } => match dir.to_string().as_str() {
             "prop" => {
                 let ident = ident.to_string();

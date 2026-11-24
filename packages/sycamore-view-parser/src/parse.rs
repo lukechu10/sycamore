@@ -137,6 +137,20 @@ impl Parse for Attribute {
                 let _eq = input.parse::<Token![=]>()?;
                 let value = input.parse()?;
                 Ok(Self::PlainHyphenated { ident, value })
+            }
+            // Check if we are parsing a function call attribute.
+            else if input.peek2(Paren) {
+                let ident: Ident = input.call(Ident::parse_any)?;
+                let content;
+                parenthesized!(content in input);
+                let args = content.parse_terminated(Expr::parse, Token![,])?;
+                if input.peek(Token![=]) {
+                    let _eq = input.parse::<Token![=]>()?;
+                    let value = input.parse()?;
+                    Ok(Self::FnCallAssign { ident, args, value })
+                } else {
+                    Ok(Self::FnCall { ident, args })
+                }
             } else {
                 let ident: Ident = input.call(Ident::parse_any)?;
 

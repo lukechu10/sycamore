@@ -1,8 +1,9 @@
 //! Intermediate representation for `view!` macro syntax.
 
 use proc_macro2::Span;
+use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
-use syn::{Expr, Ident, LitStr, Path};
+use syn::{Expr, Ident, LitStr, Path, Token};
 
 /// A list of nodes. This is the top-level syntax node and entry-point for parsing.
 pub struct Root(pub Vec<Node>);
@@ -63,6 +64,17 @@ pub enum Attribute {
     PlainHyphenated { ident: String, value: Expr },
     /// Syntax: `"<quoted-name>"=<value>`.
     PlainQuoted { ident: String, value: Expr },
+    /// Syntax: `ident(<..args>)`.
+    FnCall {
+        ident: Ident,
+        args: Punctuated<Expr, Token![,]>,
+    },
+    /// Syntax: `ident(<..args>)=<value>`.
+    FnCallAssign {
+        ident: Ident,
+        args: Punctuated<Expr, Token![,]>,
+        value: Expr,
+    },
     /// Syntax: `<dir>:<ident>=<value>`.
     Directive {
         dir: Ident,
