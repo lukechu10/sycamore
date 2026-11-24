@@ -17,7 +17,7 @@ pub fn expand_root(root: &Root) -> TokenStream {
         },
         [node] => expand_node(node),
         nodes => {
-            let nodes = nodes.iter().map(|node| expand_node(node));
+            let nodes = nodes.iter().map(expand_node);
             quote! {
                 ::sycamore::rt::Build::<::sycamore::rt::View>::build(::std::vec![#(#nodes),*])
             }
@@ -67,7 +67,7 @@ pub fn expand_node(node: &Node) -> TokenStream {
             let else_root = if_node
                 .else_branch
                 .as_ref()
-                .map(|else_branch| expand_root(else_branch))
+                .map(expand_root)
                 .unwrap_or_else(|| quote! { ::sycamore::rt::View::new() });
 
             if is_dynamic {
