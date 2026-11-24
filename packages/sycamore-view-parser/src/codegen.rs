@@ -8,7 +8,7 @@ use quote::{quote, quote_spanned};
 use syn::spanned::Spanned;
 use syn::{Expr, Pat};
 
-use crate::ir::{DynNode, Node, Prop, PropType, Root, TagIdent, TagNode, TextNode};
+use crate::ir::{Attribute, DynNode, Node, Root, TagIdent, TagNode, TextNode};
 
 pub fn expand_root(root: &Root) -> TokenStream {
     match &root.0[..] {
@@ -150,21 +150,18 @@ pub fn expand_element(element: &TagNode) -> TokenStream {
     }
 }
 
-pub fn expand_attribute(attr: &Prop) -> TokenStream {
-    // Like component props, element attributes are passed as-is. Reactivity is
-    // opt-in via an explicit closure (or a reactive value such as a signal).
-    let value = &attr.value;
-    match &attr.ty {
-        PropType::Plain { ident } => {
+pub fn expand_attribute(attr: &Attribute) -> TokenStream {
+    match attr {
+        Attribute::Plain { ident, value } => {
             quote! { .#ident(#value) }
         }
-        PropType::PlainHyphenated { ident } => {
+        Attribute::PlainHyphenated { ident, value } => {
             quote! { .attr(#ident, #value) }
         }
-        PropType::PlainQuoted { ident } => {
+        Attribute::PlainQuoted { ident, value } => {
             quote! { .attr(#ident, #value) }
         }
-        PropType::Directive { dir, ident } => match dir.to_string().as_str() {
+        Attribute::Directive { dir, ident, value } => match dir.to_string().as_str() {
             "prop" => {
                 let ident = ident.to_string();
                 quote! { .prop(#ident, #value) }
@@ -173,8 +170,7 @@ pub fn expand_attribute(attr: &Prop) -> TokenStream {
                 syn::Error::new(dir.span(), format!("unknown directive `{dir}`")).to_compile_error()
             }
         },
-        PropType::Ref => quote! { .r#ref(#value) },
-        PropType::Spread => quote! { .spread(#value) },
+        Attribute::Spread { value } => quote! { .spread(#value) },
     }
 }
 
@@ -192,8 +188,8 @@ pub fn expand_component(
 
     let plain = props
         .iter()
-        .filter_map(|prop| match &prop.ty {
-            PropType::Plain { ident } => Some((ident, prop.value.clone())),
+        .filter_map(|prop| match &prop {
+            Attribute::Plain { ident, value } => Some((ident, value.clone())),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -202,7 +198,7 @@ pub fn expand_component(
 
     let other_props = props
         .iter()
-        .filter(|prop| !matches!(&prop.ty, PropType::Plain { .. }))
+        .filter(|prop| !matches!(&prop, Attribute::Plain { .. }))
         .collect::<Vec<_>>();
     let other_attributes = other_props.iter().copied().map(expand_attribute);
 

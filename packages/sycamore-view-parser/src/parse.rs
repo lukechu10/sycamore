@@ -65,7 +65,7 @@ impl Parse for TagNode {
             let content;
             parenthesized!(content in input);
             content
-                .parse_terminated(Prop::parse, Token![,])?
+                .parse_terminated(Attribute::parse, Token![,])?
                 .into_iter()
                 .collect()
         } else {
@@ -114,24 +114,13 @@ impl Parse for TagIdent {
     }
 }
 
-impl Parse for Prop {
-    fn parse(input: ParseStream) -> Result<Self> {
-        let span = input.span();
-        let ty = input.parse()?;
-        if !matches!(ty, PropType::Spread) {
-            let _eqs: Token![=] = input.parse()?;
-        }
-        let value = input.parse()?;
-        Ok(Self { ty, value, span })
-    }
-}
-
-impl Parse for PropType {
+impl Parse for Attribute {
     fn parse(input: ParseStream) -> Result<Self> {
         let lookahead = input.lookahead1();
         if lookahead.peek(Token![..]) {
             let _2dot = input.parse::<Token![..]>()?;
-            Ok(Self::Spread)
+            let value = input.parse()?;
+            Ok(Self::Spread { value })
         } else if lookahead.peek(Ident::peek_any) {
             // Check if we are parsing a hyphenated attribute.
             if input.peek2(Token![-]) {
@@ -145,23 +134,30 @@ impl Parse for PropType {
                     .map(|i| i.to_string())
                     .collect::<Vec<_>>()
                     .join("-");
-                Ok(Self::PlainHyphenated { ident })
+                let _eq = input.parse::<Token![=]>()?;
+                let value = input.parse()?;
+                Ok(Self::PlainHyphenated { ident, value })
             } else {
-                let name: Ident = input.call(Ident::parse_any)?;
+                let ident: Ident = input.call(Ident::parse_any)?;
 
-                if name == "ref" {
-                    Ok(Self::Ref)
-                } else if input.peek(Token![:]) {
+                if input.peek(Token![:]) {
                     let _colon: Token![:] = input.parse()?;
+                    let dir = ident;
                     let ident = input.call(Ident::parse_any)?;
-                    Ok(Self::Directive { dir: name, ident })
+                    let _eq = input.parse::<Token![=]>()?;
+                    let value = input.parse()?;
+                    Ok(Self::Directive { dir, ident, value })
                 } else {
-                    Ok(Self::Plain { ident: name })
+                    let _eq = input.parse::<Token![=]>()?;
+                    let value = input.parse()?;
+                    Ok(Self::Plain { ident, value })
                 }
             }
         } else if lookahead.peek(LitStr) {
-            let name: String = <LitStr as Parse>::parse(input).map(|s| s.value())?;
-            Ok(Self::PlainQuoted { ident: name })
+            let ident: String = <LitStr as Parse>::parse(input).map(|s| s.value())?;
+            let _eq = input.parse::<Token![=]>()?;
+            let value = input.parse()?;
+            Ok(Self::PlainQuoted { ident, value })
         } else {
             Err(lookahead.error())
         }
