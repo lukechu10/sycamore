@@ -20,7 +20,7 @@ mod component;
 pub fn view(input: TokenStream) -> TokenStream {
     let root = parse_macro_input!(input as sycamore_view_parser::ir::Root);
 
-    sycamore_view_parser::codegen::Codegen {}.root(&root).into()
+    sycamore_view_parser::codegen::expand_root(&root).into()
 }
 
 /// A macro for creating components from functions.

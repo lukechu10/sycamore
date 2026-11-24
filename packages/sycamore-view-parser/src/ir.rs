@@ -1,20 +1,30 @@
 //! Intermediate representation for `view!` macro syntax.
 
 use proc_macro2::Span;
+use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
-use syn::{Expr, Ident, LitStr, Path};
+use syn::{Expr, Ident, LitStr, Path, Token};
 
 /// A list of nodes. This is the top-level syntax node and entry-point for parsing.
 pub struct Root(pub Vec<Node>);
 
 pub enum Node {
+    /// Represents an element or a component.
     Tag(TagNode),
+    /// Represents a raw text node.
+    /// For HTML, this is just a text node. For other backends, this may not be allowed by itself
+    /// and must be wrapped in some kind of `Label` component.
     Text(TextNode),
+    /// A dynamic node whose value is interpolated from an expression.
     Dyn(DynNode),
+    /// An `if` node that conditionally renders its children.
     If(IfNode),
+    /// A `match` node that conditionally renders its children based on a pattern match.
     Match(MatchNode),
 }
 
+/// Mirror of the [`Node`] enum, but without the actual data. This is used for pattern matching on
+/// node types.
 pub enum NodeType {
     Tag,
     Text,
@@ -25,7 +35,7 @@ pub enum NodeType {
 
 pub struct TagNode {
     pub ident: TagIdent,
-    pub props: Vec<Prop>,
+    pub props: Vec<Attribute>,
     pub children: Root,
 }
 
@@ -46,25 +56,33 @@ impl TagIdent {
     }
 }
 
-pub struct Prop {
-    pub ty: PropType,
-    pub value: Expr,
-    pub span: Span,
-}
-
-pub enum PropType {
-    /// Syntax: `<name>=<expr>`.
-    Plain { ident: Ident },
-    /// Syntax: `<hyphenated-name>=<expr>`.
-    PlainHyphenated { ident: String },
-    /// Syntax: `"<quoted-name>"=<expr>`.
-    PlainQuoted { ident: String },
-    /// Syntax: `<dir>:<prop>=<expr>`.
-    Directive { dir: Ident, ident: Ident },
-    /// Syntax: `r#ref=<expr>`.
-    Ref,
-    /// Syntax: `..attributes=<expr>`
-    Spread,
+/// Represents an attribute on an element or component.
+pub enum Attribute {
+    /// Syntax: `<ident>=<value>`.
+    Plain { ident: Ident, value: Expr },
+    /// Syntax: `<hyphenated-name>=<value>`.
+    PlainHyphenated { ident: String, value: Expr },
+    /// Syntax: `"<quoted-name>"=<value>`.
+    PlainQuoted { ident: String, value: Expr },
+    /// Syntax: `ident(<..args>)`.
+    FnCall {
+        ident: Ident,
+        args: Punctuated<Expr, Token![,]>,
+    },
+    /// Syntax: `ident(<..args>)=<value>`.
+    FnCallAssign {
+        ident: Ident,
+        args: Punctuated<Expr, Token![,]>,
+        value: Expr,
+    },
+    /// Syntax: `<dir>:<ident>=<value>`.
+    Directive {
+        dir: Ident,
+        ident: Ident,
+        value: Expr,
+    },
+    /// Syntax: `..<value>`
+    Spread { value: Expr },
 }
 
 pub struct TextNode {

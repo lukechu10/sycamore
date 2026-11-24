@@ -248,7 +248,7 @@ fn attribute_expressions_are_not_implicitly_reactive() {
                 value=count.get().to_string(),
                 data-count=count.get().to_string(),
                 "quoted-count"=count.get().to_string(),
-                prop:checked=checked.get(),
+                prop("checked")=checked.get(),
             )
         };
         sycamore::render_in_scope(|| node, &test_container());
@@ -299,13 +299,13 @@ fn component_passthrough_attributes_require_explicit_closures() {
                 id="static-input",
                 data-count=count.get().to_string(),
                 "quoted-count"=count.get().to_string(),
-                prop:checked=checked.get(),
+                prop("checked")=checked.get(),
             )
             Input(
                 id="reactive-input",
                 data-count=move || count.get().to_string(),
                 "quoted-count"=move || count.get().to_string(),
-                prop:checked=move || checked.get(),
+                prop("checked")=move || checked.get(),
             )
         };
         sycamore::render_in_scope(|| node, &test_container());
@@ -353,7 +353,7 @@ fn reactive_property() {
         let indeterminate = create_signal(true);
 
         let node = view! {
-            input(r#type="checkbox", prop:indeterminate=move || indeterminate.get())
+            input(r#type="checkbox", prop("indeterminate")=move || indeterminate.get())
         };
 
         sycamore::render_in_scope(|| node, &test_container());
@@ -370,7 +370,7 @@ fn reactive_property() {
 fn static_property() {
     let _ = create_root(|| {
         let node = view! {
-            input(prop:checked=true)
+            input(prop("checked")=true)
         };
 
         sycamore::render_in_scope(|| node, &test_container());

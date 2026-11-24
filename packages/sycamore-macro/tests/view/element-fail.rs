@@ -4,7 +4,6 @@ fn compile_fail() {
     let _ = create_root(|| {
         let _: View = view! { button };
         let _: View = view! { button(disabled) };
-        let _: View = view! { button(prop:disabled) };
         let _: View = view! {
             button(unknown:directive="123")
         };

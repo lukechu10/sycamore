@@ -31,7 +31,7 @@ fn App() -> View {
                     r#type="button",
                     class="red-button",
                     style="background-color:red;",
-                    prop:disabled=true,
+                    prop("disabled")=true,
                     on_click=|_| console_log!("Button 2 clicked!"),
                 ) { "Button 2" }
             }
