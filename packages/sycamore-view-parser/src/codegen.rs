@@ -153,29 +153,25 @@ pub fn expand_element(element: &TagNode) -> TokenStream {
 pub fn expand_attribute(attr: &Attribute) -> TokenStream {
     match attr {
         Attribute::Plain { ident, value } => {
-            quote! { .#ident(#value) }
+            quote_spanned! {ident.span()=> .#ident(#value) }
         }
         Attribute::PlainHyphenated { ident, value } => {
-            quote! { .attr(#ident, #value) }
+            quote_spanned! {ident.span()=> .attr(#ident, #value) }
         }
         Attribute::PlainQuoted { ident, value } => {
-            quote! { .attr(#ident, #value) }
+            quote_spanned! {ident.span()=> .attr(#ident, #value) }
         }
         Attribute::FnCall { ident, args } => {
-            quote! { .#ident(#args) }
+            quote_spanned! {ident.span()=> .#ident(#args) }
         }
         Attribute::FnCallAssign { ident, args, value } => {
-            quote! { .#ident(#args, #value) }
+            quote_spanned! {ident.span()=> .#ident(#args, #value) }
         }
-        Attribute::Directive { dir, ident, value } => match dir.to_string().as_str() {
-            "prop" => {
-                let ident = ident.to_string();
-                quote! { .prop(#ident, #value) }
+        Attribute::Directive { dir, ident, value } => {
+            quote_spanned! {dir.span()=>
+                .#dir(move |__tmp| __tmp.#ident(#value))
             }
-            _ => {
-                syn::Error::new(dir.span(), format!("unknown directive `{dir}`")).to_compile_error()
-            }
-        },
+        }
         Attribute::Spread { value } => quote! { .spread(#value) },
     }
 }
