@@ -35,7 +35,8 @@ pub enum NodeType {
 
 pub struct TagNode {
     pub ident: TagIdent,
-    pub props: Vec<Attribute>,
+    pub args: Vec<Expr>,
+    pub attributes: Vec<Attribute>,
     pub children: Root,
 }
 

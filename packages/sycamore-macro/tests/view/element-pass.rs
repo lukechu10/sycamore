@@ -37,6 +37,12 @@ fn compile_pass() {
             p(dangerously_set_inner_html="<span>Test</span>")
         };
 
+        let paragraph = |text: &'static str| p().children(text);
+        let _: View = view! {
+            paragraph(Some("initial text").unwrap(); class="my-class")
+            paragraph("no attributes";)
+        };
+
         let attributes = Attributes::default();
         let _: View = view! {
             p(..attributes)

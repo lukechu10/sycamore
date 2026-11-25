@@ -1,5 +1,6 @@
 //! Parse syntax for `view!` macro.
 
+use proc_macro2::TokenTree;
 use syn::ext::IdentExt;
 use syn::parse::{Parse, ParseStream};
 use syn::token::{Brace, Paren};
@@ -58,18 +59,44 @@ impl Parse for Node {
 
 impl Parse for TagNode {
     fn parse(input: ParseStream) -> Result<Self> {
-        let ident = input.parse()?;
+        let ident: TagIdent = input.parse()?;
 
         let has_paren = input.peek(token::Paren);
-        let attrs = if has_paren {
+
+        let (args, attributes) = if has_paren {
             let content;
             parenthesized!(content in input);
-            content
+
+            // Look for a top-level separator without trying to interpret ambiguous syntax
+            // such as `a = b` or `f(x)`. Nested groups are consumed as single token trees.
+            let lookahead = content.fork();
+            while !lookahead.is_empty() && !lookahead.peek(Token![;]) {
+                lookahead.parse::<TokenTree>()?;
+            }
+
+            let mut args = Vec::new();
+            if lookahead.peek(Token![;]) {
+                if matches!(ident, TagIdent::Hyphenated(_)) && !content.peek(Token![;]) {
+                    return Err(
+                        content.error("custom element tags do not take constructor arguments")
+                    );
+                }
+                while !content.peek(Token![;]) {
+                    args.push(content.parse::<Expr>()?);
+                    if !content.peek(Token![;]) {
+                        content.parse::<Token![,]>()?;
+                    }
+                }
+                content.parse::<Token![;]>()?;
+            }
+
+            let attributes = content
                 .parse_terminated(Attribute::parse, Token![,])?
                 .into_iter()
-                .collect()
+                .collect();
+            (args, attributes)
         } else {
-            Vec::new()
+            (Vec::new(), Vec::new())
         };
 
         if !has_paren && !input.peek(Brace) {
@@ -87,7 +114,8 @@ impl Parse for TagNode {
 
         Ok(Self {
             ident,
-            props: attrs,
+            args,
+            attributes,
             children: Root(children),
         })
     }

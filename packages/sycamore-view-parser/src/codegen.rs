@@ -141,18 +141,19 @@ pub fn expand_attribute(attr: &Attribute) -> TokenStream {
 pub fn expand_component(
     TagNode {
         ident,
-        props,
+        args,
+        attributes,
         children,
     }: &TagNode,
 ) -> TokenStream {
     let constructor = match ident {
-        TagIdent::Path(path) => quote_spanned! {path.span()=> #path() },
+        TagIdent::Path(path) => quote_spanned! {path.span()=> #path(#(#args),*) },
         TagIdent::Hyphenated(name) => {
             quote_spanned! {ident.span()=> ::sycamore::rt::custom_element(#name) }
         }
     };
 
-    let attributes_quoted = props.iter().map(expand_attribute);
+    let attributes_quoted = attributes.iter().map(expand_attribute);
 
     let children_quoted = if children.0.is_empty() {
         quote! {}
@@ -296,6 +297,54 @@ mod tests {
     use super::*;
 
     #[test]
+    fn constructor_arguments_and_attributes_expand_separately() {
+        let tag: TagNode = syn::parse2(quote! {
+            gtk::Label::new(a = b, { log(); Some("initial label") }, make_value(),;
+                prop:set_selectable = true,
+                prop("abc", 123),
+            )
+        })
+        .unwrap();
+        let expected = quote! {{
+            gtk::Label::new(a = b, { log(); Some("initial label") }, make_value())
+                .prop(move |__tmp| __tmp.set_selectable(true))
+                .prop("abc", 123)
+                .build()
+        }};
+        assert_eq!(expand_component(&tag).to_string(), expected.to_string());
+    }
+
+    #[test]
+    fn constructor_separator_allows_either_side_to_be_empty() {
+        let tag: TagNode = syn::parse2(quote! { gtk::Label::new(None;) }).unwrap();
+        let expected = quote! {{ gtk::Label::new(None).build() }};
+        assert_eq!(expand_component(&tag).to_string(), expected.to_string());
+
+        let tag: TagNode = syn::parse2(quote! { button(; class = "abc") }).unwrap();
+        let expected = quote! {{ button().class("abc").build() }};
+        assert_eq!(expand_component(&tag).to_string(), expected.to_string());
+    }
+
+    #[test]
+    fn no_separator_preserves_attribute_syntax() {
+        let tag: TagNode =
+            syn::parse2(quote! { button(class = { log(); "abc" }, prop("abc", 123)) }).unwrap();
+        let expected = quote! {{ button().class({ log(); "abc" }).prop("abc", 123).build() }};
+        assert_eq!(expand_component(&tag).to_string(), expected.to_string());
+    }
+
+    #[test]
+    fn custom_element_tags_reject_constructor_arguments() {
+        let Err(err) = syn::parse2::<TagNode>(quote! { my-widget(value;) }) else {
+            panic!("expected a parse error");
+        };
+        assert_eq!(
+            err.to_string(),
+            "custom element tags do not take constructor arguments"
+        );
+    }
+
+    #[test]
     fn attribute_expressions_are_passed_directly() {
         for value in [quote! { signal.get() }, quote! { move || signal.get() }] {
             let value: Expr = syn::parse2(value).unwrap();
@@ -311,7 +360,7 @@ mod tests {
             let Node::Tag(tag) = &root.0[0] else {
                 panic!("expected element");
             };
-            let actual: TokenStream = tag.props.iter().map(expand_attribute).collect();
+            let actual: TokenStream = tag.attributes.iter().map(expand_attribute).collect();
             let expected = quote! {
                 .value(#value)
                 .attr("data-value", #value)
