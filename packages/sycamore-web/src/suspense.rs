@@ -145,7 +145,7 @@ is_ssr! {
 is_not_ssr! {
     pub(crate) enum Branch {
         Ready(View),
-        Lazy(Children),
+        Lazy(LazyChildren),
     }
 
     pub(crate) struct SuspenseView {

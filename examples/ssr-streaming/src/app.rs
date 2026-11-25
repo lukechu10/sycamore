@@ -14,7 +14,7 @@ async fn sleep_ms(ms: u64) {
 async fn Delayed(delay_ms: u64, children: Children) -> View {
     sleep_ms(delay_ms).await;
     view! {
-        (children)
+        (children.view)
     }
 }
 

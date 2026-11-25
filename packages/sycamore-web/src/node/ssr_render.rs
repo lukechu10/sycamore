@@ -313,6 +313,7 @@ mod tests {
     use futures::channel::oneshot;
 
     use super::*;
+    use crate::tags::*;
 
     #[component]
     async fn AsyncComponent(receiver: oneshot::Receiver<()>) -> View {
@@ -325,7 +326,7 @@ mod tests {
     #[component]
     fn App(receiver: oneshot::Receiver<()>) -> View {
         view! {
-            Suspense(fallback=|| "fallback") { AsyncComponent(receiver=receiver) }
+            Suspense(fallback=|| "fallback") { (move || view! { AsyncComponent(receiver=receiver) }) }
         }
     }
 

@@ -11,6 +11,10 @@ use crate::View;
 /// Children are eagerly evaluated and created even if not used in the component. If you want to
 /// lazily evaluate children, use [`LazyChildren`] instead.
 ///
+/// Due to Rust type-system limitations, we cannot implement [`Build`] for [`Children`]. So to
+/// instantiate the [`Children`] somewhere in a [`View`], use `children.view` to get the inner
+/// [`View`].
+///
 /// # Example
 /// ```
 /// # use sycamore::prelude::*;
@@ -18,7 +22,7 @@ use crate::View;
 /// fn Row(width: i32, children: Children) -> View {
 ///     view! {
 ///         div {
-///             (children)
+///             (children.view)
 ///         }
 ///     }
 /// }
@@ -35,12 +39,17 @@ use crate::View;
 /// ```
 #[derive(Debug, Default)]
 pub struct Children {
-    pub(crate) view: View,
+    pub view: View,
 }
 
-impl From<View> for Children {
-    fn from(view: View) -> Self {
-        Self { view }
+impl<T> From<T> for Children
+where
+    T: Build<View>,
+{
+    fn from(value: T) -> Self {
+        Self {
+            view: value.build(),
+        }
     }
 }
 

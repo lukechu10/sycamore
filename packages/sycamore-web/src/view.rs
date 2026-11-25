@@ -179,12 +179,6 @@ impl Build<View> for Option<View> {
     }
 }
 
-impl Build<View> for Children {
-    fn build(self) -> View {
-        self.view
-    }
-}
-
 impl Build<View> for LazyChildren {
     fn build(self) -> View {
         self.call()

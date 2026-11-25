@@ -38,21 +38,13 @@ pub fn expand_node(node: &Node) -> TokenStream {
         Node::Tag(tag) => expand_component(tag),
         Node::Text(TextNode { value, format_args }) => match format_args {
             Some(args) => quote_spanned! { value.span()=>
-                ::sycamore::rt::View::from_dynamic(move || {
-                    ::std::format!(#value #(, #args)*)
-                })
+                (move || ::std::format!(#value #(, #args)*)).build()
             },
-            None => quote_spanned! { value.span()=>
-                ::sycamore::rt::Build::<::sycamore::rt::View>::build(#value)
-            },
+            None => quote_spanned! { value.span()=> #value.build() },
         },
         Node::Dyn(DynNode { value }) => {
             if is_dyn(value) {
-                quote_spanned! { value.span()=>
-                    ::sycamore::rt::View::from_dynamic(
-                        move || ::sycamore::rt::Build::<::sycamore::rt::View>::build(#value)
-                    )
-                }
+                quote_spanned! { value.span()=> (move || #value.build()).build() }
             } else {
                 value.to_token_stream()
             }
@@ -66,17 +58,17 @@ pub fn expand_node(node: &Node) -> TokenStream {
                 .else_branch
                 .as_ref()
                 .map(expand_root)
-                .unwrap_or_else(|| quote_spanned! { cond.span()=> ::sycamore::rt::View::new() });
+                .unwrap_or_else(|| quote_spanned! { cond.span()=> ().build() });
 
             if is_dynamic {
                 quote_spanned! { cond.span()=>
-                    ::sycamore::rt::View::from_dynamic(move || {
+                    (move || {
                         if #cond {
                             #if_root
                         } else {
                             #else_root
                         }
-                    })
+                    }).build()
                 }
             } else {
                 quote_spanned! { cond.span()=>
@@ -103,11 +95,11 @@ pub fn expand_node(node: &Node) -> TokenStream {
 
             if is_dynamic {
                 quote_spanned! { match_expr.span()=>
-                    ::sycamore::rt::View::from_dynamic(move || {
+                    (move || {
                         match #match_expr {
                             #(#arms),*
                         }
-                    })
+                    }).build()
                 }
             } else {
                 quote_spanned! { match_expr.span()=>

@@ -24,7 +24,7 @@ pub fn Portal(selector: impl AsRef<str>, children: Children) -> View {
             let end = HtmlNode::create_end_marker().raw;
             parent.append_child(&start).unwrap();
             parent.append_child(&end).unwrap();
-            crate::node::insert_view(&parent, &children.call(), Some(&end));
+            crate::node::insert_view(&parent, &children.view, Some(&end));
 
             // Own the entire range, not just the initial nodes: dynamic parts can replace
             // their contents before this scope is disposed.
