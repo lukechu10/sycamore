@@ -356,7 +356,7 @@ mod no_ssr {
         view! {
             button(on_click=move |_| count.set(count.get_untracked() + 1)) { "Increment" }
             "before"
-            NoSsr { (count) }
+            NoSsr { (move || view! { (count) }) }
             "after"
         }
     }
