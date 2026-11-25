@@ -294,6 +294,7 @@ in the order they appear. An empty slot explicitly passes empty children;
 an omitted slot leaves the prop unset. Each slot must appear directly in a
 tag's child list, and the same slot cannot also be set as an attribute.
 
-For a directive, use `:directive:name { ... }`. Like a directive attribute,
-this passes a closure to `.directive(...)`; the closure calls `.name(...)`
-with the subtree.
+For a directive, use `:directive:name { ... }`. The macro passes the subtree
+as a separate argument: `.directive(|target, value| target.name(value), subtree)`.
+Directive attributes such as `directive:name = expr` work the same way:
+`expr` is evaluated at the call site, not inside the generated closure.

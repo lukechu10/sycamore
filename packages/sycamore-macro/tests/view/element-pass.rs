@@ -60,4 +60,34 @@ fn compile_pass() {
     });
 }
 
+#[derive(Default)]
+struct DirectiveWidget(View);
+
+impl DirectiveWidget {
+    fn apply<T>(self, setter: impl FnOnce(Self, T) -> Self, value: T) -> Self {
+        setter(self, value)
+    }
+
+    fn label(self, _label: &str) -> Self {
+        self
+    }
+
+    fn content(self, children: impl Into<Children>) -> Self {
+        Self(children.into().view)
+    }
+
+    fn build(self) -> View {
+        self.0
+    }
+}
+
+fn directives(label: Option<&str>) -> Option<View> {
+    // `?` must return from this function, not from a generated closure.
+    Some(view! {
+        DirectiveWidget::default(apply:label = label?) {
+            :apply:content { p { "Content" } }
+        }
+    })
+}
+
 fn main() {}

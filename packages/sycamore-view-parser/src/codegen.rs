@@ -135,7 +135,7 @@ pub fn expand_attribute(attr: &Attribute) -> TokenStream {
 }
 
 fn expand_directive(dir: &syn::Ident, name: &syn::Ident, value: impl ToTokens) -> TokenStream {
-    quote_spanned! {dir.span()=> .#dir(move |__tmp| __tmp.#name(#value)) }
+    quote_spanned! {dir.span()=> .#dir(|__tmp, __value| __tmp.#name(__value), #value) }
 }
 
 pub fn expand_component(
@@ -333,7 +333,7 @@ mod tests {
     }
 
     #[test]
-    fn directive_slots_pass_children_to_the_directive_closure() {
+    fn directives_pass_attributes_and_slots_as_separate_arguments() {
         let tag: TagNode = syn::parse2(quote! {
             Widget(prop:title = "Title") {
                 :prop:content { "First" "Second" }
@@ -343,9 +343,9 @@ mod tests {
         .unwrap();
         let expected = quote! {{
             Widget()
-                .prop(move |__tmp| __tmp.title("Title"))
-                .prop(move |__tmp| __tmp.content(("First".build(), "Second".build())))
-                .prop(move |__tmp| __tmp.placeholder(()))
+                .prop(|__tmp, __value| __tmp.title(__value), "Title")
+                .prop(|__tmp, __value| __tmp.content(__value), ("First".build(), "Second".build()))
+                .prop(|__tmp, __value| __tmp.placeholder(__value), ())
                 .build()
         }};
         assert_eq!(expand_component(&tag).to_string(), expected.to_string());
@@ -362,7 +362,7 @@ mod tests {
         .unwrap();
         let expected = quote! {{
             gtk::Label::new(a = b, { log(); Some("initial label") }, make_value())
-                .prop(move |__tmp| __tmp.set_selectable(true))
+                .prop(|__tmp, __value| __tmp.set_selectable(__value), true)
                 .prop("abc", 123)
                 .build()
         }};
