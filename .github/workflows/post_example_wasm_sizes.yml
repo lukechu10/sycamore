@@ -75,33 +75,34 @@ jobs:
             const diffBlock = lines => ['```diff', ...lines, '```'].join('\n');
             const base = readSizes('base');
             const head = readSizes('head');
-            const lines = [];
             const changedLines = [];
-            let hasSignificantChange = false;
             for (const name of [...new Set([...base.keys(), ...head.keys()])].sort()) {
               const before = base.get(name);
               const after = head.get(name);
-              let line;
-              if (before === undefined) line = `  ${name}: added (${formatSize(after)})`;
-              else if (after === undefined) line = `  ${name}: removed (${formatSize(before)})`;
-              else if (before === after) line = `  ${name}: ${formatSize(after)} (unchanged)`;
+              if (before === after) continue;
+              if (before === undefined) changedLines.push(`  ${name}: added (${formatSize(after)})`);
+              else if (after === undefined) changedLines.push(`  ${name}: removed (${formatSize(before)})`);
               else {
                 const delta = after - before;
+                const sign = delta > 0 ? '+' : '';
                 const change = before === 0 ? 'no Wasm baseline' :
-                  `${delta > 0 ? '+' : ''}${(100 * delta / before).toFixed(2)}%`;
+                  `${sign}${(100 * delta / before).toFixed(2)}%`;
                 // Diff syntax colors '+' green and '-' red; choose the marker by impact.
                 const marker = delta < 0 ? '+' : '-';
-                line = `${marker} ${name}: ${formatSize(before)} → ${formatSize(after)} (${change})`;
-                // Compare integer byte counts before rounding. Exactly ±5% does not qualify.
-                if (before > 0 && Math.abs(delta) * 20 > before) hasSignificantChange = true;
+                changedLines.push(`${marker} ${name}: ${formatSize(before)} → ${formatSize(after)} (${sign}${delta} B, ${change})`);
               }
-              lines.push(line);
-              if (before !== after) changedLines.push(line);
             }
 
             const metric = 'Sizes are the total uncompressed `.wasm` files in the public output of `cargo sycamore build --release` (1 kB = 1,000 bytes).';
-            const legend = '`+` smaller · `-` larger';
-            await core.summary.addRaw(`## Example Wasm sizes\n\n${metric}\n\n${legend}\n\n${diffBlock(lines)}`, true).write();
+            const report = changedLines.length
+              ? [
+                `<details>\n<summary>Show Wasm size changes (${changedLines.length})</summary>`,
+                '`+` smaller · `-` larger',
+                diffBlock(changedLines),
+                '</details>',
+              ].join('\n\n')
+              : 'No example Wasm sizes changed.';
+            await core.summary.addRaw(`## Example Wasm sizes\n\n${metric}\n\n${report}`, true).write();
 
             // GitHub may omit pull_requests from workflow_run for forks. Resolve the PR
             // from GitHub metadata, not from the artifact, and skip stale or ambiguous runs.
@@ -137,25 +138,13 @@ jobs:
             // Adopt the most recent report from the old workflow if there is no marked comment yet.
             const previous = botComments.find(comment => comment.body?.startsWith(marker)) ??
               botComments.findLast(comment => comment.body?.startsWith('### Example Wasm size changes over 5%\n'));
-            if (!hasSignificantChange && !previous) {
-              core.info('No comparable example changed by more than 5%; no comment needed.');
-              return;
-            }
 
             const body = [
               marker,
               '### Example Wasm sizes',
               '',
-              hasSignificantChange
-                ? 'At least one example changed by more than 5%.'
-                : 'No comparable example changed by more than 5%.',
+              report,
               '',
-              ...(hasSignificantChange ? [
-                legend,
-                '',
-                diffBlock(changedLines),
-                '',
-              ] : []),
               `[Build details](${run.html_url}) · PR commit \`${run.head_sha.slice(0, 12)}\``,
             ].join('\n');
             if (previous) {
