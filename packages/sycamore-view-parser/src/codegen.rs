@@ -129,13 +129,13 @@ pub fn expand_attribute(attr: &Attribute) -> TokenStream {
         Attribute::FnCallAssign { ident, args, value } => {
             quote_spanned! {ident.span()=> .#ident(#args, #value) }
         }
-        Attribute::Directive { dir, ident, value } => {
-            quote_spanned! {dir.span()=>
-                .#dir(move |__tmp| __tmp.#ident(#value))
-            }
-        }
+        Attribute::Directive { dir, ident, value } => expand_directive(dir, ident, value),
         Attribute::Spread { value } => quote! { .spread(#value) },
     }
+}
+
+fn expand_directive(dir: &syn::Ident, name: &syn::Ident, value: impl ToTokens) -> TokenStream {
+    quote_spanned! {dir.span()=> .#dir(move |__tmp| __tmp.#name(#value)) }
 }
 
 pub fn expand_component(
@@ -144,6 +144,7 @@ pub fn expand_component(
         args,
         attributes,
         children,
+        slots,
     }: &TagNode,
 ) -> TokenStream {
     let constructor = match ident {
@@ -162,12 +163,23 @@ pub fn expand_component(
         quote_spanned! {ident.span()=> .children(#children) }
     };
 
+    let slots_quoted = slots.iter().map(|slot| {
+        let name = &slot.ident;
+        let children = into_pair_stack(slot.children.0.iter().map(expand_node));
+        if let Some(dir) = &slot.directive {
+            expand_directive(dir, name, children)
+        } else {
+            quote_spanned! {name.span()=> .#name(#children) }
+        }
+    });
+
     let build = quote_spanned!(ident.span()=> .build());
 
     quote! {{
         #constructor
             #(#attributes_quoted)*
             #children_quoted
+            #(#slots_quoted)*
             #build
     }}
 }
@@ -295,6 +307,49 @@ fn into_pair_stack(iter: impl DoubleEndedIterator<Item = TokenStream>) -> TokenS
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn interleaved_named_slots_expand_as_setters() {
+        let tag: TagNode = syn::parse2(quote! {
+            Dialog(open = true) {
+                :header { "Title" }
+                ::widgets::Body()
+                :footer { "Cancel" "Confirm" }
+                (body_tail)
+                :empty {}
+            }
+        })
+        .unwrap();
+        let expected = quote! {{
+            Dialog()
+                .open(true)
+                .children(({ ::widgets::Body().build() }, body_tail))
+                .header("Title".build())
+                .footer(("Cancel".build(), "Confirm".build()))
+                .empty(())
+                .build()
+        }};
+        assert_eq!(expand_component(&tag).to_string(), expected.to_string());
+    }
+
+    #[test]
+    fn directive_slots_pass_children_to_the_directive_closure() {
+        let tag: TagNode = syn::parse2(quote! {
+            Widget(prop:title = "Title") {
+                :prop:content { "First" "Second" }
+                :prop:placeholder {}
+            }
+        })
+        .unwrap();
+        let expected = quote! {{
+            Widget()
+                .prop(move |__tmp| __tmp.title("Title"))
+                .prop(move |__tmp| __tmp.content(("First".build(), "Second".build())))
+                .prop(move |__tmp| __tmp.placeholder(()))
+                .build()
+        }};
+        assert_eq!(expand_component(&tag).to_string(), expected.to_string());
+    }
 
     #[test]
     fn constructor_arguments_and_attributes_expand_separately() {

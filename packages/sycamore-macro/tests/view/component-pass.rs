@@ -48,6 +48,14 @@ pub fn NestedComponentWithChildren(children: Children) -> View {
     }
 }
 
+#[component]
+fn Panel(children: Children, footer: Children) -> View {
+    view! {
+        section { (children.view) }
+        div { (footer.view) }
+    }
+}
+
 #[component(extend_element!(html:input))]
 pub fn AttributesComponent(attributes: Attributes) -> View {
     view! {
@@ -97,6 +105,15 @@ fn compile_pass() {
         };
         let _: View = view! {
             ComponentWithChildren {}
+        };
+
+        let _: View = view! {
+            Panel {
+                p { "Before" }
+                :footer { button { "Save" } button { "Cancel" } }
+                p { "After" }
+            }
+            Panel { :footer {} }
         };
 
         let _: View = view! {

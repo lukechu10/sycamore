@@ -271,3 +271,29 @@ view! {
 ```
 
 Components can also accept `children` just like elements.
+
+### Named slots
+
+Inside a tag's child list, `:name { ... }` passes a subtree to the `name`
+builder setter. For example, a component with a `footer: Children` prop can
+receive its footer separately from its default children:
+
+```rust,ignore
+view! {
+    Panel {
+        p { "Before" }
+        :footer { button { "Save" } }
+        p { "After" }
+    }
+}
+```
+
+Unnamed children are grouped into one `.children(...)` call in their original
+order. The macro emits that call before named slot setters, which are called
+in the order they appear. An empty slot explicitly passes empty children;
+an omitted slot leaves the prop unset. Each slot must appear directly in a
+tag's child list, and the same slot cannot also be set as an attribute.
+
+For a directive, use `:directive:name { ... }`. Like a directive attribute,
+this passes a closure to `.directive(...)`; the closure calls `.name(...)`
+with the subtree.

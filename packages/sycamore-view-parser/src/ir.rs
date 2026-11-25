@@ -38,6 +38,14 @@ pub struct TagNode {
     pub args: Vec<Expr>,
     pub attributes: Vec<Attribute>,
     pub children: Root,
+    pub slots: Vec<Slot>,
+}
+
+/// A named child block: `:name { ... }` or `:directive:name { ... }`.
+pub struct Slot {
+    pub directive: Option<Ident>,
+    pub ident: Ident,
+    pub children: Root,
 }
 
 pub enum TagIdent {

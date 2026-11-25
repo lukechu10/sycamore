@@ -1,5 +1,7 @@
 //! Parse syntax for `view!` macro.
 
+use std::collections::HashSet;
+
 use proc_macro2::TokenTree;
 use syn::ext::IdentExt;
 use syn::parse::{Parse, ParseStream};
@@ -40,8 +42,15 @@ impl Node {
     }
 }
 
+fn starts_slot(input: ParseStream) -> bool {
+    input.peek(Token![:]) && !input.peek(Token![::])
+}
+
 impl Parse for Node {
     fn parse(input: ParseStream) -> Result<Self> {
+        if starts_slot(input) {
+            return Err(input.error("named slots must be direct children of a tag"));
+        }
         let ty = match Self::peek_type(input) {
             Some(ty) => ty,
             None => return Err(input.error("expected a valid node")),
@@ -63,7 +72,7 @@ impl Parse for TagNode {
 
         let has_paren = input.peek(token::Paren);
 
-        let (args, attributes) = if has_paren {
+        let (args, attributes): (_, Vec<Attribute>) = if has_paren {
             let content;
             parenthesized!(content in input);
 
@@ -104,11 +113,51 @@ impl Parse for TagNode {
         }
 
         let mut children = Vec::new();
+        let mut slots = Vec::new();
         if input.peek(Brace) {
             let content;
             braced!(content in input);
+            // Only used for duplicate detection. `slots` retains source order for codegen.
+            let mut slot_names = HashSet::new();
+            let mut children_slot = None;
             while !content.is_empty() {
-                children.push(content.parse()?);
+                if starts_slot(&content) {
+                    let slot: Slot = content.parse()?;
+                    let name = slot.ident.unraw();
+                    let directive = slot.directive.as_ref().map(Ident::unraw);
+                    if !slot_names.insert((directive.clone(), name.clone())) {
+                        return Err(syn::Error::new(slot.ident.span(), "duplicate named slot"));
+                    }
+                    if attributes.iter().any(|attr| match (attr, &directive) {
+                        (
+                            Attribute::Plain { ident, .. }
+                            | Attribute::FnCall { ident, .. }
+                            | Attribute::FnCallAssign { ident, .. },
+                            None,
+                        ) => ident.unraw() == name,
+                        (Attribute::Directive { dir, ident, .. }, Some(directive)) => {
+                            dir.unraw() == *directive && ident.unraw() == name
+                        }
+                        _ => false,
+                    }) {
+                        return Err(syn::Error::new(
+                            slot.ident.span(),
+                            "named slot conflicts with an attribute on this tag",
+                        ));
+                    }
+                    if directive.is_none() && name == "children" {
+                        children_slot = Some(slot.ident.span());
+                    }
+                    slots.push(slot);
+                } else {
+                    children.push(content.parse()?);
+                }
+            }
+            if let Some(span) = children_slot.filter(|_| !children.is_empty()) {
+                return Err(syn::Error::new(
+                    span,
+                    "the `children` slot conflicts with unnamed children",
+                ));
             }
         }
 
@@ -117,6 +166,27 @@ impl Parse for TagNode {
             args,
             attributes,
             children: Root(children),
+            slots,
+        })
+    }
+}
+
+impl Parse for Slot {
+    fn parse(input: ParseStream) -> Result<Self> {
+        input.parse::<Token![:]>()?;
+        let first = input.call(Ident::parse_any)?;
+        let (directive, ident) = if input.peek(Token![:]) {
+            input.parse::<Token![:]>()?;
+            (Some(first), input.call(Ident::parse_any)?)
+        } else {
+            (None, first)
+        };
+        let content;
+        braced!(content in input);
+        Ok(Self {
+            directive,
+            ident,
+            children: content.parse()?,
         })
     }
 }
@@ -312,5 +382,70 @@ impl Parse for MatchArm {
                 body: Root(vec![body_node]),
             })
         }
+    }
+}
+
+#[cfg(test)]
+mod slot_tests {
+    use quote::quote;
+
+    use super::*;
+
+    #[test]
+    fn rejects_duplicate_and_conflicting_slots() {
+        for (input, expected) in [
+            (
+                quote! { Widget { :footer {} :r#footer {} } },
+                "duplicate named slot",
+            ),
+            (
+                quote! { Widget { :prop:footer {} :prop:footer {} } },
+                "duplicate named slot",
+            ),
+            (
+                quote! { Widget(footer = value) { :footer {} } },
+                "named slot conflicts with an attribute on this tag",
+            ),
+            (
+                quote! { Widget(footer(value)) { :footer {} } },
+                "named slot conflicts with an attribute on this tag",
+            ),
+            (
+                quote! { Widget(prop:footer = value) { :prop:footer {} } },
+                "named slot conflicts with an attribute on this tag",
+            ),
+            (
+                quote! { Widget { :children {} "body" } },
+                "the `children` slot conflicts with unnamed children",
+            ),
+        ] {
+            let Err(err) = syn::parse2::<Root>(input) else {
+                panic!("expected a parse error: {expected}");
+            };
+            assert_eq!(err.to_string(), expected);
+        }
+    }
+
+    #[test]
+    fn slots_belong_to_the_immediately_enclosing_tag() {
+        for input in [
+            quote! { :footer {} },
+            quote! { Widget { if ready { :footer {} } } },
+            quote! { Widget { :outer { :inner {} } } },
+        ] {
+            let Err(err) = syn::parse2::<Root>(input) else {
+                panic!("expected a parse error for misplaced slot");
+            };
+            assert_eq!(
+                err.to_string(),
+                "named slots must be direct children of a tag"
+            );
+        }
+        assert!(
+            syn::parse2::<Root>(quote! {
+                Widget { :outer { Nested { :inner {} } } }
+            })
+            .is_ok()
+        );
     }
 }
