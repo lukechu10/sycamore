@@ -102,9 +102,9 @@ pub mod prelude {
     #[cfg(feature = "web")]
     pub use sycamore_web::{
         Attributes, Children, GlobalAttributes, GlobalBinds, GlobalEvents, GlobalProps,
-        HtmlGlobalAttributes, Indexed, Keyed, NodeRef, SvgGlobalAttributes, View, console_dbg,
-        console_log, create_node_ref, document, extend_element, is_not_ssr, is_ssr, on_mount, tags,
-        window,
+        HtmlGlobalAttributes, Indexed, Keyed, LazyChildren, NodeRef, SvgGlobalAttributes, View,
+        console_dbg, console_log, create_node_ref, document, extend_element, is_not_ssr, is_ssr,
+        on_mount, tags, window,
     };
 
     pub use crate::reactive::*;
