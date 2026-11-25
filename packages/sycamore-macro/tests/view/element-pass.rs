@@ -68,7 +68,7 @@ impl DirectiveWidget {
         setter(self, value)
     }
 
-    fn label(self, _label: &str) -> Self {
+    fn label(self, _key: &str, _label: &str) -> Self {
         self
     }
 
@@ -84,7 +84,7 @@ impl DirectiveWidget {
 fn directives(label: Option<&str>) -> Option<View> {
     // `?` must return from this function, not from a generated closure.
     Some(view! {
-        DirectiveWidget::default(apply:label = label?) {
+        DirectiveWidget::default(apply:label("name",)=label?) {
             :apply:content { p { "Content" } }
         }
     })

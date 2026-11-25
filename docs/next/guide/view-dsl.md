@@ -296,5 +296,9 @@ tag's child list, and the same slot cannot also be set as an attribute.
 
 For a directive, use `:directive:name { ... }`. The macro passes the subtree
 as a separate argument: `.directive(|target, value| target.name(value), subtree)`.
-Directive attributes such as `directive:name = expr` work the same way:
-`expr` is evaluated at the call site, not inside the generated closure.
+Any attribute form can be prefixed with `directive:`, including `directive:name(arg)`
+and `directive:name(arg) = value`. The arguments are evaluated at the call site,
+not inside the generated closure. A directive receives `()` for a setter with
+no arguments, the value itself for one argument, or a tuple for multiple
+arguments. For example, `directive:prop(key) = value` lowers to
+`.directive(|target, args| target.prop(args.0, args.1), (key, value))`.

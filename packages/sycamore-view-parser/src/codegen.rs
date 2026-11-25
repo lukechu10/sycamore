@@ -3,12 +3,12 @@
 //! Implementation note: We are not using the `quote::ToTokens` trait because we need to pass
 //! additional information to the codegen such as which mode (Client, Hydrate, SSR), etc...
 
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::{ToTokens, quote, quote_spanned};
 use syn::spanned::Spanned;
-use syn::{Expr, Pat};
+use syn::{Expr, Ident, Index, Pat};
 
-use crate::ir::{Attribute, DynNode, Node, Root, TagIdent, TagNode, TextNode};
+use crate::ir::{Attribute, AttributeKind, DynNode, Node, Root, TagIdent, TagNode, TextNode};
 
 pub fn expand_root(root: &Root) -> TokenStream {
     let quoted = match &root.0[..] {
@@ -113,29 +113,57 @@ pub fn expand_node(node: &Node) -> TokenStream {
 }
 
 pub fn expand_attribute(attr: &Attribute) -> TokenStream {
-    match attr {
-        Attribute::Plain { ident, value } => {
-            quote_spanned! {ident.span()=> .#ident(#value) }
+    let dir = attr.directive.as_ref();
+    match &attr.kind {
+        AttributeKind::Plain { ident, value } => expand_setter(dir, ident, &[quote! { #value }]),
+        AttributeKind::PlainHyphenated { ident, value }
+        | AttributeKind::PlainQuoted { ident, value } => expand_setter(
+            dir,
+            &Ident::new("attr", Span::call_site()),
+            &[quote! { #ident }, quote! { #value }],
+        ),
+        AttributeKind::FnCall { ident, args } => expand_setter(
+            dir,
+            ident,
+            &args
+                .iter()
+                .map(ToTokens::to_token_stream)
+                .collect::<Vec<_>>(),
+        ),
+        AttributeKind::FnCallAssign { ident, args, value } => {
+            let args = args
+                .iter()
+                .chain([value])
+                .map(ToTokens::to_token_stream)
+                .collect::<Vec<_>>();
+            expand_setter(dir, ident, &args)
         }
-        Attribute::PlainHyphenated { ident, value } => {
-            quote_spanned! {ident.span()=> .attr(#ident, #value) }
-        }
-        Attribute::PlainQuoted { ident, value } => {
-            quote_spanned! {ident.span()=> .attr(#ident, #value) }
-        }
-        Attribute::FnCall { ident, args } => {
-            quote_spanned! {ident.span()=> .#ident(#args) }
-        }
-        Attribute::FnCallAssign { ident, args, value } => {
-            quote_spanned! {ident.span()=> .#ident(#args, #value) }
-        }
-        Attribute::Directive { dir, ident, value } => expand_directive(dir, ident, value),
-        Attribute::Spread { value } => quote! { .spread(#value) },
+        AttributeKind::Spread { value } => expand_setter(
+            dir,
+            &Ident::new("spread", Span::call_site()),
+            &[quote! { #value }],
+        ),
     }
 }
 
-fn expand_directive(dir: &syn::Ident, name: &syn::Ident, value: impl ToTokens) -> TokenStream {
-    quote_spanned! {dir.span()=> .#dir(|__tmp, __value| __tmp.#name(__value), #value) }
+fn expand_setter(dir: Option<&Ident>, name: &Ident, args: &[TokenStream]) -> TokenStream {
+    let Some(dir) = dir else {
+        return quote_spanned! {name.span()=> .#name(#(#args),*) };
+    };
+
+    // A directive always receives one payload, evaluated at the call site.
+    match args {
+        [] => quote_spanned! {dir.span()=> .#dir(|__tmp, ()| __tmp.#name(), ()) },
+        [value] => {
+            quote_spanned! {dir.span()=> .#dir(|__tmp, __value| __tmp.#name(__value), #value) }
+        }
+        _ => {
+            let indices = (0..args.len()).map(Index::from);
+            quote_spanned! {dir.span()=>
+                .#dir(|__tmp, __value| __tmp.#name( #(__value.#indices),* ), (#(#args),*))
+            }
+        }
+    }
 }
 
 pub fn expand_component(
@@ -166,11 +194,7 @@ pub fn expand_component(
     let slots_quoted = slots.iter().map(|slot| {
         let name = &slot.ident;
         let children = into_pair_stack(slot.children.0.iter().map(expand_node));
-        if let Some(dir) = &slot.directive {
-            expand_directive(dir, name, children)
-        } else {
-            quote_spanned! {name.span()=> .#name(#children) }
-        }
+        expand_setter(slot.directive.as_ref(), name, &[children])
     });
 
     let build = quote_spanned!(ident.span()=> .build());
@@ -349,6 +373,35 @@ mod tests {
                 .build()
         }};
         assert_eq!(expand_component(&tag).to_string(), expected.to_string());
+    }
+
+    #[test]
+    fn directives_accept_all_attribute_forms() {
+        let tag: TagNode = syn::parse2(quote! {
+            Widget(
+                dir:reset(),
+                dir:label(make_label(),),
+                dir:set(key(), value(),),
+                other:set(key(),)=value(),
+                dir:label()=value(),
+                dir:data-id=value(),
+                dir:"aria-label"=value(),
+                dir:..attrs,
+            )
+        })
+        .unwrap();
+        let actual: TokenStream = tag.attributes.iter().map(expand_attribute).collect();
+        let expected = quote! {
+            .dir(|__tmp, ()| __tmp.reset(), ())
+            .dir(|__tmp, __value| __tmp.label(__value), make_label())
+            .dir(|__tmp, __value| __tmp.set(__value.0, __value.1), (key(), value()))
+            .other(|__tmp, __value| __tmp.set(__value.0, __value.1), (key(), value()))
+            .dir(|__tmp, __value| __tmp.label(__value), value())
+            .dir(|__tmp, __value| __tmp.attr(__value.0, __value.1), ("data-id", value()))
+            .dir(|__tmp, __value| __tmp.attr(__value.0, __value.1), ("aria-label", value()))
+            .dir(|__tmp, __value| __tmp.spread(__value), attrs)
+        };
+        assert_eq!(actual.to_string(), expected.to_string());
     }
 
     #[test]

@@ -65,8 +65,13 @@ impl TagIdent {
     }
 }
 
-/// Represents an attribute on an element or component.
-pub enum Attribute {
+/// Represents an attribute on an element or component, optionally prefixed by `directive:`.
+pub struct Attribute {
+    pub directive: Option<Ident>,
+    pub kind: AttributeKind,
+}
+
+pub enum AttributeKind {
     /// Syntax: `<ident>=<value>`.
     Plain { ident: Ident, value: Expr },
     /// Syntax: `<hyphenated-name>=<value>`.
@@ -82,12 +87,6 @@ pub enum Attribute {
     FnCallAssign {
         ident: Ident,
         args: Punctuated<Expr, Token![,]>,
-        value: Expr,
-    },
-    /// Syntax: `<dir>:<ident>=<value>`.
-    Directive {
-        dir: Ident,
-        ident: Ident,
         value: Expr,
     },
     /// Syntax: `..<value>`

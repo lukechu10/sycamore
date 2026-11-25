@@ -128,17 +128,13 @@ impl Parse for TagNode {
                     if !slot_names.insert((directive.clone(), name.clone())) {
                         return Err(syn::Error::new(slot.ident.span(), "duplicate named slot"));
                     }
-                    if attributes.iter().any(|attr| match (attr, &directive) {
-                        (
-                            Attribute::Plain { ident, .. }
-                            | Attribute::FnCall { ident, .. }
-                            | Attribute::FnCallAssign { ident, .. },
-                            None,
-                        ) => ident.unraw() == name,
-                        (Attribute::Directive { dir, ident, .. }, Some(directive)) => {
-                            dir.unraw() == *directive && ident.unraw() == name
-                        }
-                        _ => false,
+                    if attributes.iter().any(|attr| {
+                        attr.directive.as_ref().map(Ident::unraw) == directive
+                            && matches!(&attr.kind,
+                                AttributeKind::Plain { ident, .. }
+                                | AttributeKind::FnCall { ident, .. }
+                                | AttributeKind::FnCallAssign { ident, .. }
+                                if ident.unraw() == name)
                     }) {
                         return Err(syn::Error::new(
                             slot.ident.span(),
@@ -214,6 +210,22 @@ impl Parse for TagIdent {
 
 impl Parse for Attribute {
     fn parse(input: ParseStream) -> Result<Self> {
+        let directive = if input.peek(Ident::peek_any) && input.peek2(Token![:]) {
+            let dir = input.call(Ident::parse_any)?;
+            input.parse::<Token![:]>()?;
+            Some(dir)
+        } else {
+            None
+        };
+        Ok(Self {
+            directive,
+            kind: input.parse()?,
+        })
+    }
+}
+
+impl Parse for AttributeKind {
+    fn parse(input: ParseStream) -> Result<Self> {
         let lookahead = input.lookahead1();
         if lookahead.peek(Token![..]) {
             let _2dot = input.parse::<Token![..]>()?;
@@ -250,20 +262,10 @@ impl Parse for Attribute {
                     Ok(Self::FnCall { ident, args })
                 }
             } else {
-                let ident: Ident = input.call(Ident::parse_any)?;
-
-                if input.peek(Token![:]) {
-                    let _colon: Token![:] = input.parse()?;
-                    let dir = ident;
-                    let ident = input.call(Ident::parse_any)?;
-                    let _eq = input.parse::<Token![=]>()?;
-                    let value = input.parse()?;
-                    Ok(Self::Directive { dir, ident, value })
-                } else {
-                    let _eq = input.parse::<Token![=]>()?;
-                    let value = input.parse()?;
-                    Ok(Self::Plain { ident, value })
-                }
+                let ident = input.call(Ident::parse_any)?;
+                let _eq = input.parse::<Token![=]>()?;
+                let value = input.parse()?;
+                Ok(Self::Plain { ident, value })
             }
         } else if lookahead.peek(LitStr) {
             let ident: String = <LitStr as Parse>::parse(input).map(|s| s.value())?;
@@ -412,6 +414,10 @@ mod slot_tests {
             ),
             (
                 quote! { Widget(prop:footer = value) { :prop:footer {} } },
+                "named slot conflicts with an attribute on this tag",
+            ),
+            (
+                quote! { Widget(prop:footer(key)=value) { :prop:footer {} } },
                 "named slot conflicts with an attribute on this tag",
             ),
             (
