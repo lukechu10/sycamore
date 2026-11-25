@@ -24,8 +24,10 @@ pub fn CommentView(comment: Comment) -> View {
         let sub_comments_view = View::from(
             sub_comments
                 .into_iter()
-                .map(|comment| view! {
-                    CommentView(comment=comment)
+                .map(|comment| {
+                    view! {
+                        CommentView(comment=comment)
+                    }
                 })
                 .collect::<Vec<View>>(),
         );
