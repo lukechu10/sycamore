@@ -3,9 +3,10 @@ use sycamore::prelude::*;
 #[component]
 pub fn NavLink(href: &'static str, title: &'static str) -> View {
     view! {
-        a(class="rounded-md px-2 py-1 font-medium text-slate-600 hover:bg-emerald-50 hover:text-emerald-800", href=href) {
-            (title)
-        }
+        a(
+            class="rounded-md px-2 py-1 font-medium text-slate-600 hover:bg-emerald-50 hover:text-emerald-800",
+            href=href,
+        ) { (title) }
     }
 }
 
@@ -13,7 +14,9 @@ pub fn NavLink(href: &'static str, title: &'static str) -> View {
 pub fn Header() -> View {
     view! {
         header(class="border-b border-slate-200 bg-white") {
-            nav(class="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 text-sm sm:gap-x-5 sm:px-6") {
+            nav(
+                class="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 text-sm sm:gap-x-5 sm:px-6",
+            ) {
                 a(
                     href="/",
                     aria-label="Hacker News home",

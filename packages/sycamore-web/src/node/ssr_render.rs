@@ -20,7 +20,7 @@ pub enum SsrMode {
 
 /// Render a [`View`] into a static [`String`]. Useful for rendering to a string on the server side.
 #[must_use]
-pub fn render_to_string(view: impl Into<Children>) -> String {
+pub fn render_to_string(view: impl Into<LazyChildren>) -> String {
     is_not_ssr! {
         let _ = view;
         panic!("`render_to_string` only available in SSR mode");
@@ -46,7 +46,7 @@ pub fn render_to_string(view: impl Into<Children>) -> String {
 ///
 /// Implementation detail of [`render_to_string`].
 #[must_use]
-pub fn render_to_string_in_scope(view: impl Into<Children>) -> String {
+pub fn render_to_string_in_scope(view: impl Into<LazyChildren>) -> String {
     is_not_ssr! {
         let _ = view;
         panic!("`render_to_string_in_scope` only available in SSR mode");
@@ -89,7 +89,7 @@ pub fn render_to_string_in_scope(view: impl Into<Children>) -> String {
 /// ```
 #[must_use]
 #[cfg(feature = "suspense")]
-pub async fn render_to_string_await_suspense(f: impl Into<Children>) -> String {
+pub async fn render_to_string_await_suspense(f: impl Into<LazyChildren>) -> String {
     is_not_ssr! {
         let _ = f;
         panic!("`render_to_string` only available in SSR mode");
@@ -199,7 +199,7 @@ pub async fn render_to_string_await_suspense(f: impl Into<Children>) -> String {
 /// ```
 #[cfg(feature = "suspense")]
 pub fn render_to_string_stream(
-    view: impl Into<Children>,
+    view: impl Into<LazyChildren>,
 ) -> impl futures::Stream<Item = String> + Send {
     is_not_ssr! {
         let _ = view;

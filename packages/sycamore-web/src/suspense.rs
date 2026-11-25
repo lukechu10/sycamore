@@ -41,8 +41,8 @@ use crate::*;
 #[component]
 pub fn Suspense(
     /// The fallback [`View`] to display while the child nodes are being awaited.
-    fallback: Children,
-    children: Children,
+    fallback: LazyChildren,
+    children: LazyChildren,
     /// The component will automatically update this signal with the `is_loading` state.
     ///
     /// This is only updated in non-SSR mode.
@@ -169,8 +169,8 @@ is_not_ssr! {
 #[component]
 pub fn Transition(
     /// The fallback [`View`] to display while the child nodes are being awaited.
-    fallback: Children,
-    children: Children,
+    fallback: LazyChildren,
+    children: LazyChildren,
     /// The component will automatically update this signal with the `is_loading` state.
     ///
     /// This is only updated in non-SSR mode.
@@ -179,7 +179,7 @@ pub fn Transition(
     view! {
         Suspense(
             fallback=fallback,
-            children=Children::new(move || {
+            children=LazyChildren::new(move || {
                 view! {
                     TransitionInner(children=children, set_is_loading=set_is_loading)
                 }
@@ -191,7 +191,7 @@ pub fn Transition(
 /// Only trigger outer suspense on initial render. In subsequent renders, capture the suspense
 /// scope.
 #[component]
-fn TransitionInner(children: Children, mut set_is_loading: Callback<bool>) -> View {
+fn TransitionInner(children: LazyChildren, mut set_is_loading: Callback<bool>) -> View {
     // We create a detached suspense scope here to not create a deadlock with the outer
     // suspense.
     let (children, scope) = create_detached_suspense_scope(move || children.call());

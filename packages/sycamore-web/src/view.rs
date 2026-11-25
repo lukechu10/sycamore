@@ -3,7 +3,7 @@
 use std::fmt;
 
 use smallvec::{SmallVec, smallvec};
-use sycamore_core::{Build, BuildFromFn, Children};
+use sycamore_core::{Build, BuildFromFn};
 use sycamore_reactive::Signal;
 
 use crate::*;
@@ -179,7 +179,13 @@ impl Build<View> for Option<View> {
     }
 }
 
-impl Build<View> for Children<View> {
+impl Build<View> for Children {
+    fn build(self) -> View {
+        self.view
+    }
+}
+
+impl Build<View> for LazyChildren {
     fn build(self) -> View {
         self.call()
     }

@@ -21,8 +21,7 @@ fn CreateRAF() -> View {
 
 #[component]
 fn Tweened() -> View {
-    let progress =
-        create_tweened_signal([0.0f32, 1.0], Duration::from_millis(250), easing::quad_out);
+    let value = create_tweened_signal([0.0f32, 1.0], Duration::from_millis(250), easing::quad_out);
 
     view! {
         div {
@@ -34,14 +33,14 @@ fn Tweened() -> View {
                 }}
                 "#
             }
-            progress(prop("value")=move || progress.get()[0])
-            progress(prop("value")=move || progress.get()[1])
+            progress(prop("value")=move || value.get()[0])
+            progress(prop("value")=move || value.get()[1])
 
-            button(on_click=move |_| progress.set([0.0, 1.0])) { "0%" }
-            button(on_click=move |_| progress.set([0.25, 0.75])) { "25%" }
-            button(on_click=move |_| progress.set([0.5, 0.5])) { "50%" }
-            button(on_click=move |_| progress.set([0.75, 0.25])) { "75%" }
-            button(on_click=move |_| progress.set([1.0, 0.0])) { "100%" }
+            button(on_click=move |_| value.set([0.0, 1.0])) { "0%" }
+            button(on_click=move |_| value.set([0.25, 0.75])) { "25%" }
+            button(on_click=move |_| value.set([0.5, 0.5])) { "50%" }
+            button(on_click=move |_| value.set([0.75, 0.25])) { "75%" }
+            button(on_click=move |_| value.set([1.0, 0.0])) { "100%" }
         }
     }
 }

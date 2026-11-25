@@ -9,7 +9,7 @@ use crate::*;
 /// This is useful when wrapping parts of your app that are not intended to be server-side
 /// rendered, e.g. highly interactive components such as graphs, etc...
 #[component]
-pub fn NoSsr(children: Children) -> View {
+pub fn NoSsr(children: LazyChildren) -> View {
     is_ssr! {
         let _ = children;
         view! {
@@ -41,7 +41,7 @@ pub fn NoSsr(children: Children) -> View {
 /// However, this component will still be rendered on the client side if it is created after the
 /// initial hydration phase is over, e.g. navigating to a new page with a `NoHydrate` component.
 #[component]
-pub fn NoHydrate(children: Children) -> View {
+pub fn NoHydrate(children: LazyChildren) -> View {
     if !ConstructionMode::current().is_hydrating() {
         return children.call();
     }
@@ -70,11 +70,11 @@ pub fn NoHydrate(children: Children) -> View {
 #[component]
 pub fn CargoSycamoreMeta() -> View {
     is_ssr! {
-        use crate::tags::HtmlMetaAttributes;
+        use crate::tags::*;
 
         view! {
             NoHydrate {
-                meta(name="cargo-sycamore-bootstrap")
+                (move || view! { meta(name="cargo-sycamore-bootstrap") })
             }
         }
     }
@@ -104,11 +104,13 @@ pub fn generate_hydration_script(mode: SsrMode) -> &'static str {
 #[component]
 pub fn HydrationScript() -> View {
     is_ssr! {
+        use crate::tags::*;
+
         let mode = use_context::<SsrMode>();
-        let script = generate_hydration_script(mode);
+        let hydration_script = generate_hydration_script(mode);
         view! {
             NoHydrate {
-                script(dangerously_set_inner_html=script)
+                (move || view! { script(dangerously_set_inner_html=hydration_script) })
             }
         }
     }

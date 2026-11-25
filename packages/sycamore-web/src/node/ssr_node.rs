@@ -320,7 +320,7 @@ mod tests {
     use super::*;
     use crate::tags::*;
 
-    fn check(view: impl Into<Children>, expect: Expect) {
+    fn check(view: impl Into<LazyChildren>, expect: Expect) {
         let actual = render_to_string(view);
         expect.assert_eq(&actual);
     }
@@ -351,7 +351,9 @@ mod tests {
         check(
             || {
                 sycamore_macro::view! {
-                    NoHydrate { div { p { "Static" } } }
+                    NoHydrate {
+                        (move || view! { div { p { "Static" } } })
+                    }
                     p { "Hydratable" }
                 }
             },

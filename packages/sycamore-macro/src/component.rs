@@ -8,7 +8,7 @@ use syn::token::Comma;
 use syn::{FnArg, ItemFn, Macro, Meta, Pat, Result, Signature, Token, Type, parse_quote};
 
 /// Prop types that automatically receive `#[prop(default, into)]` unless marked `required`.
-const AUTOMATIC_PROP_TYPES: &[&str] = &["Children", "Attributes", "Callback"];
+const AUTOMATIC_PROP_TYPES: &[&str] = &["Children", "LazyChildren", "Attributes", "Callback"];
 
 /// Infer prop settings before handing the function to the builder macro.
 fn preprocess_props(f: &mut ItemFn) -> Result<()> {
