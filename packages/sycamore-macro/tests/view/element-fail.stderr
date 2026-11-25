@@ -24,12 +24,6 @@ error: expected a valid node
 17 |         let _: View = view! { * };
    |                               ^
 
-error[E0425]: cannot find function `unknownelement` in module `::sycamore::rt::tags`
-  --> tests/view/element-fail.rs:11:13
-   |
-11 |             unknownelement {}
-   |             ^^^^^^^^^^^^^^ not found in `::sycamore::rt::tags`
-
 error[E0425]: cannot find value `unknown_attributes` in this scope
   --> tests/view/element-fail.rs:14:19
    |
@@ -39,9 +33,11 @@ error[E0425]: cannot find value `unknown_attributes` in this scope
 error[E0599]: no method named `unknown` found for struct `HtmlButton` in the current scope
  --> tests/view/element-fail.rs:8:20
   |
-7 |           let _: View = view! {
-  |  _______________________-
-8 | |             button(unknown:directive="123")
-  | |                   -^^^^^^^ method not found in `HtmlButton`
-  | |___________________|
-  |
+8 |             button(unknown:directive="123")
+  |                    ^^^^^^^ method not found in `HtmlButton`
+
+error[E0425]: cannot find function `unknownelement` in this scope
+  --> tests/view/element-fail.rs:11:13
+   |
+11 |             unknownelement {}
+   |             ^^^^^^^^^^^^^^ not found in this scope
