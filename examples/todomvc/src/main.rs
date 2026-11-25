@@ -147,10 +147,13 @@ fn App() -> View {
         div(class="todomvc-wrapper") {
             section(class="todoapp") {
                 Header {}
-                ((!todos_empty.get()).then(|| view! {
-                    List {}
-                    Footer {}
-                }))
+                ((!todos_empty.get())
+                    .then(|| {
+                        view! {
+                            List {}
+                            Footer {}
+                        }
+                    }))
             }
             Copyright {}
         }
@@ -334,8 +337,10 @@ pub fn List() -> View {
             ul(class="todo-list") {
                 Keyed(
                     list=filtered_todos,
-                    view=|todo| view! {
-                        Item(todo=todo)
+                    view=|todo| {
+                        view! {
+                            Item(todo=todo)
+                        }
                     },
                     key=|todo| todo.with(|todo| todo.id),
                 )
@@ -388,7 +393,9 @@ pub fn Footer() -> View {
             }
 
             if has_completed_todos.get() {
-                button(class="clear-completed", on_click=handle_clear_completed) { "Clear completed" }
+                button(class="clear-completed", on_click=handle_clear_completed) {
+                    "Clear completed"
+                }
             }
         }
     }

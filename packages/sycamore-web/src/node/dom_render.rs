@@ -2,13 +2,13 @@ use super::*;
 
 /// Render a [`View`] into the DOM.
 /// Alias for [`render_to`] with `parent` being the `<body>` tag.
-pub fn render(view: impl Into<Children>) {
+pub fn render(view: impl Into<LazyChildren>) {
     render_to(view, &document().body().unwrap());
 }
 
 /// Render a [`View`] under a `parent` node.
 /// For rendering under the `<body>` tag, use [`render`] instead.
-pub fn render_to(view: impl Into<Children>, parent: &web_sys::Node) {
+pub fn render_to(view: impl Into<LazyChildren>, parent: &web_sys::Node) {
     // Do not call the destructor function, effectively leaking the scope.
     let _ = create_root(|| render_in_scope(view, parent));
 }
@@ -25,7 +25,7 @@ pub fn render_to(view: impl Into<Children>, parent: &web_sys::Node) {
 ///
 /// It is expected that this function will be called inside a reactive root, usually created using
 /// [`create_root`].
-pub fn render_in_scope(view: impl Into<Children>, parent: &web_sys::Node) {
+pub fn render_in_scope(view: impl Into<LazyChildren>, parent: &web_sys::Node) {
     if is_ssr!() {
         panic!("`render_in_scope` is not available in SSR mode");
     } else {
@@ -40,7 +40,7 @@ pub fn render_in_scope(view: impl Into<Children>, parent: &web_sys::Node) {
 /// Alias for [`hydrate_to`] with `parent` being the `<body>` tag.
 /// For rendering without hydration, use [`render`](super::render) instead.
 #[cfg(feature = "hydrate")]
-pub fn hydrate(view: impl Into<Children>) {
+pub fn hydrate(view: impl Into<LazyChildren>) {
     hydrate_to(view, &document().body().unwrap());
 }
 
@@ -51,7 +51,7 @@ pub fn hydrate(view: impl Into<Children>) {
 /// For rendering without hydration, use [`render`](super::render) instead.
 /// With streaming SSR, call this after the response has finished applying its fragments.
 #[cfg(feature = "hydrate")]
-pub fn hydrate_to(view: impl Into<Children>, parent: &web_sys::Node) {
+pub fn hydrate_to(view: impl Into<LazyChildren>, parent: &web_sys::Node) {
     // Do not call the destructor function, effectively leaking the scope.
     let _ = create_root(|| hydrate_in_scope(view, parent));
 }
@@ -65,7 +65,7 @@ pub fn hydrate_to(view: impl Into<Children>, parent: &web_sys::Node) {
 /// It is expected that this function will be called inside a reactive root, usually created using
 /// [`create_root`].
 #[cfg(feature = "hydrate")]
-pub fn hydrate_in_scope(view: impl Into<Children>, parent: &web_sys::Node) {
+pub fn hydrate_in_scope(view: impl Into<LazyChildren>, parent: &web_sys::Node) {
     is_ssr! {
         let _ = view;
         let _ = parent;

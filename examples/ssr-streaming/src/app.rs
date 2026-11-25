@@ -14,7 +14,7 @@ async fn sleep_ms(ms: u64) {
 async fn Delayed(delay_ms: u64, children: Children) -> View {
     sleep_ms(delay_ms).await;
     view! {
-        (children)
+        (children.view)
     }
 }
 
@@ -41,12 +41,22 @@ fn App() -> View {
         p { strong { "SSR Streaming Demo" } }
         Indexed(
             list=delays.to_vec(),
-            view=|delay_ms| view! {
-                Suspense(
-                    fallback=|| view! {
-                        p { "Loading..." }
-                    },
-                ) { DelayedText(delay_ms=delay_ms) }
+            view=|delay_ms| {
+                view! {
+                    Suspense(
+                        fallback=|| {
+                            view! {
+                                p { "Loading..." }
+                            }
+                        },
+                    ) {
+                        (move || {
+                            view! {
+                                DelayedText(delay_ms=delay_ms)
+                            }
+                        })
+                    }
+                }
             },
         )
         p { strong { "A lot of suspense" } }
@@ -59,46 +69,90 @@ fn App() -> View {
             }
             Indexed(
                 list=(0..100).collect::<Vec<_>>(),
-                view=|x| view! {
-                    Suspense { Delayed(delay_ms=x * 5) { span {} } }
+                view=|x| {
+                    view! {
+                        Suspense {
+                            (move || {
+                                view! {
+                                    Delayed(delay_ms=x * 5) { span {} }
+                                }
+                            })
+                        }
+                    }
                 },
             )
         }
         p { strong { "Nested Suspense" } }
         Suspense(
-            fallback=|| view! {
-                p { "Loading outer..." }
-                p { "..." }
+            fallback=|| {
+                view! {
+                    p { "Loading outer..." }
+                    p { "..." }
+                }
             },
         ) {
-            DelayedText(delay_ms=1000)
-            Suspense(
-                fallback=|| view! {
-                    p { "Loading inner..." }
-                },
-            ) { DelayedText(delay_ms=2000) }
+            (move || {
+                view! {
+                    DelayedText(delay_ms=1000)
+                    Suspense(
+                        fallback=|| {
+                            view! {
+                                p { "Loading inner..." }
+                            }
+                        },
+                    ) {
+                        (move || {
+                            view! {
+                                DelayedText(delay_ms=2000)
+                            }
+                        })
+                    }
+                }
+            })
         }
         p { strong { "Nested Suspense with inner finishing first" } }
         Suspense(
-            fallback=|| view! {
-                p { "Loading outer..." }
-                p { "..." }
+            fallback=|| {
+                view! {
+                    p { "Loading outer..." }
+                    p { "..." }
+                }
             },
         ) {
-            DelayedText(delay_ms=2000)
-            Suspense(
-                fallback=|| view! {
-                    p { "Loading inner..." }
-                },
-            ) { DelayedText(delay_ms=1000) }
+            (move || {
+                view! {
+                    DelayedText(delay_ms=2000)
+                    Suspense(
+                        fallback=|| {
+                            view! {
+                                p { "Loading inner..." }
+                            }
+                        },
+                    ) {
+                        (move || {
+                            view! {
+                                DelayedText(delay_ms=1000)
+                            }
+                        })
+                    }
+                }
+            })
         }
 
         p { strong { "Suspense content is hydrated" } }
         Suspense(
-            fallback=|| view! {
-                "Loading interactive content..."
+            fallback=|| {
+                view! {
+                    "Loading interactive content..."
+                }
             },
-        ) { Delayed(delay_ms=1000) { CounterButton {} } }
+        ) {
+            (move || {
+                view! {
+                    Delayed(delay_ms=1000) { CounterButton {} }
+                }
+            })
+        }
     }
 }
 
@@ -109,15 +163,19 @@ pub fn Main() -> View {
             head {
                 sycamore::web::HydrationScript {}
                 sycamore::web::NoHydrate {
-                    link(
-                        rel="preload",
-                        href="/dist/public/ssr-streaming_bg.wasm",
-                        r#as="fetch",
-                        crossorigin="",
-                    )
-                    script(r#type="module") {
-                        "import init from '/dist/public/ssr-streaming.js'; const wasm = await init({{}});"
-                    }
+                    (move || {
+                        view! {
+                            link(
+                                rel="preload",
+                                href="/dist/public/ssr-streaming_bg.wasm",
+                                r#as="fetch",
+                                crossorigin="",
+                            )
+                            script(r#type="module") {
+                                "import init from '/dist/public/ssr-streaming.js'; const wasm = await init({{}});"
+                            }
+                        }
+                    })
                 }
                 sycamore::web::CargoSycamoreMeta {}
             }

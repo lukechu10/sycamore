@@ -32,7 +32,13 @@ async fn csr_reveals_content_when_ready() {
     let c = test_container();
     let (pending, ready) = gate();
     sycamore::render_to(
-        move || view! { Suspense(fallback=|| "fallback", children=Children::new(move || delayed_text(pending))) },
+        move || {
+            view! {
+                Suspense(fallback=|| "fallback") {
+                    (move || delayed_text(pending))
+                }
+            }
+        },
         &c,
     );
     assert_text_content!(c, "fallback");
@@ -59,10 +65,12 @@ fn retains_mounted_content_while_a_new_task_is_pending() {
         sycamore::render_in_scope(
             move || {
                 view! {
-                    Suspense(fallback=|| "fallback", children=Children::new(move || {
-                        content_scope.set(Some(use_current_scope()));
-                        view! { button { "stable" } (value_signal) }
-                    }))
+                    Suspense(fallback=|| "fallback") {
+                        (move || {
+                            content_scope.set(Some(use_current_scope()));
+                            view! { button { "stable" } (value_signal) }
+                        })
+                    }
                 }
             },
             &c,
@@ -92,7 +100,9 @@ async fn sync_hydration_adopts_fallback_then_reveals_content() {
     sycamore::hydrate_to(
         move || {
             view! {
-                Suspense(fallback=|| view! { p { "fallback" } }, children=Children::new(move || delayed_text(pending)))
+                Suspense(fallback=|| view! { p { "fallback" } }) {
+                    (move || delayed_text(pending))
+                }
             }
         },
         &c,
@@ -135,8 +145,9 @@ async fn blocking_hydration_preserves_content_and_resolves_in_any_order() {
             view! {
                 Suspense(
                     fallback=|| "fallback",
-                    children=Children::new(move || View::from((interactive(pending_first), interactive(pending_second)))),
-                )
+                ) {
+                    (move || (interactive(pending_first), interactive(pending_second)))
+                }
             }
         },
         &c,
@@ -264,7 +275,11 @@ async fn nested_stream_fragments_patch_and_hydrate_in_place() {
         move || {
             view! {
                 Suspense(fallback=|| "outer fallback") {
-                    Suspense(fallback=|| "inner fallback", children=Children::new(move || interactive(pending)))
+                    (move || view! {
+                        Suspense(fallback=|| "inner fallback") {
+                            (move || interactive(pending))
+                        }
+                    })
                 }
             }
         },

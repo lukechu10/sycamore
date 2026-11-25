@@ -10,7 +10,7 @@ fn CustomButton(
     console_log!("Intercepted `id` attribute: {:?}", id.get_clone());
 
     view! {
-        button(id=id, ..attributes) { (children) }
+        button(id=id, ..attributes) { (children.view) }
     }
 }
 

@@ -49,11 +49,16 @@ fn App() -> View {
     view! {
         div {
             div {
-                button(on_click=move |_| update(Tab::One), disabled=move || tab.get() == Tab::One) { "One" }
-                button(on_click=move |_| update(Tab::Two), disabled=move || tab.get() == Tab::Two) { "Two" }
-                button(on_click=move |_| update(Tab::Three), disabled=move || tab.get() == Tab::Three) {
-                    "Three"
+                button(on_click=move |_| update(Tab::One), disabled=move || tab.get() == Tab::One) {
+                    "One"
                 }
+                button(on_click=move |_| update(Tab::Two), disabled=move || tab.get() == Tab::Two) {
+                    "Two"
+                }
+                button(
+                    on_click=move |_| update(Tab::Three),
+                    disabled=move || tab.get() == Tab::Three,
+                ) { "Three" }
             }
             p {
                 "Current State: "
@@ -76,26 +81,38 @@ fn App() -> View {
                 div(style="flex: 1 1 0%") {
                     p { strong { "Suspense" } }
                     Suspense(
-                        fallback=|| view! {
-                            p { "Loading..." }
+                        fallback=|| {
+                            view! {
+                                p { "Loading..." }
+                            }
                         },
                     ) {
-                        if let Some(content) = content.get() {
-                            TabContent(content=content)
-                        }
+                        (move || {
+                            view! {
+                                if let Some(content) = content.get() {
+                                    TabContent(content=content)
+                                }
+                            }
+                        })
                     }
                 }
 
                 div(style="flex: 1 1 0%") {
                     p { strong { "Transition" } }
                     Transition(
-                        fallback=|| view! {
-                            p { "Loading..." }
+                        fallback=|| {
+                            view! {
+                                p { "Loading..." }
+                            }
                         },
                     ) {
-                        if let Some(content) = content.get() {
-                            TabContent(content=content)
-                        }
+                        (move || {
+                            view! {
+                                if let Some(content) = content.get() {
+                                    TabContent(content=content)
+                                }
+                            }
+                        })
                     }
                 }
             }

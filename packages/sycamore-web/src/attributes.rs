@@ -163,8 +163,9 @@ mod tests {
     use expect_test::{Expect, expect};
 
     use super::*;
+    use crate::tags::*;
 
-    fn check(view: impl Into<Children>, expect: Expect) {
+    fn check(view: impl Into<LazyChildren>, expect: Expect) {
         let actual = render_to_string(view);
         expect.assert_eq(&actual);
     }

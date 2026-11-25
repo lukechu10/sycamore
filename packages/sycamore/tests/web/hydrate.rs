@@ -1,10 +1,11 @@
 use expect_test::{Expect, expect};
 use sycamore::web::Portal;
 use sycamore::web::tags::*;
+use sycamore_web::LazyChildren;
 
 use super::*;
 
-fn check(actual: impl Into<Children>, expect: &Expect) {
+fn check(actual: impl Into<LazyChildren>, expect: &Expect) {
     expect.assert_eq(&sycamore::render_to_string(actual));
 }
 
@@ -288,7 +289,7 @@ mod no_hydrate {
     fn v(count: MutSignal<i32>) -> View {
         view! {
             HydrationScript {}
-            NoHydrate { p { "Server only" } }
+            NoHydrate { (move || view! { p { "Server only" } }) }
             NoHydrate {}
             button(on_click=move |_| count.set(count.get_untracked() + 1)) { (count) }
         }
@@ -335,7 +336,10 @@ mod no_hydrate {
     #[wasm_bindgen_test]
     fn renders_children_in_csr() {
         let c = test_container();
-        sycamore::render_to(|| view! { NoHydrate { p { "Rendered in CSR" } } }, &c);
+        sycamore::render_to(
+            || view! { NoHydrate { (move || view! { p { "Rendered in CSR" } }) } },
+            &c,
+        );
         assert_eq!(c.inner_html(), "<p>Rendered in CSR</p>");
     }
 }
@@ -352,7 +356,7 @@ mod no_ssr {
         view! {
             button(on_click=move |_| count.set(count.get_untracked() + 1)) { "Increment" }
             "before"
-            NoSsr { (count) }
+            NoSsr { (move || view! { (count) }) }
             "after"
         }
     }

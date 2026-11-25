@@ -27,15 +27,11 @@ error[E0425]: cannot find function, tuple struct or tuple variant `UnknownCompon
 error[E0599]: no method named `not_a_prop` found for struct `__builder_Component` in the current scope
   --> tests/view/component-fail.rs:36:23
    |
-11 |   #[component]
-   |   ------------ method `not_a_prop` not found for this struct
+11 | #[component]
+   | ------------ method `not_a_prop` not found for this struct
 ...
-35 |           let _: View = view! {
-   |  _______________________-
-36 | |             Component(not_a_prop=1)
-   | |                      -^^^^^^^^^^ method not found in `__builder_Component`
-   | |______________________|
-   |
+36 |             Component(not_a_prop=1)
+   |                       ^^^^^^^^^^ method not found in `__builder_Component`
 
 error[E0277]: required field `prop` of type `&'static str` is missing
   --> tests/view/component-fail.rs:40:13

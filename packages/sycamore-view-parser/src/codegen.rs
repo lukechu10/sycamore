@@ -4,59 +4,49 @@
 //! additional information to the codegen such as which mode (Client, Hydrate, SSR), etc...
 
 use proc_macro2::TokenStream;
-use quote::{quote, quote_spanned};
+use quote::{ToTokens, quote, quote_spanned};
 use syn::spanned::Spanned;
 use syn::{Expr, Pat};
 
 use crate::ir::{Attribute, DynNode, Node, Root, TagIdent, TagNode, TextNode};
 
 pub fn expand_root(root: &Root) -> TokenStream {
-    match &root.0[..] {
+    let quoted = match &root.0[..] {
         [] => quote! {
-            ::sycamore::rt::View::new()
+            ().build()
         },
-        [node] => expand_node(node),
+        [node] => {
+            let node = expand_node(node);
+            quote_spanned! { node.span()=> #node.build() }
+        }
         nodes => {
-            let nodes = nodes.iter().map(expand_node);
-            quote! {
-                ::sycamore::rt::Build::<::sycamore::rt::View>::build(::std::vec![#(#nodes),*])
+            let nodes = into_pair_stack(nodes.iter().map(expand_node));
+            quote_spanned! { nodes.span()=>
+                #nodes.build()
             }
         }
-    }
+    };
+    quote! {{
+        use ::sycamore::rt::Build as _;
+        #quoted
+    }}
 }
 
 /// Generate a `View` from a `Node`.
 pub fn expand_node(node: &Node) -> TokenStream {
     match node {
-        Node::Tag(tag) => {
-            if is_component(&tag.ident) {
-                expand_component(tag)
-            } else {
-                expand_element(tag)
-            }
-        }
+        Node::Tag(tag) => expand_component(tag),
         Node::Text(TextNode { value, format_args }) => match format_args {
-            Some(args) => quote! {
-                ::sycamore::rt::View::from_dynamic(move || {
-                    ::std::format!(#value #(, #args)*)
-                })
+            Some(args) => quote_spanned! { value.span()=>
+                (move || ::std::format!(#value #(, #args)*)).build()
             },
-            None => quote! {
-                ::sycamore::rt::Build::<::sycamore::rt::View>::build(#value)
-            },
+            None => quote_spanned! { value.span()=> #value.build() },
         },
         Node::Dyn(DynNode { value }) => {
-            let is_dynamic = is_dyn(value);
-            if is_dynamic {
-                quote! {
-                    ::sycamore::rt::View::from_dynamic(
-                        move || ::sycamore::rt::Build::<::sycamore::rt::View>::build(#value)
-                    )
-                }
+            if is_dyn(value) {
+                quote_spanned! { value.span()=> (move || #value.build()).build() }
             } else {
-                quote! {
-                    ::sycamore::rt::Build::<::sycamore::rt::View>::build(#value)
-                }
+                value.to_token_stream()
             }
         }
         Node::If(if_node) => {
@@ -68,20 +58,20 @@ pub fn expand_node(node: &Node) -> TokenStream {
                 .else_branch
                 .as_ref()
                 .map(expand_root)
-                .unwrap_or_else(|| quote! { ::sycamore::rt::View::new() });
+                .unwrap_or_else(|| quote_spanned! { cond.span()=> ().build() });
 
             if is_dynamic {
-                quote! {
-                    ::sycamore::rt::View::from_dynamic(move || {
+                quote_spanned! { cond.span()=>
+                    (move || {
                         if #cond {
                             #if_root
                         } else {
                             #else_root
                         }
-                    })
+                    }).build()
                 }
             } else {
-                quote! {
+                quote_spanned! { cond.span()=>
                     if #cond {
                         #if_root
                     } else {
@@ -98,55 +88,27 @@ pub fn expand_node(node: &Node) -> TokenStream {
             let arms = match_node.arms.iter().map(|arm| {
                 let pat = &arm.pat;
                 let arm_root = expand_root(&arm.body);
-                quote! {
+                quote_spanned! { arm.pat.span()=>
                     #pat => #arm_root
                 }
             });
 
             if is_dynamic {
-                quote! {
-                    ::sycamore::rt::View::from_dynamic(move || {
+                quote_spanned! { match_expr.span()=>
+                    (move || {
                         match #match_expr {
                             #(#arms),*
                         }
-                    })
+                    }).build()
                 }
             } else {
-                quote! {
+                quote_spanned! { match_expr.span()=>
                     match #match_expr {
                         #(#arms),*
                     }
                 }
             }
         }
-    }
-}
-
-pub fn expand_element(element: &TagNode) -> TokenStream {
-    let TagNode {
-        ident,
-        props,
-        children,
-    } = element;
-
-    let attributes = props.iter().map(expand_attribute);
-
-    let children = children.0.iter().map(expand_node).collect::<Vec<_>>();
-
-    match ident {
-        TagIdent::Path(tag) => {
-            assert!(tag.get_ident().is_some(), "elements must be an ident");
-            quote! {
-                ::sycamore::rt::View::from(
-                    ::sycamore::rt::tags::#tag().children(::std::vec![#(#children),*])#(#attributes)*
-                )
-            }
-        }
-        TagIdent::Hyphenated(tag) => quote! {
-            ::sycamore::rt::View::from(
-                ::sycamore::rt::custom_element(#tag).children(::std::vec![#(#children),*])#(#attributes)*
-            )
-        },
     }
 }
 
@@ -183,66 +145,30 @@ pub fn expand_component(
         children,
     }: &TagNode,
 ) -> TokenStream {
-    let ident = match ident {
-        TagIdent::Path(path) => path,
-        TagIdent::Hyphenated(_) => unreachable!("hyphenated tags are not components"),
+    let constructor = match ident {
+        TagIdent::Path(path) => quote_spanned! {path.span()=> #path() },
+        TagIdent::Hyphenated(name) => {
+            quote_spanned! {ident.span()=> ::sycamore::rt::custom_element(#name) }
+        }
     };
 
-    let plain = props
-        .iter()
-        .filter_map(|prop| match &prop {
-            Attribute::Plain { ident, value } => Some((ident, value.clone())),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    let plain_names = plain.iter().map(|(ident, _)| ident);
-    let plain_values = plain.iter().map(|(_, value)| value);
-
-    let other_props = props
-        .iter()
-        .filter(|prop| !matches!(&prop, Attribute::Plain { .. }))
-        .collect::<Vec<_>>();
-    let other_attributes = other_props.iter().copied().map(expand_attribute);
+    let attributes_quoted = props.iter().map(expand_attribute);
 
     let children_quoted = if children.0.is_empty() {
         quote! {}
     } else {
-        let children = expand_root(children);
-        quote! {
-            .children(
-                ::sycamore::rt::Children::new(move || {
-                    #children
-                })
-            )
-        }
+        let children = into_pair_stack(children.0.iter().map(expand_node));
+        quote_spanned! {ident.span()=> .children(#children) }
     };
-    let call = quote_spanned!(ident.span()=> #ident());
+
     let build = quote_spanned!(ident.span()=> .build());
+
     quote! {{
-        #call
-            #(.#plain_names(#plain_values))*
-            #(#other_attributes)*
+        #constructor
+            #(#attributes_quoted)*
             #children_quoted
             #build
     }}
-}
-
-fn is_component(ident: &TagIdent) -> bool {
-    match ident {
-        TagIdent::Path(path) => {
-            path.get_ident().is_none()
-                || path
-                    .get_ident()
-                    .unwrap()
-                    .to_string()
-                    .chars()
-                    .next()
-                    .unwrap()
-                    .is_ascii_uppercase()
-        }
-        // A hyphenated tag is always a custom-element and therefore never a component.
-        TagIdent::Hyphenated(_) => false,
-    }
 }
 
 fn is_dyn(ex: &Expr) -> bool {
@@ -347,6 +273,22 @@ fn is_dyn_block(block: &syn::Block) -> bool {
         }
         syn::Stmt::Item(_) => false,
     })
+}
+
+/// Convert an iterator of `TokenStream` into a `TokenStream` that is a stack of pairs, e.g.:
+/// ```text
+/// a, b, c -> (a, (b, c))
+/// ```
+fn into_pair_stack(iter: impl DoubleEndedIterator<Item = TokenStream>) -> TokenStream {
+    let mut iter = iter.rev();
+    let first = match iter.next() {
+        Some(first) => first,
+        None => return quote! { () },
+    };
+    iter.fold(
+        first,
+        |acc, item| quote_spanned! { item.span()=> (#item, #acc) },
+    )
 }
 
 #[cfg(test)]

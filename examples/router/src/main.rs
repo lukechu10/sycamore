@@ -40,7 +40,7 @@ fn App() -> View {
                             br {}
                             a(href="/server/proxy", rel="external") { "External Server Proxy" }
                         }
-                        main(class="app") {
+                        tags::main(class="app") {
                             match route.get_clone() {
                                 AppRoutes::Home => {
                                     h1 { "Home" }
@@ -54,15 +54,17 @@ fn App() -> View {
                                 AppRoutes::Unit(unit) => {
                                     h1 { "Unit: " (unit) }
                                 },
-                                AppRoutes::QueryParams => ({
-                                    let q = use_search_query("q");
-                                    view! {
-                                        h1 { "Query Params" }
-                                        a(href="?q=a") { "A" }
-                                        a(href="?q=b") { "B" }
-                                        p { "Query: " (q.get_clone().unwrap_or_default()) }
-                                    }
-                                }),
+                                AppRoutes::QueryParams => {
+                                    ({
+                                        let q = use_search_query("q");
+                                        view! {
+                                            h1 { "Query Params" }
+                                            a(href="?q=a") { "A" }
+                                            a(href="?q=b") { "B" }
+                                            p { "Query: " (q.get_clone().unwrap_or_default()) }
+                                        }
+                                    })
+                                },
                                 AppRoutes::NotFound => {
                                     h1 { "Not Found" }
                                 },

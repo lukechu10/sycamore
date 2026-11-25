@@ -34,7 +34,7 @@ pub fn OptionalPropsComponent(optional: Option<u32>) -> View {
 #[component]
 pub fn ComponentWithChildren(children: Children) -> View {
     view! {
-        div { (children) }
+        div { (children.view) }
     }
 }
 
@@ -42,15 +42,10 @@ pub fn ComponentWithChildren(children: Children) -> View {
 pub fn NestedComponentWithChildren(children: Children) -> View {
     view! {
         ComponentWithChildren {
-            (children)
+            (children.view)
             Component {}
         }
     }
-}
-
-#[component]
-pub async fn AsyncComponentWithPropsDestructuring(children: Children) -> View {
-    children.call()
 }
 
 #[component(extend_element!(html:input))]
@@ -122,10 +117,6 @@ fn compile_pass() {
         // input specific attribute.
         let _: View = view! {
             AttributesComponent(value="text")
-        };
-
-        let _: View = view! {
-            AsyncComponentWithPropsDestructuring { Component {} }
         };
 
         let _: View = view! {

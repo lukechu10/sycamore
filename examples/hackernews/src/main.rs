@@ -62,7 +62,7 @@ fn App() -> View {
                 view! {
                     div(class="min-h-screen bg-slate-50 text-slate-900") {
                         components::header::Header {}
-                        main(class="mx-auto max-w-5xl px-4 py-5 sm:px-6 sm:py-8") {
+                        tags::main(class="mx-auto max-w-5xl px-4 py-5 sm:px-6 sm:py-8") {
                             Switch(route=route)
                         }
                     }

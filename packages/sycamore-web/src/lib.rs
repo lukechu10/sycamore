@@ -37,6 +37,7 @@ pub mod utils;
 
 mod attributes;
 mod bind;
+mod children;
 mod components;
 mod elements;
 mod events;
@@ -55,6 +56,7 @@ pub(crate) mod view;
 
 pub use self::attributes::*;
 pub use self::bind::*;
+pub use self::children::*;
 pub use self::components::*;
 pub use self::elements::*;
 pub use self::events::*;
@@ -208,10 +210,6 @@ macro_rules! cfg_not_ssr_item {
         $crate::is_not_ssr! { $item }
     };
 }
-
-/// A type alias for [`Children`](sycamore_core::Children) automatically selecting the correct node
-/// type.
-pub type Children = sycamore_core::Children<View>;
 
 /// Create a new effect, but only if we are not in SSR mode.
 pub fn create_client_effect(f: impl FnMut() + 'static) {
