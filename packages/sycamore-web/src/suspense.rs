@@ -33,7 +33,7 @@ use crate::*;
 /// fn App() -> View {
 ///     view! {
 ///         Suspense(fallback=|| view! { "Loading..." }) {
-///             AsyncComp {}
+///             (AsyncComp)
 ///         }
 ///     }
 /// }

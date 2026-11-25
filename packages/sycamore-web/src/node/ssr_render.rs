@@ -169,7 +169,7 @@ pub async fn render_to_string_await_suspense(f: impl Into<LazyChildren>) -> Stri
 /// fn App() -> View {
 ///     view! {
 ///         Suspense(fallback=|| "Loading...") {
-///             AsyncComponent {}
+///             (AsyncComponent)
 ///         }
 ///     }
 /// }
